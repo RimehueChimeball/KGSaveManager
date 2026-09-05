@@ -21,7 +21,6 @@ web_server.py（本地 Web 服务）、utils.py（DPI）。
 
 import os
 import queue
-import shutil
 import sys
 import threading
 import time
@@ -121,78 +120,92 @@ class KGSaveManager:
         return self.tr.t(key, **kw)
 
     def slot_name(self, index):
-        """槽位文件名前缀：自定义名优先，否则默认 存档N（文件名不翻译）。"""
-        return self.cfg.slot_name(index)
+        """槽位当前显示名：来自存档库文件的真实前缀（文件名不翻译）。
+
+        仅当该槽位有存档文件时才有名字；无文件时返回空串。
+        """
+        if hasattr(self, "slot_info") and index < len(self.slot_info):
+            info = self.slot_info[index]
+            if info.get('exists'):
+                return info.get('name', "")
+        return ""
 
     def _slot_name_text(self, index, exists):
         """槽位名字显示区文案：
-        - 自定义名：原样显示；
-        - 无自定义名且有存档文件：显示默认文件名前缀；
+        - 有存档文件：显示文件名前缀（程序自动读文件名得到）；
         - 无文件：显示“空/empty”占位。"""
-        custom = self.cfg.slot_names.get(str(index), "")
-        if custom:
-            return custom
         if exists:
             return self.slot_name(index)
         return self.t("ui.empty_short")
 
     def slot_label(self, index):
         """槽位列表显示文本：<翻译前缀>NN.名字（前缀随语言，
-        如 zh: 存档01.钢铁 / en: Save01.钢铁）。"""
+        名字 = 磁盘文件名前缀，如 zh: 存档01.钢铁 / en: Save01.钢铁）。"""
         exists = False
         if hasattr(self, "slot_info") and index < len(self.slot_info):
             exists = bool(self.slot_info[index].get('exists'))
         prefix = self.t("sv.slot_prefix")
         return f"{prefix}{index + 1:02d}.{self._slot_name_text(index, exists)}"
 
-    def slot_file_base(self, index):
-        """槽位存档文件名前缀（不含 _N.kgsav）。"""
-        return self.slot_name(index)
+    def slot_default_base(self, index):
+        """槽位无文件时新建存档使用的默认文件名前缀 存档N（不补零）。"""
+        return f"存档{index + 1}"
 
-    def slot_candidates(self, index):
-        """槽位可识别的存档文件名候选（按序检查）。
+    @staticmethod
+    def _parse_slot_file(filename):
+        """解析形如 “任意名_槽位号.kgsav” 的文件名。
 
-        1) 当前规则：f"{槽位名}_{槽位号}.kgsav"（槽位号=index+1，不补零）
-        2) 兼容改名前的旧默认名文件：f"存档{槽位号}_{槽位号}.kgsav"
+        返回 (槽位号0起, 名字前缀) 或 None（不合规）。
         """
-        n = index + 1
-        primary = f"{self.slot_name(index)}_{n}.kgsav"
-        legacy = f"存档{n}_{n}.kgsav"
-        candidates = [primary]
-        if legacy != primary:
-            candidates.append(legacy)
-        return candidates
+        if not filename.lower().endswith(".kgsav"):
+            return None
+        stem = filename[:-len(".kgsav")]
+        idx = stem.rfind("_")
+        if idx <= 0:
+            return None
+        base, num = stem[:idx], stem[idx + 1:]
+        if not num.isdigit():
+            return None
+        n = int(num)
+        if not (1 <= n <= SLOT_COUNT):
+            return None
+        return n - 1, base
 
     def load_slot_info(self):
-        """从存档库读取各存档位的信息（含时间与 mtime）。
+        """扫描存档库，按“文件名_槽位号.kgsav”自动识别每个槽位。
 
-        识别规则：槽位 N（1 起）优先匹配 f"{槽位名}_{N}.kgsav"；
-        若改名后没有新文件名，回退匹配旧默认名 f"存档{N}_{N}.kgsav"。
+        - 槽位名字与存档文件都由文件名+修改日期得到，不依赖配置文件；
+        - 同一槽位多个匹配文件时取修改时间最新者。
         """
-        self.slot_info = []
-        for i in range(SLOT_COUNT):
-            slot_file = None
-            for name in self.slot_candidates(i):
-                p = SAVE_LIBRARY / name
-                if p.is_file():
-                    slot_file = p
-                    break
+        self.slot_info = [{'exists': False, 'mtime': 0, 'name': ""}
+                          for _ in range(SLOT_COUNT)]
+        try:
+            files = list(SAVE_LIBRARY.iterdir())
+        except OSError:
+            files = []
+        for p in files:
+            if not p.is_file():
+                continue
+            parsed = self._parse_slot_file(p.name)
+            if parsed is None:
+                continue
+            i, base = parsed
             try:
-                if slot_file is not None:
-                    st = slot_file.stat()
-                    time_str = datetime.fromtimestamp(st.st_mtime).strftime(
-                        "%Y-%m-%d %H:%M:%S")
-                    self.slot_info.append({
-                        'exists': True,
-                        'filename': str(slot_file),
-                        'time': time_str,
-                        'size': st.st_size,
-                        'mtime': st.st_mtime,
-                    })
-                else:
-                    self.slot_info.append({'exists': False, 'mtime': 0})
+                st = p.stat()
             except OSError:
-                self.slot_info.append({'exists': False, 'mtime': 0})
+                continue
+            cur = self.slot_info[i]
+            if cur['exists'] and cur['mtime'] >= st.st_mtime:
+                continue          # 保留最新者
+            self.slot_info[i] = {
+                'exists': True,
+                'filename': str(p),
+                'name': base,
+                'time': datetime.fromtimestamp(st.st_mtime).strftime(
+                    "%Y-%m-%d %H:%M:%S"),
+                'size': st.st_size,
+                'mtime': st.st_mtime,
+            }
 
     def _copy_to_clipboard(self, text):
         """安全地写入剪贴板（tkinter 内置，零依赖）。
@@ -402,8 +415,8 @@ class KGSaveManager:
             text = (prefix + f"{self.slot_label(idx)} · "
                     f"{self.slot_info[idx]['time']}")
         else:
-            text = prefix + f"{self.slot_label(idx)} · " \
-                + self.t("ui.empty_short")
+            # 槽位无存档：名字区已含“空/empty”占位
+            text = prefix + self.slot_label(idx)
         self.kgm_save_lbl.config(text=text)
 
     def _open_external(self, url):
@@ -589,6 +602,11 @@ class KGSaveManager:
                                      style="Large.TButton",
                                      command=self.rename_action)
         self.btn_rename.pack(fill=tk.X, pady=8, padx=15)
+
+        self.btn_refresh = ttk.Button(left, text=self.t("sv.btn_refresh"),
+                                      style="Large.TButton",
+                                      command=self.refresh_action)
+        self.btn_refresh.pack(fill=tk.X, pady=8, padx=15)
 
         ttk.Separator(left, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10,
                                                        padx=15)
@@ -966,11 +984,19 @@ class KGSaveManager:
             widget = getattr(widget, "master", None)
 
     def rename_action(self):
-        """重命名当前选中的存档位（界面名 + 磁盘存档文件名同步）。"""
+        """重命名当前存档位：只改磁盘文件名（名字完全来自文件）。
+
+        没有存档文件的槽位提示先存档；配置文件不保存槽位名。
+        """
         self.commit_notes()
         slot = self.selected_slot.get()
-        old = self.slot_name(slot)
 
+        if not self.slot_info[slot].get('exists'):
+            messagebox.showwarning(self.t("dlg.rename_title"),
+                                   self.t("err.rename_need_file"))
+            return
+
+        old = self.slot_info[slot]['name']
         new = simpledialog.askstring(
             self.t("dlg.rename_title"), self.t("dlg.rename_prompt"),
             initialvalue=old, parent=self.root)
@@ -984,26 +1010,27 @@ class KGSaveManager:
         if new == old:
             return
 
-        # 磁盘文件同步改名：旧名_N.kgsav → 新名_N.kgsav
-        old_file = SAVE_LIBRARY / f"{old}_{slot + 1}.kgsav"
+        # 只改磁盘文件名：旧名_N.kgsav → 新名_N.kgsav（不写入配置）
         new_file = SAVE_LIBRARY / f"{new}_{slot + 1}.kgsav"
-        if old_file.is_file():
-            if new_file.exists():
-                messagebox.showerror(
-                    self.t("dlg.rename_title"),
-                    self.t("err.name_file_exists", file=new_file.name))
-                return
-            try:
-                os.replace(str(old_file), str(new_file))
-            except OSError as e:
-                messagebox.showerror(self.t("dlg.rename_title"), str(e))
-                return
-            self.log(f"存档文件已改名: {old_file.name} → {new_file.name}",
-                     "<改名>")
-
-        self.cfg.set_slot_name(slot, new)
+        if new_file.exists():
+            messagebox.showerror(
+                self.t("dlg.rename_title"),
+                self.t("err.name_file_exists", file=new_file.name))
+            return
+        old_file = Path(self.slot_info[slot]['filename'])
+        try:
+            os.replace(str(old_file), str(new_file))
+        except OSError as e:
+            messagebox.showerror(self.t("dlg.rename_title"), str(e))
+            return
+        self.log(f"存档文件已改名: {old_file.name} → {new_file.name}", "<改名>")
         self.update_slots_display()
-        self.log(f"存档位已改名: {self.slot_label(slot)}", "<改名>")
+
+    def refresh_action(self):
+        """手动刷新存档库（重新扫描文件名与修改日期）。"""
+        self.commit_notes()
+        self.update_slots_display()
+        self.log("已刷新存档库。", "<刷新>")
 
     # =========================================================
     # 日志（按页显示：存档操作→存档管理页；服务→启动游戏页）
@@ -1151,7 +1178,9 @@ class KGSaveManager:
 
     def process_new_file(self, filename, slot):
         src = os.path.join(TEMP_FOLDER, filename)
-        dest_name = f"{self.slot_name(slot)}_{slot + 1}.kgsav"
+        # 槽位名 = 该位已有文件名前缀（无则默认 存档N）——移动时重命名并覆盖写入
+        base = self.slot_name(slot) or self.slot_default_base(slot)
+        dest_name = f"{base}_{slot + 1}.kgsav"
         dest = os.path.join(SAVE_LIBRARY, dest_name)
         try:
             size = os.path.getsize(src)
@@ -1163,8 +1192,10 @@ class KGSaveManager:
                 head = f.read(64)
             if not head.strip():
                 raise ValueError("导出文件内容为空")
-            shutil.move(src, dest)
-            self.log(f"成功存档: {filename} → {dest_name}", "<完成存档>")
+            # os.replace：移动+重命名一步完成，已存在时直接覆盖（原子）
+            os.replace(src, dest)
+            self.log(f"成功存档: {filename} → {dest_name}（已覆盖写入）",
+                     "<完成存档>")
             self.update_slots_display()
             self._refresh_kgm_save()
         except Exception as e:
@@ -1259,11 +1290,6 @@ class KGSaveManager:
 
         self.log("开始检查异常文件...", "<检查异常>")
 
-        # 合规文件名：当前槽位名规则 + 旧默认名 存档N_N 兼容
-        valid_names = set()
-        for i in range(SLOT_COUNT):
-            valid_names.update(self.slot_candidates(i))
-
         try:
             library_files = sorted(os.listdir(SAVE_LIBRARY))
         except OSError:
@@ -1273,6 +1299,9 @@ class KGSaveManager:
         except OSError:
             temp_files = []
 
+        # 合规 = 文件名能被解析为 “任意名_槽位号.kgsav”（槽位号 1..N）
+        valid_names = {f for f in library_files
+                       if self._parse_slot_file(f) is not None}
         invalid_lib = [f for f in library_files if f not in valid_names]
         empty_lib = []
         for name in valid_names:

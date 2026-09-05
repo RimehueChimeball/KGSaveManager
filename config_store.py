@@ -8,8 +8,9 @@
 - game_dir : 游戏目录（同时是 Web 服务根目录），默认空
 - port     : 固定端口字符串，空 = 自动选择
 - home_slot: 首页指定存档位索引（0-based），默认 0
-- slot_names: {str(i): 槽位自定义名}；缺失时默认 存档{i+1}，与文件名前缀一致
-- notes    : {str(i): 备注文本}，向后兼容旧版纯备注结构
+- notes    : {str(i): 槽位备注}——配置文件只记录槽位对应的备注；
+             槽位“名字/存档文件”一律由程序扫描存档库文件名与修改日期得到，
+             不保存在配置里（删除配置文件不会丢失存档识别）。
 """
 
 import json
@@ -105,7 +106,6 @@ class AppConfig:
         self.game_dir = ""
         self.port = ""
         self.home_slot = 0
-        self.slot_names = {}
         self.notes = {}
         self._lock = threading.Lock()
         self._load()
@@ -148,15 +148,8 @@ class AppConfig:
             self.home_slot = 0
         self.home_slot = max(0, min(SLOT_COUNT - 1, self.home_slot))
 
-        # 槽位自定义名（缺失时用默认名 存档{i+1}）
-        names = data.get("slot_names")
-        if isinstance(names, dict):
-            self.slot_names = {str(k): str(v)[:40]
-                               for k, v in names.items() if str(v).strip()}
-        else:
-            self.slot_names = {}
-
         # 备注：优先取 notes 字段；旧文件（纯 {i: text}）自动迁移
+        # （旧版 slot_names 字段已废弃，不再读取/保存：名字一律来自存档库文件名）
         notes = data.get("notes")
         if isinstance(notes, dict):
             self.notes = notes
@@ -175,7 +168,6 @@ class AppConfig:
             "game_dir": self.game_dir,
             "port": self.port,
             "home_slot": self.home_slot,
-            "slot_names": self.slot_names,
             "notes": self.notes,
         }
         tmp = self.path.with_suffix(".json.tmp")
@@ -188,29 +180,6 @@ class AppConfig:
                 tmp.replace(self.path)
             except Exception as e:
                 print(f"[config] 保存配置失败: {e}")
-
-    # ---------------- 槽位名字 ----------------
-    def slot_name(self, index):
-        """槽位显示名/文件名前缀：自定义名优先，否则默认 存档{i+1}。"""
-        try:
-            i = int(index)
-        except (TypeError, ValueError):
-            i = 0
-        custom = self.slot_names.get(str(i), "")
-        return custom if custom else f"存档{i + 1}"
-
-    def set_slot_name(self, index, name):
-        """设置自定义槽位名（空串 = 恢复默认名）并保存。"""
-        key = str(int(index))
-        name = str(name or "").strip()[:40]
-        if name == f"存档{int(index) + 1}":
-            name = ""      # 等于默认名时不存自定义
-        if self.slot_names.get(key, "") != name:
-            if name:
-                self.slot_names[key] = name
-            else:
-                self.slot_names.pop(key, None)
-            self.save()
 
     # ---------------- 备注便捷方法 ----------------
     def get_note(self, index):

@@ -78,6 +78,7 @@ _ZH = {
     "sv.btn_load": "读档",
     "sv.btn_cancel": "取消存档",
     "sv.btn_rename": "改名",
+    "sv.btn_refresh": "刷新",
     "sv.btn_check": "检查异常文件",
     "sv.help": (
         "操作说明\n\n"
@@ -120,6 +121,7 @@ _ZH = {
     "dlg.rename_title": "槽位改名",
     "dlg.rename_prompt": "输入槽位新名字（同时用于存档文件名，如 名字_1.kgsav）：",
     "err.name_invalid": "名字不能为空，且不能包含 \\ / : * ? \" < > | 等字符。",
+    "err.rename_need_file": "该槽位还没有存档文件，请先「存档」一次后再改名。",
     "err.name_file_exists": "目标存档文件已存在，改名中止：{file}",
     "dlg.save_new": "对 {slot} 进行存档操作？",
     "dlg.save_overwrite": "对 {slot} 进行存档操作？将覆盖现有存档。",
@@ -180,6 +182,7 @@ _EN = {
     "sv.btn_load": "Load",
     "sv.btn_cancel": "Cancel Saving",
     "sv.btn_rename": "Rename",
+    "sv.btn_refresh": "Refresh",
     "sv.btn_check": "Check Abnormal Files",
     "sv.help": (
         "Help\n\n"
@@ -226,6 +229,8 @@ _EN = {
                          "filenames, e.g. name_1.kgsav):",
     "err.name_invalid": "The name must not be empty and cannot contain "
                         "\\ / : * ? \" < > | characters.",
+    "err.rename_need_file": "This slot has no save file yet. Save once "
+                            "before renaming.",
     "err.name_file_exists": "Target save file already exists, rename "
                             "aborted: {file}",
     "dlg.save_new": "Save to {slot}?",
