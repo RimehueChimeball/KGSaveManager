@@ -44,8 +44,14 @@ MAX_NOTE_LEN = 200                               # 单条备注最大长度
 MAX_SAVE_SIZE = 64 * 1024 * 1024                 # 单个存档最大体积（字节）
 MONITOR_TIMEOUT = 300                            # 监控导出的超时时间（秒）
 
-# 下载游戏链接（Kittens Game，可自行更换）
-GAME_DOWNLOAD_URL = "https://github.com/kitten-science/kittensgame"
+# 下载游戏链接（Kittens Game，两个可选来源；使用配置的浏览器打开）
+GAME_DOWNLOAD_URLS = [
+    "https://github.com/kitten-science/kittensgame",
+    "https://github.com/nuclear-unicorn/kittensgame",
+]
+# 关于页链接（固定文案，不随语言翻译）
+REPO_URL = "https://github.com/RimehueChimeball/KGSaveManager"
+PROFILE_URL = "https://github.com/RimehueChimeball"
 
 # ---- 程序目录：兼容源码运行与 PyInstaller 冻结 ----
 if getattr(sys, "frozen", False):
@@ -217,6 +223,8 @@ class KGSaveManager:
             pass
         if switch_to in TAB_ORDER:
             self.notebook.select(TAB_ORDER.index(switch_to))
+        # 焦点交给笔记本本身，避免落在配置页下拉框上
+        self.notebook.focus_set()
 
     # ---------- KGSM 页 ----------
     def build_kgm_tab(self, parent, button_font):
@@ -283,18 +291,28 @@ class KGSaveManager:
         run_copy.grid(row=3, column=0, sticky="e", pady=(8, 0))
         self._refresh_kgm_save()
 
-        # 底部链接
+        # 底部：左侧“第一次使用？”+ 配置按钮；右侧两个下载游戏链接
         bottom = ttk.Frame(parent)
         bottom.grid(row=3, column=0, sticky="sew", pady=(2, 0))
         bottom.columnconfigure(0, weight=1)
         bottom.columnconfigure(1, weight=1)
-        link1 = self._make_link(bottom, self.t("kgsm.first_use"),
-                                command=lambda: self.notebook.select(
-                                    TAB_ORDER.index("settings")))
-        link1.grid(row=0, column=0, sticky="w")
-        link2 = self._make_link(bottom, self.t("kgsm.download"),
-                                command=self._open_download_page)
-        link2.grid(row=0, column=1, sticky="e")
+
+        first_box = ttk.Frame(bottom)
+        first_box.grid(row=0, column=0, sticky="w")
+        ttk.Label(first_box, text=self.t("kgsm.first_use_q")).pack(
+            side=tk.LEFT)
+        ttk.Button(first_box, text=self.t("kgsm.btn_config"),
+                   command=lambda: self.notebook.select(
+                       TAB_ORDER.index("settings"))).pack(side=tk.LEFT,
+                                                          padx=(10, 0))
+
+        dl_box = ttk.Frame(bottom)
+        dl_box.grid(row=0, column=1, sticky="e")
+        for key, url in (("kgsm.download_1", GAME_DOWNLOAD_URLS[0]),
+                         ("kgsm.download_2", GAME_DOWNLOAD_URLS[1])):
+            link = self._make_link(dl_box, self.t(key),
+                                   command=lambda u=url: self._open_external(u))
+            link.pack(side=tk.TOP, anchor="e")
 
     def _make_link(self, parent, text, command):
         lbl = ttk.Label(parent, text=text, foreground="#0645AD", cursor="hand2")
@@ -338,11 +356,13 @@ class KGSaveManager:
             text = prefix + f"{SLOT_NAMES[idx]} · " + self.t("ui.empty_short")
         self.kgm_save_lbl.config(text=text)
 
-    def _open_download_page(self):
-        how = open_in_browser(GAME_DOWNLOAD_URL)
+    def _open_external(self, url):
+        """用配置的浏览器打开外部超链接（不强制新窗口）。"""
+        how = open_in_browser(url, browser_path=self.cfg.browser,
+                              new_window=False)
         if how is None:
             messagebox.showerror(self.t("err.launch_fail"),
-                                 "webbrowser: open failed")
+                                 f"open failed: {url}")
 
     # ---------- 启动游戏页 ----------
     def build_game_tab(self, parent, button_font, log_font):
@@ -481,7 +501,9 @@ class KGSaveManager:
         return url
 
     def _open_browser_and_log(self, url):
-        how = open_in_browser(url)
+        """启动游戏：用配置的浏览器开新窗口。"""
+        how = open_in_browser(url, browser_path=self.cfg.browser,
+                              new_window=True)
         if how:
             self.web_log(f"已在浏览器新窗口打开（{how}）。", "<打开浏览器>")
         else:
@@ -605,69 +627,99 @@ class KGSaveManager:
     # ---------- 配置页 ----------
     def build_settings_tab(self, parent, button_font, log_font):
         parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(0, weight=0)
 
         frame = ttk.LabelFrame(parent, text=self.t("tab.settings"),
                                padding="12")
-        frame.grid(row=0, column=0, sticky="nsew")
+        frame.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         frame.columnconfigure(1, weight=1)
 
-        # 语言
+        # Language（标签固定英文，不随语言翻译）
         ttk.Label(frame, text=self.t("st.lang")).grid(row=0, column=0,
                                                       sticky="w", pady=6,
                                                       padx=(0, 10))
         self._lang_codes = [LANG_ZH, LANG_EN]
-        lang_var = tk.StringVar(value=self.cfg.language)
-        lang_box = ttk.Combobox(
-            frame, textvariable=lang_var, state="readonly", width=14,
-            values=[self.t("st.lang_zh"), self.t("st.lang_en")])
+        lang_values = [self.t("st.lang_zh"), self.t("st.lang_en")]
+        lang_box = ttk.Combobox(frame, state="readonly", width=14,
+                                values=lang_values, takefocus=0)
         lang_box.current(self._lang_codes.index(self.cfg.language)
                          if self.cfg.language in self._lang_codes else 0)
         lang_box.grid(row=0, column=1, sticky="w", pady=6)
         lang_box.bind("<<ComboboxSelected>>", self._on_language_selected)
         self.lang_combo_widget = lang_box
 
+        # 浏览器（游戏启动与超链接共用；首次初始化时自动检测写入）
+        ttk.Label(frame, text=self.t("st.browser")).grid(row=1, column=0,
+                                                         sticky="w", pady=6,
+                                                         padx=(0, 10))
+        self.settings_browser_var = tk.StringVar(value=self.cfg.browser)
+        ent_browser = ttk.Entry(frame, textvariable=self.settings_browser_var)
+        ent_browser.grid(row=1, column=1, sticky="ew", pady=6)
+        ent_browser.bind("<FocusOut>", lambda e: self._flush_page_vars())
+        br_btns = ttk.Frame(frame)
+        br_btns.grid(row=1, column=2, padx=(10, 0), pady=6)
+        ttk.Button(br_btns, text=self.t("ui.browse"),
+                   command=self._browse_browser).pack(side=tk.LEFT)
+        ttk.Button(br_btns, text=self.t("st.browser_default"),
+                   command=self._browser_use_default).pack(side=tk.LEFT,
+                                                           padx=(8, 0))
+
         # 游戏目录（Web 服务根目录）
-        ttk.Label(frame, text=self.t("st.game_dir")).grid(row=1, column=0,
+        ttk.Label(frame, text=self.t("st.game_dir")).grid(row=2, column=0,
                                                           sticky="w", pady=6,
                                                           padx=(0, 10))
         self.settings_dir_var = tk.StringVar(value=self.cfg.game_dir)
         ent_dir = ttk.Entry(frame, textvariable=self.settings_dir_var)
-        ent_dir.grid(row=1, column=1, sticky="ew", pady=6)
+        ent_dir.grid(row=2, column=1, sticky="ew", pady=6)
         ent_dir.bind("<FocusOut>", lambda e: self._flush_page_vars())
         ttk.Button(frame, text=self.t("ui.browse"),
-                   command=self._browse_game_dir).grid(row=1, column=2,
+                   command=self._browse_game_dir).grid(row=2, column=2,
                                                        padx=(10, 0), pady=6)
 
         # 固定端口
-        ttk.Label(frame, text=self.t("st.port")).grid(row=2, column=0,
+        ttk.Label(frame, text=self.t("st.port")).grid(row=3, column=0,
                                                       sticky="w", pady=6,
                                                       padx=(0, 10))
         self.settings_port_var = tk.StringVar(value=self.cfg.port)
         ent_port = ttk.Entry(frame, textvariable=self.settings_port_var,
                              width=12)
-        ent_port.grid(row=2, column=1, sticky="w", pady=6)
+        ent_port.grid(row=3, column=1, sticky="w", pady=6)
         ent_port.bind("<FocusOut>", lambda e: self._flush_page_vars())
         ttk.Label(frame, text=self.t("st.port_auto"),
-                  foreground="#666666").grid(row=2, column=2, sticky="w",
+                  foreground="#666666").grid(row=3, column=2, sticky="w",
                                              padx=(10, 0), pady=6)
 
         # 首页指定存档
-        ttk.Label(frame, text=self.t("st.home_slot")).grid(row=3, column=0,
+        ttk.Label(frame, text=self.t("st.home_slot")).grid(row=4, column=0,
                                                            sticky="w", pady=6,
                                                            padx=(0, 10))
         self.home_slot_var = tk.StringVar()
         slot_box = ttk.Combobox(frame, textvariable=self.home_slot_var,
                                 state="readonly", width=14,
-                                values=list(SLOT_NAMES))
+                                values=list(SLOT_NAMES), takefocus=0)
         slot_box.current(self.cfg.home_slot)
-        slot_box.grid(row=3, column=1, sticky="w", pady=6)
+        slot_box.grid(row=4, column=1, sticky="w", pady=6)
         slot_box.bind("<<ComboboxSelected>>", self._on_home_slot_selected)
         self.home_slot_widget = slot_box
 
         # 提示
         ttk.Label(frame, text=self.t("st.hint", path=CONFIG_FILE),
-                  foreground="#888888").grid(row=4, column=0, columnspan=3,
+                  foreground="#888888").grid(row=5, column=0, columnspan=3,
                                              sticky="w", pady=(14, 0))
+
+        # 关于（链接文案固定，不随语言翻译）
+        about = ttk.LabelFrame(parent, text=self.t("st.about"), padding="10")
+        about.grid(row=1, column=0, sticky="ew")
+        about.columnconfigure(0, weight=1)
+        about.columnconfigure(1, weight=1)
+        repo_link = self._make_link(
+            about, "KGSaveManager - Github",
+            command=lambda: self._open_external(REPO_URL))
+        repo_link.grid(row=0, column=0, sticky="w")
+        profile_link = self._make_link(
+            about, "霁绣凇铃RimehueChimeball - Github",
+            command=lambda: self._open_external(PROFILE_URL))
+        profile_link.grid(row=0, column=1, sticky="e")
 
     def _on_language_selected(self, _event=None):
         cur = self.lang_combo_widget.current()
@@ -699,6 +751,28 @@ class KGSaveManager:
             self._sync_page_vars()
             self._refresh_kgm_dir()
 
+    def _browse_browser(self):
+        """选择浏览器 exe。"""
+        initial = self.cfg.browser.strip() or ""
+        if not initial:
+            import os as _os
+            for base in (r"%ProgramFiles(x86)%", r"%ProgramFiles%"):
+                p = _os.path.expandvars(base + r"\Microsoft\Edge\Application")
+                if _os.path.isdir(p):
+                    initial = p
+                    break
+        chosen = filedialog.askopenfilename(
+            title=self.t("st.browser"), initialdir=initial,
+            filetypes=[("可执行程序", "*.exe"), ("所有文件", "*.*")])
+        if chosen:
+            self.cfg.update(browser=chosen)
+            self._sync_page_vars()
+
+    def _browser_use_default(self):
+        """清空浏览器配置 = 使用系统默认浏览器。"""
+        self.cfg.update(browser="")
+        self._sync_page_vars()
+
     # ---------- 页面变量同步 ----------
     def _flush_page_vars(self):
         """把各页输入框内容写回配置并保存（重建/启动前调用）。"""
@@ -707,7 +781,8 @@ class KGSaveManager:
                 ("launch_dir_var", "game_dir"),
                 ("launch_port_var", "port"),
                 ("settings_dir_var", "game_dir"),
-                ("settings_port_var", "port")):
+                ("settings_port_var", "port"),
+                ("settings_browser_var", "browser")):
             var = getattr(self, var_attr, None)
             if var is None:
                 continue
@@ -725,7 +800,8 @@ class KGSaveManager:
                 ("launch_dir_var", self.cfg.game_dir),
                 ("launch_port_var", self.cfg.port),
                 ("settings_dir_var", self.cfg.game_dir),
-                ("settings_port_var", self.cfg.port)):
+                ("settings_port_var", self.cfg.port),
+                ("settings_browser_var", self.cfg.browser)):
             var = getattr(self, var_attr, None)
             if var is not None:
                 var.set(value)

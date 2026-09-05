@@ -43,7 +43,7 @@ _ZH = {
     "ui.auto_port": "留空 = 自动选择空闲端口",
 
     # ---- KGSM 页 ----
-    "kgsm.heading": "🐱 KittensGame 存档管理器",
+    "kgsm.heading": "KittensGame 存档管理器",
     "kgsm.dir_none": "游戏目录：未设置",
     "kgsm.dir_set": "游戏目录：{dir}",
     "kgsm.quick_title": "快速启动游戏",
@@ -55,8 +55,10 @@ _ZH = {
     "kgsm.mode_slot": "指定存档",
     "kgsm.cur_prefix": "当前将复制：",
     "kgsm.btn_run": "运行",
-    "kgsm.first_use": "第一次使用？<配置程序>",
-    "kgsm.download": "下载游戏 · Kittens Game（GitHub）",
+    "kgsm.first_use_q": "第一次使用？",
+    "kgsm.btn_config": "配置程序",
+    "kgsm.download_1": "下载游戏 · Kittens Game（kitten-science）",
+    "kgsm.download_2": "下载游戏 · Kittens Game（nuclear-unicorn）",
 
     # ---- 启动游戏页 ----
     "la.title": "本地 Web 服务（仅本机 127.0.0.1 可访问）",
@@ -65,7 +67,7 @@ _ZH = {
     "la.hint": "把下载的游戏文件解压进游戏目录后即可启动；服务只在本机监听。",
     "la.log_title": "服务日志",
     "la.ready": "就绪：设置目录与端口后点击「启动并打开浏览器」。",
-    "la.btn_start": "🚀 启动并打开浏览器",
+    "la.btn_start": "启动并打开浏览器",
     "la.btn_stop": "停止服务",
 
     # ---- 存档管理页 ----
@@ -76,7 +78,7 @@ _ZH = {
     "sv.btn_cancel": "取消存档",
     "sv.btn_check": "检查异常文件",
     "sv.help": (
-        "📖 操作说明\n\n"
+        "操作说明\n\n"
         "【存档】\n"
         "1. 选中一个存档位\n"
         "2. 点击「存档」\n"
@@ -92,13 +94,16 @@ _ZH = {
     ),
 
     # ---- 配置页 ----
-    "st.lang": "语言",
+    "st.lang": "Language",
     "st.lang_zh": "中文",
     "st.lang_en": "English",
+    "st.browser": "浏览器",
+    "st.browser_default": "使用系统默认",
     "st.game_dir": "游戏目录（Web 服务根目录）",
     "st.port": "固定端口",
     "st.port_auto": "留空 = 自动",
     "st.home_slot": "首页指定存档",
+    "st.about": "关于",
     "st.hint": "所有修改自动保存到：{path}",
 
     # ---- 提示与错误 ----
@@ -128,7 +133,7 @@ _EN = {
     "ui.auto_port": "Empty = auto pick a free port",
 
     # ---- KGSM page ----
-    "kgsm.heading": "🐱 KittensGame Save Manager",
+    "kgsm.heading": "KittensGame Save Manager",
     "kgsm.dir_none": "Game directory: not set",
     "kgsm.dir_set": "Game directory: {dir}",
     "kgsm.quick_title": "Quick Launch Game",
@@ -142,8 +147,10 @@ _EN = {
     "kgsm.mode_slot": "Selected Save",
     "kgsm.cur_prefix": "Will copy: ",
     "kgsm.btn_run": "Run",
-    "kgsm.first_use": "First time? <Configure settings>",
-    "kgsm.download": "Download Game · Kittens Game (GitHub)",
+    "kgsm.first_use_q": "First time here?",
+    "kgsm.btn_config": "Configure",
+    "kgsm.download_1": "Download Game · Kittens Game (kitten-science)",
+    "kgsm.download_2": "Download Game · Kittens Game (nuclear-unicorn)",
 
     # ---- Launch Game page ----
     "la.title": "Local Web Server (bound to 127.0.0.1 only)",
@@ -154,7 +161,7 @@ _EN = {
     "la.log_title": "Server Log",
     "la.ready": "Ready: set the directory & port, then click "
                 "\u201cLaunch & Open Browser\u201d.",
-    "la.btn_start": "🚀 Launch & Open Browser",
+    "la.btn_start": "Launch & Open Browser",
     "la.btn_stop": "Stop Server",
 
     # ---- Save Management page ----
@@ -165,7 +172,7 @@ _EN = {
     "sv.btn_cancel": "Cancel Saving",
     "sv.btn_check": "Check Abnormal Files",
     "sv.help": (
-        "📖 Help\n\n"
+        "Help\n\n"
         "[Save]\n"
         "1. Select a slot\n"
         "2. Click \u201cSave\u201d\n"
@@ -184,10 +191,13 @@ _EN = {
     "st.lang": "Language",
     "st.lang_zh": "中文",
     "st.lang_en": "English",
+    "st.browser": "Browser",
+    "st.browser_default": "Use system default",
     "st.game_dir": "Game Directory (web server root)",
     "st.port": "Fixed Port",
     "st.port_auto": "Empty = auto",
     "st.home_slot": "Home Save Slot",
+    "st.about": "About",
     "st.hint": "All changes are saved automatically to: {path}",
 
     # ---- Prompts & errors ----

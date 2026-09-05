@@ -96,20 +96,38 @@ class LocalWebServer:
         self._thread = None
 
 
-def open_in_browser(url):
-    """在浏览器打开地址，尽量开新窗口。
+def open_in_browser(url, browser_path="", new_window=True):
+    """用指定浏览器打开地址。
 
-    :return: 使用的打开方式描述（'Edge'/'Chrome'/'default browser'/None）
+    :param url: 要打开的地址
+    :param browser_path: 配置的浏览器 exe 路径；空串 = 系统默认浏览器
+    :param new_window: True=新窗口（仅启动游戏用）；
+                       False=常规打开（超链接用，在现有窗口新开标签页）
+    :return: 使用的打开方式描述（'Edge'/'Chrome'/'custom'/'default browser'/None）
     """
+    candidates = []
+    custom = browser_path.strip() if browser_path else ""
+    if custom:
+        candidates.append(custom)
     for exe in EDGE_PATHS + CHROME_PATHS:
+        if exe not in candidates:
+            candidates.append(exe)
+
+    for exe in candidates:
         if os.path.isfile(exe):
             try:
-                subprocess.Popen([exe, "--new-window", url])
+                args = [exe]
+                if new_window:
+                    args.append("--new-window")
+                args.append(url)
+                subprocess.Popen(args)
+                if exe == custom:
+                    return "custom"
                 return "Edge" if exe in EDGE_PATHS else "Chrome"
             except OSError:
                 break
     try:
-        webbrowser.open(url, new=1)
+        webbrowser.open(url, new=1 if new_window else 0)
         return "default browser"
     except Exception:
         return None
