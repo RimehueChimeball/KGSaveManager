@@ -3,7 +3,7 @@ KittensGame 存档管理器 (KGSaveManager)
 ======================================
 
 一个基于 Tkinter 的《Kittens Game》存档管理工具，支持存档位管理、
-备注持久化与游戏存档的导入/导出对接。
+备注持久化、游戏存档的导入/导出对接，以及一键启动本地静态 Web 服务。
 
 功能特性：
 1. 备注与配置持久化：保存到 ``kgsm_data/kgsm_config.json``（原子写入），
@@ -17,19 +17,27 @@ KittensGame 存档管理器 (KGSaveManager)
    并等待导出文件写入稳定后再接收，避免拿到半成品。
 5. 剪贴板异常处理：读写剪贴板失败不会导致崩溃，且缺少 pyperclip 时
    自动回退到 tkinter 自带剪贴板。
+6. 多标签页 GUI：默认页「存档管理」，另有「启动」页——内置本地静态
+   Web 服务（http.server + socketserver），一键起服务并打开浏览器
+   （优先 Edge/Chrome 新窗口，其次 webbrowser）。
 """
 
-import os
-import sys
+import functools
+import http.server
 import json
+import os
 import queue
 import shutil
+import socketserver
+import subprocess
+import sys
 import threading
 import time
 import tkinter as tk
-from pathlib import Path
-from tkinter import ttk, messagebox, scrolledtext
+import webbrowser
 from datetime import datetime
+from pathlib import Path
+from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 try:
     import pyperclip
@@ -57,6 +65,26 @@ DATA_FOLDER = BASE_DIR / "kgsm_data"             # 数据总目录：备份/迁�
 SAVE_LIBRARY = DATA_FOLDER / "kittens_saves"     # 存档库文件夹
 TEMP_FOLDER = DATA_FOLDER / "kgsm_temp"          # 临时文件夹（接收游戏导出文件）
 CONFIG_FILE = DATA_FOLDER / "kgsm_config.json"   # 配置/备注持久化文件
+WEB_ROOT = BASE_DIR / "web"                      # 启动页默认服务目录
+
+
+# ---- 本地静态 Web 服务 ----
+class _WebHandler(http.server.SimpleHTTPRequestHandler):
+    """静态文件请求处理器：访问日志转发到 UI 事件队列，不在控制台输出。"""
+
+    _queue = None  # 启动服务前由主程序注入事件队列
+
+    def log_message(self, fmt, *args):
+        if self._queue is not None:
+            msg = "%s - - [%s] %s" % (
+                self.address_string(), self.log_date_time_string(), fmt % args)
+            self._queue.put(("server_log", msg))
+
+
+class _ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    """多线程版本地 HTTP 服务器（服务线程随主程序退出）。"""
+
+    daemon_threads = True
 
 
 class KGSaveManager:
@@ -87,6 +115,11 @@ class KGSaveManager:
         self.cancel_event = threading.Event()
         self.event_queue = queue.Queue()
         self.monitor_thread = None
+
+        # 本地 Web 服务状态（启动页）
+        self.web_server = None
+        self.web_thread = None
+        self.web_url = None
 
         # 构建界面
         self.build_ui()
@@ -182,9 +215,20 @@ class KGSaveManager:
 
         self.root.option_add('*Font', default_font)
 
-        main = ttk.Frame(self.root, padding="10")
-        main.pack(fill=tk.BOTH, expand=True)
+        # 多标签页界面：存档管理（默认页）+ 启动
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
 
+        tab_save = ttk.Frame(self.notebook, padding="6")
+        tab_launch = ttk.Frame(self.notebook, padding="6")
+        self.notebook.add(tab_save, text="存档管理")
+        self.notebook.add(tab_launch, text="启动")
+
+        self.build_save_tab(tab_save, button_font, help_font, log_font)
+        self.build_launch_tab(tab_launch, button_font, log_font)
+
+    def build_save_tab(self, main, button_font, help_font, log_font):
+        """「存档管理」页：左侧按钮 + 右侧存档位与日志。"""
         main.columnconfigure(0, weight=0)   # 左侧不缩放
         main.columnconfigure(1, weight=1)   # 右侧缩放
         main.rowconfigure(0, weight=1)
@@ -307,6 +351,181 @@ class KGSaveManager:
         self.log(f"存档库: {SAVE_LIBRARY}")
         self.log(f"临时文件夹: {TEMP_FOLDER}")
 
+    # ---------------- 启动页（本地静态 Web 服务） ----------------
+    def build_launch_tab(self, parent, button_font, log_font):
+        """「启动」页：一键创建本地 Web 服务并在浏览器新窗口打开。"""
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(2, weight=1)
+
+        cfg = ttk.LabelFrame(parent, text="本地 Web 服务（仅绑定 127.0.0.1）",
+                             padding="10")
+        cfg.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        cfg.columnconfigure(1, weight=1)
+
+        ttk.Label(cfg, text="服务目录:").grid(row=0, column=0, sticky="w",
+                                             pady=4, padx=(0, 6))
+        self.web_dir_var = tk.StringVar(value=str(WEB_ROOT))
+        ttk.Entry(cfg, textvariable=self.web_dir_var).grid(row=0, column=1,
+                                                           sticky="ew", pady=4)
+        ttk.Button(cfg, text="浏览...",
+                   command=self.web_browse_dir).grid(row=0, column=2,
+                                                     padx=(6, 0), pady=4)
+
+        ttk.Label(cfg, text="端口:").grid(row=1, column=0, sticky="w",
+                                          pady=4, padx=(0, 6))
+        self.web_port_var = tk.StringVar(value="")
+        ttk.Entry(cfg, textvariable=self.web_port_var, width=10).grid(
+            row=1, column=1, sticky="w", pady=4)
+        ttk.Label(cfg, text="留空 = 自动选择空闲端口",
+                  foreground="#666666").grid(row=1, column=2, sticky="w",
+                                             padx=(6, 0), pady=4)
+
+        btns = ttk.Frame(cfg)
+        btns.grid(row=2, column=0, columnspan=3, sticky="w", pady=(10, 2))
+        self.btn_web_start = ttk.Button(
+            btns, text="🚀 启动并打开浏览器", style="Large.TButton",
+            command=self.web_start_action)
+        self.btn_web_start.pack(side=tk.LEFT, padx=(0, 10))
+        self.btn_web_stop = ttk.Button(
+            btns, text="停止服务", style="Large.TButton",
+            command=self.web_stop_action, state=tk.DISABLED)
+        self.btn_web_stop.pack(side=tk.LEFT)
+
+        ttk.Label(parent, text="提示：把需要访问的站点/游戏文件放入服务目录"
+                               "（默认 web/），启动后浏览器访问 "
+                               "http://127.0.0.1:<端口>/",
+                  foreground="#666666").grid(row=1, column=0, sticky="w",
+                                             pady=(0, 4))
+
+        log_frame = ttk.LabelFrame(parent, text="服务日志", padding="6")
+        log_frame.grid(row=2, column=0, sticky="nsew")
+        log_frame.columnconfigure(0, weight=1)
+        log_frame.rowconfigure(0, weight=1)
+
+        self.web_log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD,
+                                                      font=log_font)
+        self.web_log_text.grid(row=0, column=0, sticky="nsew")
+        self.web_log_text.config(state=tk.DISABLED)
+
+        self.web_log("就绪：选择服务目录与端口后，点击「启动并打开浏览器」。",
+                     "<启动>")
+
+    def web_browse_dir(self):
+        """选择服务目录。"""
+        initial = self.web_dir_var.get().strip()
+        if not os.path.isdir(initial):
+            initial = str(BASE_DIR)
+        chosen = filedialog.askdirectory(title="选择服务目录", initialdir=initial)
+        if chosen:
+            self.web_dir_var.set(chosen)
+
+    def web_start_action(self):
+        """一键创建本地 Web 服务并打开浏览器。"""
+        if self.web_server is not None:
+            self.web_log("服务已在运行，请先「停止服务」。", "<启动>")
+            return
+
+        # 服务目录：不存在则自动创建
+        root_dir = Path(self.web_dir_var.get().strip())
+        if not root_dir.is_dir():
+            try:
+                root_dir.mkdir(parents=True, exist_ok=True)
+                self.web_log(f"服务目录不存在，已自动创建: {root_dir}", "<启动>")
+            except OSError as e:
+                messagebox.showerror("启动失败", f"无法使用服务目录 {root_dir}：{e}")
+                return
+
+        # 端口：留空自动选择
+        port_text = self.web_port_var.get().strip()
+        port = 0  # 0 = 由系统分配空闲端口
+        if port_text:
+            try:
+                port = int(port_text)
+                if not 0 < port < 65536:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror("端口无效",
+                                     "端口必须是 1-65535 之间的数字，或留空自动选择。")
+                return
+
+        try:
+            _WebHandler._queue = self.event_queue
+            handler = functools.partial(_WebHandler,
+                                        directory=str(root_dir.resolve()))
+            self.web_server = _ThreadingHTTPServer(("127.0.0.1", port), handler)
+            actual_port = self.web_server.server_address[1]
+        except OSError as e:
+            self.web_server = None
+            self.web_log(f"启动失败: {e}", "<错误>")
+            messagebox.showerror(
+                "启动失败",
+                f"无法在端口 {port_text or '(自动)'} 启动服务：\n{e}")
+            return
+
+        self.web_thread = threading.Thread(target=self.web_server.serve_forever,
+                                           name="web-server", daemon=True)
+        self.web_thread.start()
+        self.web_url = f"http://127.0.0.1:{actual_port}/"
+        self.web_port_var.set(str(actual_port))
+        self.btn_web_start.config(state=tk.DISABLED)
+        self.btn_web_stop.config(state=tk.NORMAL)
+        self.web_log(f"服务已启动: {self.web_url}", "<启动>")
+        self.web_log(f"服务目录: {root_dir.resolve()}", "<启动>")
+        self.web_log("仅监听 127.0.0.1，只有本机可以访问。", "<启动>")
+        # 等服务就绪后在浏览器（新窗口）打开
+        self.root.after(300, lambda: self._open_browser_new_window(self.web_url))
+
+    def web_stop_action(self):
+        """停止本地 Web 服务。"""
+        if self.web_server is None:
+            self.web_log("服务未在运行。", "<停止>")
+            return
+        self._web_stop_internal()
+        self.web_log("服务已停止。", "<停止>")
+        self.btn_web_start.config(state=tk.NORMAL)
+        self.btn_web_stop.config(state=tk.DISABLED)
+
+    def _web_stop_internal(self):
+        """内部停止服务（不更新界面），退出程序时也调用。"""
+        server, self.web_server = self.web_server, None
+        if server is None:
+            return
+        try:
+            server.shutdown()  # 须由服务线程之外的线程调用
+        except Exception:
+            pass
+        try:
+            server.server_close()
+        except Exception:
+            pass
+        self.web_thread = None
+
+    def _open_browser_new_window(self, url):
+        """优先用 Edge/Chrome 在新窗口打开；找不到则回退 webbrowser。"""
+        candidates = [
+            os.path.expandvars(
+                r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
+            os.path.expandvars(
+                r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
+            os.path.expandvars(
+                r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(
+                r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+        ]
+        for exe in candidates:
+            if os.path.isfile(exe):
+                try:
+                    subprocess.Popen([exe, "--new-window", url])
+                    self.web_log("已在浏览器新窗口打开。", "<打开浏览器>")
+                    return
+                except OSError:
+                    break
+        try:
+            webbrowser.open(url, new=1)
+            self.web_log("已调用系统默认浏览器打开。", "<打开浏览器>")
+        except Exception as e:
+            self.web_log(f"打开浏览器失败: {e}", "<错误>")
+
     # ---------------- 备注 ----------------
     def save_note(self, idx, text):
         """单条备注变更时调用（FocusOut 触发），限制长度并持久化。"""
@@ -333,21 +552,33 @@ class KGSaveManager:
                 self.slot_widgets[i]['time_lbl'].config(text="(空)")
 
     # ---------------- 日志 ----------------
-    def log(self, msg, tag=""):
+    def _append_log(self, widget, msg, tag=""):
+        """向指定日志控件追加一行带时间戳的消息。"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         if tag:
             formatted = f"[{timestamp}] {tag} {msg}"
         else:
             formatted = f"[{timestamp}] {msg}"
+        widget.config(state=tk.NORMAL)
+        widget.insert(tk.END, formatted + "\n")
+        widget.see(tk.END)
+        widget.config(state=tk.DISABLED)
+        self.root.update_idletasks()
+
+    def log(self, msg, tag=""):
+        """写入「存档管理」页的输出日志。"""
         # 界面尚未构建完成时（例如 __init__ 早期加载备注失败）退化为打印
         if not hasattr(self, "log_text") or self.log_text is None:
-            print(formatted)
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            print(f"[{timestamp}] {tag} {msg}" if tag else f"[{timestamp}] {msg}")
             return
-        self.log_text.config(state=tk.NORMAL)
-        self.log_text.insert(tk.END, formatted + "\n")
-        self.log_text.see(tk.END)
-        self.log_text.config(state=tk.DISABLED)
-        self.root.update_idletasks()
+        self._append_log(self.log_text, msg, tag)
+
+    def web_log(self, msg, tag=""):
+        """写入「启动」页的服务日志。"""
+        if not hasattr(self, "web_log_text") or self.web_log_text is None:
+            return
+        self._append_log(self.web_log_text, msg, tag)
 
     # ---------------- 取消 / 中断 ----------------
     def cancel_monitor(self):
@@ -485,6 +716,8 @@ class KGSaveManager:
             self.log("用户取消存档操作", "<取消存档>")
         elif kind == "error":
             self.log(f"监控出错: {item[1]}", "<错误>")
+        elif kind == "server_log":
+            self.web_log(item[1], "<服务>")
 
     def process_new_file(self, filename, slot):
         """校验并移动检测到的新文件到存档库。"""
@@ -604,6 +837,7 @@ class KGSaveManager:
     def _on_close(self):
         self.commit_notes()
         self.cancel_event.set()
+        self._web_stop_internal()
         self.root.destroy()
 
 
