@@ -121,12 +121,25 @@ class KGSaveManager:
         return self.tr.t(key, **kw)
 
     def slot_name(self, index):
-        """槽位显示名/文件名前缀（自定义名优先，缺省 存档N）。"""
+        """槽位文件名前缀：自定义名优先，否则默认 存档N（文件名不翻译）。"""
         return self.cfg.slot_name(index)
 
+    def _slot_name_text(self, index, exists):
+        """槽位名字显示区：自定义名原样显示；无自定义名时仅在有存档
+        文件时显示默认文件名前缀，无文件不显示（空）。"""
+        custom = self.cfg.slot_names.get(str(index), "")
+        if custom:
+            return custom
+        return self.slot_name(index) if exists else ""
+
     def slot_label(self, index):
-        """槽位列表显示文本：存档NN.名字"""
-        return f"存档{index + 1:02d}.{self.slot_name(index)}"
+        """槽位列表显示文本：<翻译前缀>NN.名字（前缀随语言，
+        如 zh: 存档01.钢铁 / en: Save01.钢铁）。"""
+        exists = False
+        if hasattr(self, "slot_info") and index < len(self.slot_info):
+            exists = bool(self.slot_info[index].get('exists'))
+        prefix = self.t("sv.slot_prefix")
+        return f"{prefix}{index + 1:02d}.{self._slot_name_text(index, exists)}"
 
     def slot_file_base(self, index):
         """槽位存档文件名前缀（不含 _N.kgsav）。"""
@@ -726,9 +739,11 @@ class KGSaveManager:
         self._refresh_settings_slot_combo()
 
         # 提示
-        ttk.Label(frame, text=self.t("st.hint", path=CONFIG_FILE),
-                  foreground="#888888").grid(row=5, column=0, columnspan=3,
-                                             sticky="w", pady=(14, 0))
+        self.settings_hint_lbl = ttk.Label(
+            frame, text=self.t("st.hint", path=CONFIG_FILE),
+            foreground="#888888")
+        self.settings_hint_lbl.grid(row=5, column=0, columnspan=3, sticky="w",
+                                    pady=(14, 0))
 
         # 关于（链接文案固定，不随语言翻译）
         about = ttk.LabelFrame(parent, text=self.t("st.about"), padding="10")
@@ -743,6 +758,29 @@ class KGSaveManager:
             about, "霁绣凇铃RimehueChimeball - Github",
             command=lambda: self._open_external(PROFILE_URL))
         profile_link.grid(row=0, column=1, sticky="e")
+
+        self._refresh_browser_eff()
+
+    def _refresh_browser_eff(self):
+        """在提示行里显示“系统默认浏览器”模式下实际将使用的浏览器。"""
+        if not hasattr(self, "settings_hint_lbl"):
+            return
+        base = self.t("st.hint", path=CONFIG_FILE)
+        if self.cfg.browser.strip():
+            text = base
+        else:
+            try:
+                from config_store import detect_browser_path
+                exe = detect_browser_path()
+            except Exception:
+                exe = ""
+            if exe:
+                eff = exe
+            else:
+                eff = self.t("st.browser_auto")
+            text = base + "\n" + self.t("st.browser_eff") + ": " + eff
+        if self._widget_alive(self.settings_hint_lbl):
+            self.settings_hint_lbl.config(text=text)
 
     def _on_language_selected(self, _event=None):
         cur = self.lang_combo_widget.current()
@@ -790,11 +828,13 @@ class KGSaveManager:
         if chosen:
             self.cfg.update(browser=chosen)
             self._sync_page_vars()
+            self._refresh_browser_eff()
 
     def _browser_use_default(self):
-        """清空浏览器配置 = 使用系统默认浏览器。"""
+        """清空浏览器配置 = 使用系统默认浏览器（动态检测）。"""
         self.cfg.update(browser="")
         self._sync_page_vars()
+        self._refresh_browser_eff()
 
     # ---------- 页面变量同步 ----------
     def _flush_page_vars(self):

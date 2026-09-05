@@ -73,6 +73,7 @@ _ZH = {
     # ---- 存档管理页 ----
     "sv.title_slots": "存档位",
     "sv.title_log": "输出日志",
+    "sv.slot_prefix": "存档",
     "sv.btn_save": "存档",
     "sv.btn_load": "读档",
     "sv.btn_cancel": "取消存档",
@@ -105,6 +106,8 @@ _ZH = {
     "st.port_auto": "留空 = 自动",
     "st.home_slot": "首页指定存档",
     "st.about": "关于",
+    "st.browser_eff": "当前系统默认浏览器",
+    "st.browser_auto": "未检测到（将使用系统关联打开）",
     "st.hint": "所有修改自动保存到：{path}",
 
     # ---- 提示与错误 ----
@@ -172,6 +175,7 @@ _EN = {
     # ---- Save Management page ----
     "sv.title_slots": "Save Slots",
     "sv.title_log": "Output Log",
+    "sv.slot_prefix": "Save",
     "sv.btn_save": "Save",
     "sv.btn_load": "Load",
     "sv.btn_cancel": "Cancel Saving",
@@ -204,6 +208,8 @@ _EN = {
     "st.port_auto": "Empty = auto",
     "st.home_slot": "Home Save Slot",
     "st.about": "About",
+    "st.browser_eff": "Current system default browser",
+    "st.browser_auto": "not detected (will open via OS association)",
     "st.hint": "All changes are saved automatically to: {path}",
 
     # ---- Prompts & errors ----

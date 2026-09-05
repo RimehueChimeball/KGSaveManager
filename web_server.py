@@ -102,38 +102,45 @@ def _launch(exe, url, new_window):
 
 
 def open_in_browser(url, browser_path="", new_window=True):
-    """打开地址。
+    """打开地址（逐级兜底，任何异常都不外抛）。
 
     :param url: 要打开的地址
     :param browser_path: 配置的浏览器 exe 路径
     :param new_window: True=新窗口（仅启动游戏用）；False=常规打开（超链接）
-    :return: 使用方式描述（'custom'/'system default'/'default browser'/None）
+    :return: 使用方式描述（'custom'/'system default'/'shell default'/None）
     """
-    custom = browser_path.strip() if browser_path else ""
-    if custom:
-        if os.path.isfile(custom):
-            try:
-                _launch(custom, url, new_window)
-                return "custom"
-            except OSError:
-                pass
-        # 配置路径失效：回退到系统默认
+    # 1) 配置的浏览器（若路径仍有效）
+    custom = (browser_path or "").strip()
+    if custom and os.path.isfile(custom):
+        try:
+            _launch(custom, url, new_window)
+            return "custom"
+        except OSError:
+            pass
+
+    # 2) 动态检测系统默认浏览器（注册表）
+    exe = ""
     try:
-        # 动态检测系统默认浏览器（注册表），并按引擎能力开新窗口
         from config_store import detect_browser_path
-        exe = detect_browser_path()
-        if exe and os.path.isfile(exe):
+        exe = detect_browser_path() or ""
+    except Exception:
+        exe = ""
+    if exe and os.path.isfile(exe):
+        try:
             _launch(exe, url, new_window)
             return "system default"
+        except OSError:
+            pass
+
+    # 3) 兜底：系统默认关联（webbrowser → os.startfile）
+    try:
+        ok = webbrowser.open(url, new=1 if new_window else 0)
+        if ok:
+            return "shell default"
     except Exception:
         pass
-    # 兜底：交给系统默认浏览器（Windows = os.startfile，无法保证新窗口）
     try:
-        webbrowser.open(url, new=1 if new_window else 0)
-        return "default browser"
+        os.startfile(url)
+        return "shell default"
     except Exception:
-        try:
-            os.startfile(url)
-            return "default browser"
-        except Exception:
-            return None
+        return None
