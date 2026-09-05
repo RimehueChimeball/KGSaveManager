@@ -10,7 +10,7 @@ KittensGame 存档管理器 (KGSaveManager)
 2. 数据目录统一：kgsm_data 收纳存档库/临时目录/配置文件，备份只移动它。
 3. 线程安全：后台监控与界面通过事件队列通信，不跨线程操作 UI。
 4. 文件校验：接收存档前校验非空、限体积，等待导出文件写入稳定。
-5. 剪贴板容错：pyperclip 缺失时回退 tkinter 自带剪贴板。
+5. 剪贴板：内置 tkinter 剪贴板实现，零第三方依赖。
 6. 中英翻译：无配置文件时按系统语言探测，配置页可切换，自动保存。
 7. 四标签页：KGSM（快速启动/复制存档并启动）、启动游戏（Web 服务）、
    存档管理（存档位）、配置（语言/游戏目录/固定端口/首页指定存档）。
@@ -28,7 +28,7 @@ import time
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, scrolledtext, ttk
+from tkinter import filedialog, messagebox, scrolledtext, simpledialog, ttk
 
 from config_store import AppConfig
 from i18n import LANG_EN, LANG_ZH, Translator
@@ -38,16 +38,15 @@ from web_server import LocalWebServer, open_in_browser
 # ==================== 配置 ====================
 APP_NAME = "KittensGame Save Manager"
 APP_VERSION = "v1.0.0"
-SLOT_COUNT = 6                                   # 存档位数量
-SLOT_NAMES = [f"存档{i + 1}" for i in range(SLOT_COUNT)]
+SLOT_COUNT = 10                                  # 存档位数量
 MAX_NOTE_LEN = 200                               # 单条备注最大长度
 MAX_SAVE_SIZE = 64 * 1024 * 1024                 # 单个存档最大体积（字节）
 MONITOR_TIMEOUT = 300                            # 监控导出的超时时间（秒）
 
-# 下载游戏链接（Kittens Game，两个可选来源；使用配置的浏览器打开）
+# 下载游戏链接：1=作者原版仓库（bloodrizer → nuclear-unicorn），2=社区版
 GAME_DOWNLOAD_URLS = [
-    "https://github.com/kitten-science/kittensgame",
     "https://github.com/nuclear-unicorn/kittensgame",
+    "https://github.com/kitten-science/kittensgame",
 ]
 # 关于页链接（固定文案，不随语言翻译）
 REPO_URL = "https://github.com/RimehueChimeball/KGSaveManager"
@@ -121,11 +120,23 @@ class KGSaveManager:
     def t(self, key, **kw):
         return self.tr.t(key, **kw)
 
+    def slot_name(self, index):
+        """槽位显示名/文件名前缀（自定义名优先，缺省 存档N）。"""
+        return self.cfg.slot_name(index)
+
+    def slot_label(self, index):
+        """槽位列表显示文本：存档NN.名字"""
+        return f"存档{index + 1:02d}.{self.slot_name(index)}"
+
+    def slot_file_base(self, index):
+        """槽位存档文件名前缀（不含 _N.kgsav）。"""
+        return self.slot_name(index)
+
     def load_slot_info(self):
         """从存档库读取各存档位的信息（含时间与 mtime）。"""
         self.slot_info = []
         for i in range(SLOT_COUNT):
-            slot_file = SAVE_LIBRARY / f"{SLOT_NAMES[i]}_{i + 1}.kgsav"
+            slot_file = SAVE_LIBRARY / f"{self.slot_name(i)}_{i + 1}.kgsav"
             try:
                 if slot_file.is_file():
                     st = slot_file.stat()
@@ -144,14 +155,15 @@ class KGSaveManager:
                 self.slot_info.append({'exists': False, 'mtime': 0})
 
     def _copy_to_clipboard(self, text):
-        """安全地写入剪贴板；pyperclip 缺失时回退 tkinter 剪贴板。"""
+        """安全地写入剪贴板（tkinter 内置，零依赖）。
+
+        注意：剪贴板内容随本程序退出而清空；正常“复制后粘贴到游戏”
+        流程中程序保持运行，不受影响。
+        """
         try:
-            if self._pyperclip is not None:
-                self._pyperclip.copy(text)
-            else:
-                self.root.clipboard_clear()
-                self.root.clipboard_append(text)
-                self.root.update()
+            self.root.clipboard_clear()
+            self.root.clipboard_append(text)
+            self.root.update()
             return True
         except Exception as e:
             self.log(f"写入剪贴板失败: {e}", "<错误>")
@@ -171,14 +183,7 @@ class KGSaveManager:
 
         # 通用大按钮样式（先定义，供各标签页使用）
         btn_style = ttk.Style()
-        btn_style.configure("Large.TButton", font=button_font, padding=12)
-
-        if 'pyperclip' not in dir(self):
-            try:
-                import pyperclip
-            except ImportError:
-                pyperclip = None
-            self._pyperclip = pyperclip
+        btn_style.configure("Large.TButton", font=button_font, padding=9)
 
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
@@ -322,6 +327,8 @@ class KGSaveManager:
     def _refresh_kgm_dir(self):
         if not hasattr(self, "kgm_dir_lbl"):
             return
+        if not self._widget_alive(self.kgm_dir_lbl):
+            return
         d = self.cfg.game_dir.strip()
         if d:
             self.kgm_dir_lbl.config(text=self.t("kgsm.dir_set", dir=d))
@@ -345,15 +352,18 @@ class KGSaveManager:
     def _refresh_kgm_save(self):
         if not hasattr(self, "kgm_save_lbl"):
             return
+        if not self._widget_alive(self.kgm_save_lbl):
+            return
         idx, exists = self._resolve_kgm_save()
         prefix = self.t("kgsm.cur_prefix")
         if idx is None:
             text = prefix + self.t("ui.empty_short")
         elif exists:
-            text = (prefix + f"{SLOT_NAMES[idx]} · "
+            text = (prefix + f"{self.slot_label(idx)} · "
                     f"{self.slot_info[idx]['time']}")
         else:
-            text = prefix + f"{SLOT_NAMES[idx]} · " + self.t("ui.empty_short")
+            text = prefix + f"{self.slot_label(idx)} · " \
+                + self.t("ui.empty_short")
         self.kgm_save_lbl.config(text=text)
 
     def _open_external(self, url):
@@ -535,6 +545,11 @@ class KGSaveManager:
                                      command=self.cancel_action)
         self.btn_cancel.pack(fill=tk.X, pady=8, padx=15)
 
+        self.btn_rename = ttk.Button(left, text=self.t("sv.btn_rename"),
+                                     style="Large.TButton",
+                                     command=self.rename_action)
+        self.btn_rename.pack(fill=tk.X, pady=8, padx=15)
+
         ttk.Separator(left, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10,
                                                        padx=15)
 
@@ -562,7 +577,8 @@ class KGSaveManager:
         slots_frame.columnconfigure(0, weight=1)
         slots_frame.rowconfigure(0, weight=1)
 
-        canvas = tk.Canvas(slots_frame, highlightthickness=0)
+        canvas = tk.Canvas(slots_frame, highlightthickness=0,
+                           yscrollincrement=38)
         scrollbar = ttk.Scrollbar(slots_frame, orient=tk.VERTICAL,
                                   command=canvas.yview)
         inner = ttk.Frame(canvas)
@@ -577,6 +593,12 @@ class KGSaveManager:
         canvas.bind("<Configure>",
                     lambda e: canvas.itemconfig(canvas_window, width=e.width))
 
+        # 记录画布引用并启用滚轮滚动（指针位于存档位列表区域内时）
+        self.slot_canvas = canvas
+        self.slot_inner = inner
+        self.root.unbind_all("<MouseWheel>")
+        self.root.bind_all("<MouseWheel>", self._on_slot_mousewheel)
+
         self.slot_widgets = []
         for i in range(SLOT_COUNT):
             row = ttk.Frame(inner, relief=tk.FLAT, padding=5)
@@ -585,15 +607,15 @@ class KGSaveManager:
             rb = ttk.Radiobutton(row, variable=self.selected_slot, value=i)
             rb.pack(side=tk.LEFT, padx=8)
 
-            lbl = ttk.Label(row, text=f"{i + 1:02d}. {SLOT_NAMES[i]}",
-                            width=12, anchor=tk.W, font=('微软雅黑', 10))
-            lbl.pack(side=tk.LEFT, padx=8)
+            name_lbl = ttk.Label(row, text=self.slot_label(i), width=17,
+                                 anchor=tk.W, font=('微软雅黑', 10))
+            name_lbl.pack(side=tk.LEFT, padx=8)
 
-            time_lbl = ttk.Label(row, width=20, anchor=tk.W,
+            time_lbl = ttk.Label(row, width=19, anchor=tk.W,
                                  font=('微软雅黑', 9))
             time_lbl.pack(side=tk.LEFT, padx=8)
 
-            note_entry = ttk.Entry(row, width=35)
+            note_entry = ttk.Entry(row, width=32)
             note_entry.pack(side=tk.LEFT, padx=8, fill=tk.X, expand=True)
             note_entry.insert(0, self.notes[i])
             note_entry.bind("<FocusOut>",
@@ -601,6 +623,7 @@ class KGSaveManager:
                                                             e.widget.get()))
 
             self.slot_widgets.append({
+                'name_lbl': name_lbl,
                 'time_lbl': time_lbl,
                 'note_entry': note_entry,
             })
@@ -695,12 +718,12 @@ class KGSaveManager:
                                                            padx=(0, 10))
         self.home_slot_var = tk.StringVar()
         slot_box = ttk.Combobox(frame, textvariable=self.home_slot_var,
-                                state="readonly", width=14,
-                                values=list(SLOT_NAMES), takefocus=0)
-        slot_box.current(self.cfg.home_slot)
+                                state="readonly", width=20,
+                                takefocus=0)
         slot_box.grid(row=4, column=1, sticky="w", pady=6)
         slot_box.bind("<<ComboboxSelected>>", self._on_home_slot_selected)
         self.home_slot_widget = slot_box
+        self._refresh_settings_slot_combo()
 
         # 提示
         ttk.Label(frame, text=self.t("st.hint", path=CONFIG_FILE),
@@ -828,14 +851,89 @@ class KGSaveManager:
             self.cfg.save()
 
     def update_slots_display(self):
-        """只刷新时间显示；不重写备注输入框，避免打断正在输入的内容。"""
+        """刷新存档位行的名字与时间；不重写备注输入框，避免打断输入。"""
         self.load_slot_info()
         for i, info in enumerate(self.slot_info):
+            w = self.slot_widgets[i]
+            w['name_lbl'].config(text=self.slot_label(i))
             if info.get('exists'):
-                self.slot_widgets[i]['time_lbl'].config(text=info['time'])
+                w['time_lbl'].config(text=info['time'])
             else:
-                self.slot_widgets[i]['time_lbl'].config(
-                    text=self.t("ui.empty_short"))
+                w['time_lbl'].config(text=self.t("ui.empty_short"))
+        self._refresh_settings_slot_combo()
+        self._refresh_kgm_save()
+
+    def _refresh_settings_slot_combo(self):
+        """让配置页「首页指定存档」下拉框跟随槽位名字刷新。"""
+        if not hasattr(self, "home_slot_widget"):
+            return
+        if not self._widget_alive(self.home_slot_widget):
+            return
+        values = [self.slot_label(i) for i in range(SLOT_COUNT)]
+        self.home_slot_widget.configure(values=values)
+        cur = self.home_slot_widget.current()
+        target = self.cfg.home_slot
+        if cur != target or cur < 0:
+            self.home_slot_widget.current(target)
+
+    @staticmethod
+    def _widget_alive(widget):
+        try:
+            return widget is not None and widget.winfo_exists()
+        except Exception:
+            return False
+
+    def _on_slot_mousewheel(self, event):
+        """滚轮滚动存档位列表：仅当指针位于该区域内时生效。"""
+        if not hasattr(self, "slot_canvas"):
+            return
+        widget = self.root.winfo_containing(event.x_root, event.y_root)
+        while widget is not None:
+            if widget is self.slot_canvas or widget is self.slot_inner:
+                step = -1 if event.delta > 0 else 1
+                self.slot_canvas.yview_scroll(step * 2, "units")
+                return "break"
+            widget = getattr(widget, "master", None)
+
+    def rename_action(self):
+        """重命名当前选中的存档位（界面名 + 磁盘存档文件名同步）。"""
+        self.commit_notes()
+        slot = self.selected_slot.get()
+        old = self.slot_name(slot)
+
+        new = simpledialog.askstring(
+            self.t("dlg.rename_title"), self.t("dlg.rename_prompt"),
+            initialvalue=old, parent=self.root)
+        if new is None:
+            return
+        new = new.strip()
+        if not new or len(new) > 40 or any(c in new for c in '\\/:*?"<>|'):
+            messagebox.showerror(self.t("dlg.rename_title"),
+                                 self.t("err.name_invalid"))
+            return
+        if new == old:
+            return
+
+        # 磁盘文件同步改名：旧名_N.kgsav → 新名_N.kgsav
+        old_file = SAVE_LIBRARY / f"{old}_{slot + 1}.kgsav"
+        new_file = SAVE_LIBRARY / f"{new}_{slot + 1}.kgsav"
+        if old_file.is_file():
+            if new_file.exists():
+                messagebox.showerror(
+                    self.t("dlg.rename_title"),
+                    self.t("err.name_file_exists", file=new_file.name))
+                return
+            try:
+                os.replace(str(old_file), str(new_file))
+            except OSError as e:
+                messagebox.showerror(self.t("dlg.rename_title"), str(e))
+                return
+            self.log(f"存档文件已改名: {old_file.name} → {new_file.name}",
+                     "<改名>")
+
+        self.cfg.set_slot_name(slot, new)
+        self.update_slots_display()
+        self.log(f"存档位已改名: {self.slot_label(slot)}", "<改名>")
 
     # =========================================================
     # 日志（按页显示：存档操作→存档管理页；服务→启动游戏页）
@@ -901,21 +999,18 @@ class KGSaveManager:
             return
 
         slot = self.selected_slot.get()
-        slot_name = SLOT_NAMES[slot]
-        slot_num = slot + 1
+        slot_text = self.slot_label(slot)
 
         if self.slot_info[slot].get('exists'):
-            msg = self.t("dlg.save_overwrite",
-                         slot=f"{slot_num:02d} 号位 {slot_name}")
+            msg = self.t("dlg.save_overwrite", slot=slot_text)
         else:
-            msg = self.t("dlg.save_new",
-                         slot=f"{slot_num:02d} 号位 {slot_name}")
+            msg = self.t("dlg.save_new", slot=slot_text)
 
         if not messagebox.askokcancel(APP_NAME, msg):
             self.log("用户取消存档操作", "<取消存档>")
             return
 
-        self.log(f"开始对 {slot_num:02d} 号位进行存档操作", "<执行存档>")
+        self.log(f"开始对 {slot_text} 进行存档操作", "<执行存档>")
 
         temp_abs = str(TEMP_FOLDER.resolve())
         if not self._copy_to_clipboard(temp_abs):
@@ -986,7 +1081,7 @@ class KGSaveManager:
 
     def process_new_file(self, filename, slot):
         src = os.path.join(TEMP_FOLDER, filename)
-        dest_name = f"{SLOT_NAMES[slot]}_{slot + 1}.kgsav"
+        dest_name = f"{self.slot_name(slot)}_{slot + 1}.kgsav"
         dest = os.path.join(SAVE_LIBRARY, dest_name)
         try:
             size = os.path.getsize(src)
@@ -1043,7 +1138,8 @@ class KGSaveManager:
 
         if not self._copy_to_clipboard(content):
             return
-        self.log(f"已将 {SLOT_NAMES[idx]} 的存档内容复制到剪贴板", "<读档操作>")
+        self.log(f"已将 {self.slot_label(idx)} 的存档内容复制到剪贴板",
+                 "<读档操作>")
         self.log("游戏打开后点击 Options → Import，粘贴 (Ctrl+V) 即可导入。")
 
         self._start_server_from_cfg(open_browser=True)
@@ -1069,7 +1165,7 @@ class KGSaveManager:
         if not self.slot_info[slot].get('exists'):
             messagebox.showwarning(APP_NAME,
                                    self.t("dlg.no_file",
-                                          slot=SLOT_NAMES[slot]))
+                                          slot=self.slot_label(slot)))
             return
 
         slot_file = self.slot_info[slot]['filename']
@@ -1077,12 +1173,12 @@ class KGSaveManager:
             content = self._read_save_file(slot_file)
             if not self._copy_to_clipboard(content):
                 return
-            self.log(f"已将 {SLOT_NAMES[slot]} 的存档内容复制到剪贴板",
+            self.log(f"已将 {self.slot_label(slot)} 的存档内容复制到剪贴板",
                      "<读档操作>")
             self.log("请打开游戏，点击 Options → Import，粘贴 (Ctrl+V) 并确认。")
             messagebox.showinfo(
                 APP_NAME,
-                self.t("dlg.copied_ok", slot=SLOT_NAMES[slot]))
+                self.t("dlg.copied_ok", slot=self.slot_label(slot)))
         except Exception as e:
             self.log(f"读取存档失败: {e}", "<读档操作>")
             messagebox.showerror("读档失败", str(e))
@@ -1093,7 +1189,7 @@ class KGSaveManager:
 
         self.log("开始检查异常文件...", "<检查异常>")
 
-        valid_names = {f"{SLOT_NAMES[i]}_{i + 1}.kgsav"
+        valid_names = {f"{self.slot_name(i)}_{i + 1}.kgsav"
                        for i in range(SLOT_COUNT)}
 
         try:

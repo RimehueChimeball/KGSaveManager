@@ -57,8 +57,8 @@ _ZH = {
     "kgsm.btn_run": "运行",
     "kgsm.first_use_q": "第一次使用？",
     "kgsm.btn_config": "配置程序",
-    "kgsm.download_1": "下载游戏 · Kittens Game（kitten-science）",
-    "kgsm.download_2": "下载游戏 · Kittens Game（nuclear-unicorn）",
+    "kgsm.download_1": "下载游戏 · Kittens Game（作者原版 · GitHub）",
+    "kgsm.download_2": "下载游戏 · Kittens Game（社区版 · GitHub）",
 
     # ---- 启动游戏页 ----
     "la.title": "本地 Web 服务（仅本机 127.0.0.1 可访问）",
@@ -76,6 +76,7 @@ _ZH = {
     "sv.btn_save": "存档",
     "sv.btn_load": "读档",
     "sv.btn_cancel": "取消存档",
+    "sv.btn_rename": "改名",
     "sv.btn_check": "检查异常文件",
     "sv.help": (
         "操作说明\n\n"
@@ -113,6 +114,10 @@ _ZH = {
     "err.dir_missing": "目录不存在：{dir}",
     "err.no_save": "所选存档为空，无法复制。",
     "err.no_saves": "存档库中还没有可用存档。",
+    "dlg.rename_title": "槽位改名",
+    "dlg.rename_prompt": "输入槽位新名字（同时用于存档文件名，如 名字_1.kgsav）：",
+    "err.name_invalid": "名字不能为空，且不能包含 \\ / : * ? \" < > | 等字符。",
+    "err.name_file_exists": "目标存档文件已存在，改名中止：{file}",
     "dlg.save_new": "对 {slot} 进行存档操作？",
     "dlg.save_overwrite": "对 {slot} 进行存档操作？将覆盖现有存档。",
     "dlg.no_file": "{slot} 没有存档文件。",
@@ -149,8 +154,8 @@ _EN = {
     "kgsm.btn_run": "Run",
     "kgsm.first_use_q": "First time here?",
     "kgsm.btn_config": "Configure",
-    "kgsm.download_1": "Download Game · Kittens Game (kitten-science)",
-    "kgsm.download_2": "Download Game · Kittens Game (nuclear-unicorn)",
+    "kgsm.download_1": "Download Game · Kittens Game (Original by Author · GitHub)",
+    "kgsm.download_2": "Download Game · Kittens Game (Community Fork · GitHub)",
 
     # ---- Launch Game page ----
     "la.title": "Local Web Server (bound to 127.0.0.1 only)",
@@ -170,6 +175,7 @@ _EN = {
     "sv.btn_save": "Save",
     "sv.btn_load": "Load",
     "sv.btn_cancel": "Cancel Saving",
+    "sv.btn_rename": "Rename",
     "sv.btn_check": "Check Abnormal Files",
     "sv.help": (
         "Help\n\n"
@@ -209,6 +215,13 @@ _EN = {
     "err.dir_missing": "Directory does not exist: {dir}",
     "err.no_save": "The selected save is empty, nothing to copy.",
     "err.no_saves": "There are no saves available yet.",
+    "dlg.rename_title": "Rename Slot",
+    "dlg.rename_prompt": "Enter the new slot name (also used in save "
+                         "filenames, e.g. name_1.kgsav):",
+    "err.name_invalid": "The name must not be empty and cannot contain "
+                        "\\ / : * ? \" < > | characters.",
+    "err.name_file_exists": "Target save file already exists, rename "
+                            "aborted: {file}",
     "dlg.save_new": "Save to {slot}?",
     "dlg.save_overwrite": "Save to {slot}? The existing save will be "
                           "overwritten.",

@@ -1,3 +1,0 @@
-# 可选依赖：pyperclip。
-# 未安装时程序会自动回退到 tkinter 自带剪贴板，仍可正常使用。
-pyperclip>=1.8.2

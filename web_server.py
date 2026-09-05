@@ -13,15 +13,6 @@ import socketserver
 import subprocess
 import webbrowser
 
-EDGE_PATHS = [
-    os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
-    os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
-]
-CHROME_PATHS = [
-    os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
-    os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
-]
-
 
 class _WebHandler(http.server.SimpleHTTPRequestHandler):
     """静态文件请求处理器：访问日志转发到 UI 事件队列。"""
@@ -96,38 +87,53 @@ class LocalWebServer:
         self._thread = None
 
 
+def _is_known_engine(exe):
+    """是否为支持 --new-window 参数的主流浏览器内核。"""
+    name = os.path.basename(exe).lower()
+    return any(k in name for k in ("edge", "chrome", "chromium", "firefox"))
+
+
+def _launch(exe, url, new_window):
+    args = [exe]
+    if new_window and _is_known_engine(exe):
+        args.append("--new-window")
+    args.append(url)
+    subprocess.Popen(args)
+
+
 def open_in_browser(url, browser_path="", new_window=True):
-    """用指定浏览器打开地址。
+    """打开地址。
 
     :param url: 要打开的地址
-    :param browser_path: 配置的浏览器 exe 路径；空串 = 系统默认浏览器
-    :param new_window: True=新窗口（仅启动游戏用）；
-                       False=常规打开（超链接用，在现有窗口新开标签页）
-    :return: 使用的打开方式描述（'Edge'/'Chrome'/'custom'/'default browser'/None）
+    :param browser_path: 配置的浏览器 exe 路径
+    :param new_window: True=新窗口（仅启动游戏用）；False=常规打开（超链接）
+    :return: 使用方式描述（'custom'/'system default'/'default browser'/None）
     """
-    candidates = []
     custom = browser_path.strip() if browser_path else ""
     if custom:
-        candidates.append(custom)
-    for exe in EDGE_PATHS + CHROME_PATHS:
-        if exe not in candidates:
-            candidates.append(exe)
-
-    for exe in candidates:
-        if os.path.isfile(exe):
+        if os.path.isfile(custom):
             try:
-                args = [exe]
-                if new_window:
-                    args.append("--new-window")
-                args.append(url)
-                subprocess.Popen(args)
-                if exe == custom:
-                    return "custom"
-                return "Edge" if exe in EDGE_PATHS else "Chrome"
+                _launch(custom, url, new_window)
+                return "custom"
             except OSError:
-                break
+                pass
+        # 配置路径失效：回退到系统默认
+    try:
+        # 动态检测系统默认浏览器（注册表），并按引擎能力开新窗口
+        from config_store import detect_browser_path
+        exe = detect_browser_path()
+        if exe and os.path.isfile(exe):
+            _launch(exe, url, new_window)
+            return "system default"
+    except Exception:
+        pass
+    # 兜底：交给系统默认浏览器（Windows = os.startfile，无法保证新窗口）
     try:
         webbrowser.open(url, new=1 if new_window else 0)
         return "default browser"
     except Exception:
-        return None
+        try:
+            os.startfile(url)
+            return "default browser"
+        except Exception:
+            return None
