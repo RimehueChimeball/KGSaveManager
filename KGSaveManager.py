@@ -36,7 +36,7 @@ from web_server import LocalWebServer, open_in_browser
 
 # ==================== 配置 ====================
 APP_NAME = "KittensGame Save Manager"
-APP_VERSION = "v1.0.0"
+APP_VERSION = "v1.1.0"
 SLOT_COUNT = 10                                  # 存档位数量
 MAX_NOTE_LEN = 200                               # 单条备注最大长度
 MAX_SAVE_SIZE = 64 * 1024 * 1024                 # 单个存档最大体积（字节）
@@ -219,8 +219,8 @@ class KGSaveManager:
             self.root.update()
             return True
         except Exception as e:
-            self.log(f"写入剪贴板失败: {e}", "<错误>")
-            messagebox.showerror("剪贴板错误", str(e))
+            self.log(self.t("msg.clipboard_fail", e=e), self.t("tag.error"))
+            messagebox.showerror(self.t("dlg.clipboard_title"), str(e))
             return False
 
     # =========================================================
@@ -488,7 +488,7 @@ class KGSaveManager:
 
         # 与运行状态同步按钮
         self._update_server_buttons(self.lweb.running)
-        self.web_log(self.t("la.ready"), "<启动>")
+        self.web_log(self.t("la.ready"), self.t("tag.start"))
 
     def _update_server_buttons(self, running):
         if not hasattr(self, "btn_web_start"):
@@ -502,7 +502,7 @@ class KGSaveManager:
     def web_stop_action(self):
         self.lweb.stop()
         self._update_server_buttons(False)
-        self.web_log("服务已停止。", "<停止>")
+        self.web_log(self.t("msg.server_stopped"), self.t("tag.stop"))
 
     def _start_server_from_cfg(self, open_browser=True):
         """按当前配置（游戏目录/固定端口）启动 Web 服务。
@@ -538,13 +538,13 @@ class KGSaveManager:
                 return None
 
         if self.lweb.running:
-            self.web_log("检测到运行中的服务，重启以应用当前设置", "<启动>")
+            self.web_log(self.t("msg.server_restart"), self.t("tag.start"))
             self.lweb.stop()
 
         try:
             url, actual_port = self.lweb.start(str(root_dir), port)
         except OSError as e:
-            self.web_log(f"启动失败: {e}", "<错误>")
+            self.web_log(self.t("msg.server_fail", e=e), self.t("tag.error"))
             messagebox.showerror(self.t("err.launch_fail"),
                                  f"port={port_text or '(auto)'}: {e}")
             return None
@@ -555,9 +555,11 @@ class KGSaveManager:
             self._sync_page_vars()
 
         self._update_server_buttons(True)
-        self.web_log(f"服务已启动: {url}", "<启动>")
-        self.web_log(f"服务目录: {root_dir}", "<启动>")
-        self.web_log("仅监听 127.0.0.1，只有本机可以访问。", "<启动>")
+        self.web_log(self.t("msg.server_started", url=url),
+                     self.t("tag.start"))
+        self.web_log(self.t("msg.server_dir", dir=root_dir),
+                     self.t("tag.start"))
+        self.web_log(self.t("msg.server_local"), self.t("tag.start"))
 
         if open_browser:
             self.root.after(300, self._open_browser_and_log, url)
@@ -568,9 +570,11 @@ class KGSaveManager:
         how = open_in_browser(url, browser_path=self.cfg.browser,
                               new_window=True)
         if how:
-            self.web_log(f"已在浏览器新窗口打开（{how}）。", "<打开浏览器>")
+            self.web_log(self.t("msg.browser_opened", how=how),
+                         self.t("tag.browser"))
         else:
-            self.web_log("打开浏览器失败，请手动访问: " + url, "<错误>")
+            self.web_log(self.t("msg.browser_fail", url=url),
+                         self.t("tag.error"))
 
     # ---------- 存档管理页 ----------
     def build_saves_tab(self, main, button_font, help_font, log_font):
@@ -701,9 +705,9 @@ class KGSaveManager:
         self.log_text.config(state=tk.DISABLED)
 
         if self._first_build:
-            self.log("程序启动")
-            self.log(f"存档库: {SAVE_LIBRARY}")
-            self.log(f"临时文件夹: {TEMP_FOLDER}")
+            self.log(self.t("msg.app_start"))
+            self.log(self.t("msg.library_path", path=SAVE_LIBRARY))
+            self.log(self.t("msg.temp_path", path=TEMP_FOLDER))
 
     # ---------- 配置页 ----------
     def build_settings_tab(self, parent, button_font, log_font):
@@ -1023,14 +1027,15 @@ class KGSaveManager:
         except OSError as e:
             messagebox.showerror(self.t("dlg.rename_title"), str(e))
             return
-        self.log(f"存档文件已改名: {old_file.name} → {new_file.name}", "<改名>")
+        self.log(self.t("msg.file_renamed", old=old_file.name,
+                        new=new_file.name), self.t("tag.rename"))
         self.update_slots_display()
 
     def refresh_action(self):
         """手动刷新存档库（重新扫描文件名与修改日期）。"""
         self.commit_notes()
         self.update_slots_display()
-        self.log("已刷新存档库。", "<刷新>")
+        self.log(self.t("msg.refreshed"), self.t("tag.refresh"))
 
     # =========================================================
     # 日志（按页显示：存档操作→存档管理页；服务→启动游戏页）
@@ -1075,9 +1080,9 @@ class KGSaveManager:
     def cancel_monitor(self):
         if self._is_monitoring():
             self.cancel_event.set()
-            self.log("正在取消存档操作...", "<取消存档>")
+            self.log(self.t("msg.cancel_pending"), self.t("tag.cancel"))
             return True
-        self.log("当前没有进行中的存档操作", "<取消存档>")
+        self.log(self.t("msg.no_operation"), self.t("tag.cancel"))
         return False
 
     def cancel_action(self):
@@ -1092,7 +1097,7 @@ class KGSaveManager:
         self.commit_notes()
 
         if self._is_monitoring():
-            self.log("已有存档操作进行中，请先取消或等待完成", "<执行存档>")
+            self.log(self.t("msg.busy"), self.t("tag.save"))
             return
 
         slot = self.selected_slot.get()
@@ -1104,16 +1109,16 @@ class KGSaveManager:
             msg = self.t("dlg.save_new", slot=slot_text)
 
         if not messagebox.askokcancel(APP_NAME, msg):
-            self.log("用户取消存档操作", "<取消存档>")
+            self.log(self.t("msg.user_cancel"), self.t("tag.cancel"))
             return
 
-        self.log(f"开始对 {slot_text} 进行存档操作", "<执行存档>")
+        self.log(self.t("msg.save_start", slot=slot_text), self.t("tag.save"))
 
         temp_abs = str(TEMP_FOLDER.resolve())
         if not self._copy_to_clipboard(temp_abs):
             return
-        self.log(f"已复制路径到剪贴板: {temp_abs}")
-        self.log("请在游戏中点击 Options → Export，粘贴此路径并保存为 .txt 文件。")
+        self.log(self.t("msg.copied_path", path=temp_abs))
+        self.log(self.t("msg.export_hint"))
 
         self.start_monitoring(slot)
 
@@ -1185,22 +1190,22 @@ class KGSaveManager:
         try:
             size = os.path.getsize(src)
             if size <= 0:
-                raise ValueError("导出文件为空")
+                raise ValueError(self.t("err.export_empty"))
             if size > MAX_SAVE_SIZE:
-                raise ValueError(f"导出文件过大（{size} 字节）")
+                raise ValueError(self.t("err.file_too_large", size=size))
             with open(src, "r", encoding="utf-8", errors="replace") as f:
                 head = f.read(64)
             if not head.strip():
-                raise ValueError("导出文件内容为空")
+                raise ValueError(self.t("err.export_content_empty"))
             # os.replace：移动+重命名一步完成，已存在时直接覆盖（原子）
             os.replace(src, dest)
-            self.log(f"成功存档: {filename} → {dest_name}（已覆盖写入）",
-                     "<完成存档>")
+            self.log(self.t("msg.save_success", src=filename, dest=dest_name),
+                     self.t("tag.done"))
             self.update_slots_display()
             self._refresh_kgm_save()
         except Exception as e:
-            self.log(f"处理存档失败: {e}", "<执行存档>")
-            messagebox.showerror("存档失败", str(e))
+            self.log(self.t("msg.process_fail", e=e), self.t("tag.save"))
+            messagebox.showerror(self.t("err.save_fail"), str(e))
 
     # =========================================================
     # KGSM 页运行逻辑
@@ -1233,15 +1238,15 @@ class KGSaveManager:
         try:
             content = self._read_save_file(self.slot_info[idx]['filename'])
         except Exception as e:
-            self.log(f"读取存档失败: {e}", "<读档操作>")
-            messagebox.showerror("读档失败", str(e))
+            self.log(self.t("msg.read_fail", e=e), self.t("tag.load"))
+            messagebox.showerror(self.t("err.load_fail"), str(e))
             return
 
         if not self._copy_to_clipboard(content):
             return
-        self.log(f"已将 {self.slot_label(idx)} 的存档内容复制到剪贴板",
-                 "<读档操作>")
-        self.log("游戏打开后点击 Options → Import，粘贴 (Ctrl+V) 即可导入。")
+        self.log(self.t("msg.copied_save", slot=self.slot_label(idx)),
+                 self.t("tag.load"))
+        self.log(self.t("msg.import_hint"))
 
         self._start_server_from_cfg(open_browser=True)
 
@@ -1249,9 +1254,9 @@ class KGSaveManager:
         """读取存档文件并做基本校验，返回文本内容。"""
         size = os.path.getsize(path)
         if size <= 0:
-            raise ValueError("存档文件为空")
+            raise ValueError(self.t("err.file_empty"))
         if size > MAX_SAVE_SIZE:
-            raise ValueError(f"存档文件过大（{size} 字节）")
+            raise ValueError(self.t("err.file_too_large", size=size))
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
 
@@ -1274,21 +1279,21 @@ class KGSaveManager:
             content = self._read_save_file(slot_file)
             if not self._copy_to_clipboard(content):
                 return
-            self.log(f"已将 {self.slot_label(slot)} 的存档内容复制到剪贴板",
-                     "<读档操作>")
-            self.log("请打开游戏，点击 Options → Import，粘贴 (Ctrl+V) 并确认。")
+            self.log(self.t("msg.copied_save", slot=self.slot_label(slot)),
+                     self.t("tag.load"))
+            self.log(self.t("msg.load_hint"))
             messagebox.showinfo(
                 APP_NAME,
                 self.t("dlg.copied_ok", slot=self.slot_label(slot)))
         except Exception as e:
-            self.log(f"读取存档失败: {e}", "<读档操作>")
-            messagebox.showerror("读档失败", str(e))
+            self.log(self.t("msg.read_fail", e=e), self.t("tag.load"))
+            messagebox.showerror(self.t("err.load_fail"), str(e))
 
     def check_action(self):
         self.stop_ongoing_operation()
         self.commit_notes()
 
-        self.log("开始检查异常文件...", "<检查异常>")
+        self.log(self.t("msg.check_start"), self.t("tag.check"))
 
         try:
             library_files = sorted(os.listdir(SAVE_LIBRARY))
@@ -1312,28 +1317,28 @@ class KGSaveManager:
             except OSError:
                 pass
 
-        self.log("=" * 50, "<检查异常>")
+        self.log("=" * 50, self.t("tag.check"))
         if invalid_lib:
-            self.log("【存档库】发现以下不合规文件（程序不会处理）：", "<检查异常>")
+            self.log(self.t("msg.lib_abnormal"), self.t("tag.check"))
             for f in invalid_lib:
-                self.log(f"  - {f}", "<检查异常>")
+                self.log(self.t("msg.item", f=f), self.t("tag.check"))
         else:
-            self.log("【存档库】没有不合规文件。", "<检查异常>")
+            self.log(self.t("msg.lib_clean"), self.t("tag.check"))
 
         if empty_lib:
-            self.log("【存档库】以下存档文件内容为空：", "<检查异常>")
+            self.log(self.t("msg.lib_empty"), self.t("tag.check"))
             for f in empty_lib:
-                self.log(f"  - {f}", "<检查异常>")
+                self.log(self.t("msg.item", f=f), self.t("tag.check"))
 
         if temp_files:
-            self.log("【临时文件夹】发现以下文件（程序不会处理）：", "<检查异常>")
+            self.log(self.t("msg.temp_files"), self.t("tag.check"))
             for f in temp_files:
-                self.log(f"  - {f}", "<检查异常>")
+                self.log(self.t("msg.item", f=f), self.t("tag.check"))
         else:
-            self.log("【临时文件夹】为空。", "<检查异常>")
+            self.log(self.t("msg.temp_clean"), self.t("tag.check"))
 
-        self.log("这些文件不会被程序管理，请自行判断是否转移或删除。", "<检查异常>")
-        self.log("=" * 50, "<检查异常>")
+        self.log(self.t("msg.check_tail"), self.t("tag.check"))
+        self.log("=" * 50, self.t("tag.check"))
 
     # =========================================================
     # 事件队列轮询（UI 线程）
@@ -1353,14 +1358,14 @@ class KGSaveManager:
         if kind == "save_ready":
             self.process_new_file(item[1], item[2])
         elif kind == "timeout":
-            self.log("存档超时：未在5分钟内检测到新文件，请确保已正确导出存档。",
-                     "<超时>")
+            self.log(self.t("msg.monitor_timeout"), self.t("tag.timeout"))
         elif kind == "cancelled":
-            self.log("用户取消存档操作", "<取消存档>")
+            self.log(self.t("msg.user_cancel"), self.t("tag.cancel"))
         elif kind == "error":
-            self.log(f"监控出错: {item[1]}", "<错误>")
+            self.log(self.t("msg.monitor_error", e=item[1]),
+                     self.t("tag.error"))
         elif kind == "server_log":
-            self.web_log(item[1], "<服务>")
+            self.web_log(item[1], self.t("tag.server"))
 
     # =========================================================
     # 退出

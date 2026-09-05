@@ -1,12 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
-
+# KGSaveManager PyInstaller 配置（模块已拆分：i18n/config_store/web_server/utils）
+# - console=False：GUI 程序不弹出控制台
+# - hiddenimports：显式声明拆分的模块，避免“仅运行时局部导入”导致漏包
+#   （web_server.open_in_browser 在函数内 import config_store）
+# - upx=False：不依赖外部 UPX 压缩工具，避免构建告警（体积差异可忽略）
 
 a = Analysis(
     ['KGSaveManager.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=['i18n', 'config_store', 'web_server', 'utils'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -25,7 +29,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -38,7 +42,7 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name='KGSaveManager',
 )
