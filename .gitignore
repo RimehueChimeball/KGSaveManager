@@ -1,0 +1,30 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+
+# ---- 虚拟环境 ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- PyInstaller 打包产物 ----
+build/
+dist/
+
+# ---- IDE / 编辑器 ----
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ---- 运行期数据（个人存档与配置，不应公开）----
+kgsm_data/
+
+# ---- 操作系统 ----
+Thumbs.db
+Desktop.ini
+.DS_Store
