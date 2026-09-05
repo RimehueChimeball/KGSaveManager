@@ -2,49 +2,38 @@
 KittensGame 存档管理器 (KGSaveManager)
 ======================================
 
-一个基于 Tkinter 的《Kittens Game》存档管理工具，支持存档位管理、
-备注持久化、游戏存档的导入/导出对接，以及一键启动本地静态 Web 服务。
+基于 Tkinter 的《Kittens Game》桌面伴侣：存档管理、备注与配置持久化、
+一键本地 Web 服务（http.server + socketserver）启动游戏。
 
 功能特性：
-1. 备注与配置持久化：保存到 ``kgsm_data/kgsm_config.json``（原子写入），
-   重启不丢失，也为后续扩展预留配置位。
-2. 数据目录统一：存档库/临时目录/配置文件统一收纳在 ``kgsm_data`` 下，
-   备份或迁移时只需复制/移动这一个文件夹；路径基于“程序所在目录”
-   解析，不依赖当前工作目录（CWD），兼容 PyInstaller 冻结打包。
-3. 线程安全：后台监控线程与 Tkinter 界面通过队列通信，不直接跨线程
-   操作 UI；监控状态用锁保护，异常统一走 try/finally。
-4. 输入/文件校验：限制备注长度、存档文件大小，校验内容非空，
-   并等待导出文件写入稳定后再接收，避免拿到半成品。
-5. 剪贴板异常处理：读写剪贴板失败不会导致崩溃，且缺少 pyperclip 时
-   自动回退到 tkinter 自带剪贴板。
-6. 多标签页 GUI：默认页「存档管理」，另有「启动」页——内置本地静态
-   Web 服务（http.server + socketserver），一键起服务并打开浏览器
-   （优先 Edge/Chrome 新窗口，其次 webbrowser）。
+1. 备注与配置持久化：kgsm_data/kgsm_config.json（原子写入，自动保存）。
+2. 数据目录统一：kgsm_data 收纳存档库/临时目录/配置文件，备份只移动它。
+3. 线程安全：后台监控与界面通过事件队列通信，不跨线程操作 UI。
+4. 文件校验：接收存档前校验非空、限体积，等待导出文件写入稳定。
+5. 剪贴板容错：pyperclip 缺失时回退 tkinter 自带剪贴板。
+6. 中英翻译：无配置文件时按系统语言探测，配置页可切换，自动保存。
+7. 四标签页：KGSM（快速启动/复制存档并启动）、启动游戏（Web 服务）、
+   存档管理（存档位）、配置（语言/游戏目录/固定端口/首页指定存档）。
+
+模块拆分：i18n.py（翻译）、config_store.py（配置）、
+web_server.py（本地 Web 服务）、utils.py（DPI）。
 """
 
-import functools
-import http.server
-import json
 import os
 import queue
 import shutil
-import socketserver
-import subprocess
 import sys
 import threading
 import time
 import tkinter as tk
-import webbrowser
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
-try:
-    import pyperclip
-except ImportError:  # pyperclip 未安装时回退到 tkinter 自带剪贴板
-    pyperclip = None
-
+from config_store import AppConfig
+from i18n import LANG_EN, LANG_ZH, Translator
 from utils import setup_dpi_and_scaling
+from web_server import LocalWebServer, open_in_browser
 
 # ==================== 配置 ====================
 APP_NAME = "KittensGame Save Manager"
@@ -54,6 +43,9 @@ SLOT_NAMES = [f"存档{i + 1}" for i in range(SLOT_COUNT)]
 MAX_NOTE_LEN = 200                               # 单条备注最大长度
 MAX_SAVE_SIZE = 64 * 1024 * 1024                 # 单个存档最大体积（字节）
 MONITOR_TIMEOUT = 300                            # 监控导出的超时时间（秒）
+
+# 下载游戏链接（Kittens Game，可自行更换）
+GAME_DOWNLOAD_URL = "https://github.com/kitten-science/kittensgame"
 
 # ---- 程序目录：兼容源码运行与 PyInstaller 冻结 ----
 if getattr(sys, "frozen", False):
@@ -65,45 +57,29 @@ DATA_FOLDER = BASE_DIR / "kgsm_data"             # 数据总目录：备份/迁�
 SAVE_LIBRARY = DATA_FOLDER / "kittens_saves"     # 存档库文件夹
 TEMP_FOLDER = DATA_FOLDER / "kgsm_temp"          # 临时文件夹（接收游戏导出文件）
 CONFIG_FILE = DATA_FOLDER / "kgsm_config.json"   # 配置/备注持久化文件
-WEB_ROOT = BASE_DIR / "web"                      # 启动页默认服务目录
 
-
-# ---- 本地静态 Web 服务 ----
-class _WebHandler(http.server.SimpleHTTPRequestHandler):
-    """静态文件请求处理器：访问日志转发到 UI 事件队列，不在控制台输出。"""
-
-    _queue = None  # 启动服务前由主程序注入事件队列
-
-    def log_message(self, fmt, *args):
-        if self._queue is not None:
-            msg = "%s - - [%s] %s" % (
-                self.address_string(), self.log_date_time_string(), fmt % args)
-            self._queue.put(("server_log", msg))
-
-
-class _ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
-    """多线程版本地 HTTP 服务器（服务线程随主程序退出）。"""
-
-    daemon_threads = True
+# 标签页固定顺序：KGSM / 启动游戏 / 存档管理 / 配置
+TAB_ORDER = ("kgsm", "game", "saves", "settings")
 
 
 class KGSaveManager:
     def __init__(self, root):
         self.root = root
         self.root.title(f"{APP_NAME} {APP_VERSION}")
-        self.root.geometry("1100x600")
-        self.root.minsize(750, 400)
+        self.root.geometry("1120x640")
+        self.root.minsize(800, 480)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        # 创建必要的文件夹
+        # 数据目录与配置（配置读取/首启自动创建）
         self._ensure_dirs()
+        self.cfg = AppConfig(CONFIG_FILE)
+        self.tr = Translator(self.cfg.language)
 
         # 当前选中的存档位索引（0-based）
         self.selected_slot = tk.IntVar(value=0)
 
-        # 每个存档位的备注（先从磁盘加载）
-        self.notes = ["" for _ in range(SLOT_COUNT)]
-        self._load_notes()
+        # 每个存档位的备注（来自配置，修改自动保存）
+        self.notes = [self.cfg.get_note(i) for i in range(SLOT_COUNT)]
 
         # 存档信息列表
         self.slot_info = []
@@ -116,58 +92,31 @@ class KGSaveManager:
         self.event_queue = queue.Queue()
         self.monitor_thread = None
 
-        # 本地 Web 服务状态（启动页）
-        self.web_server = None
-        self.web_thread = None
-        self.web_url = None
+        # 本地 Web 服务（多页共用同一个服务）
+        self.lweb = LocalWebServer(self.event_queue)
 
-        # 构建界面
+        # 首次构建标志（重建界面时不重复输出“程序启动”日志）
+        self._first_build = True
+
+        # 构建界面（KGSM / 启动游戏 / 存档管理 / 配置）
         self.build_ui()
+        self._first_build = False
 
         # 启动事件队列轮询（所有后台结果都在 UI 线程处理）
         self.root.after(150, self._poll_queue)
 
-    # ---------------- 基础工具 ----------------
+    # =========================================================
+    # 基础工具
+    # =========================================================
     def _ensure_dirs(self):
         for folder in (DATA_FOLDER, SAVE_LIBRARY, TEMP_FOLDER):
             folder.mkdir(parents=True, exist_ok=True)
 
-    def _is_monitoring(self):
-        with self._state_lock:
-            return self.monitoring
-
-    def _set_monitoring(self, value):
-        with self._state_lock:
-            self.monitoring = value
-
-    def _load_notes(self):
-        """从磁盘加载备注；失败或缺失时保持默认空备注。"""
-        if not CONFIG_FILE.exists():
-            return
-        try:
-            data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                for i in range(SLOT_COUNT):
-                    raw = data.get(str(i), "")
-                    self.notes[i] = str(raw)[:MAX_NOTE_LEN]
-        except Exception as e:
-            self.log(f"加载备注失败（已忽略）: {e}", "<警告>")
-
-    def _save_notes(self):
-        """原子写入配置（含备注）：先写临时文件再替换，避免写一半损坏。"""
-        data = {str(i): self.notes[i] for i in range(SLOT_COUNT)}
-        tmp = CONFIG_FILE.with_suffix(".json.tmp")
-        try:
-            tmp.write_text(
-                json.dumps(data, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            tmp.replace(CONFIG_FILE)
-        except Exception as e:
-            self.log(f"保存备注失败: {e}", "<警告>")
+    def t(self, key, **kw):
+        return self.tr.t(key, **kw)
 
     def load_slot_info(self):
-        """从存档库读取各存档位的信息。"""
+        """从存档库读取各存档位的信息（含时间与 mtime）。"""
         self.slot_info = []
         for i in range(SLOT_COUNT):
             slot_file = SAVE_LIBRARY / f"{SLOT_NAMES[i]}_{i + 1}.kgsav"
@@ -181,21 +130,18 @@ class KGSaveManager:
                         'filename': str(slot_file),
                         'time': time_str,
                         'size': st.st_size,
+                        'mtime': st.st_mtime,
                     })
                 else:
-                    self.slot_info.append({'exists': False})
+                    self.slot_info.append({'exists': False, 'mtime': 0})
             except OSError:
-                self.slot_info.append({'exists': False})
+                self.slot_info.append({'exists': False, 'mtime': 0})
 
     def _copy_to_clipboard(self, text):
-        """安全地写入剪贴板，失败时提示而非崩溃。
-
-        优先使用 pyperclip（程序退出后内容仍保留在系统剪贴板）；
-        未安装时回退到 tkinter 自带剪贴板（程序运行期间有效）。
-        """
+        """安全地写入剪贴板；pyperclip 缺失时回退 tkinter 剪贴板。"""
         try:
-            if pyperclip is not None:
-                pyperclip.copy(text)
+            if self._pyperclip is not None:
+                self._pyperclip.copy(text)
             else:
                 self.root.clipboard_clear()
                 self.root.clipboard_append(text)
@@ -203,10 +149,12 @@ class KGSaveManager:
             return True
         except Exception as e:
             self.log(f"写入剪贴板失败: {e}", "<错误>")
-            messagebox.showerror("剪贴板错误", f"无法写入剪贴板：{e}")
+            messagebox.showerror("剪贴板错误", str(e))
             return False
 
-    # ---------------- 界面 ----------------
+    # =========================================================
+    # 界面构建
+    # =========================================================
     def build_ui(self):
         default_font = ('微软雅黑', 10)
         button_font = ('微软雅黑', 12)
@@ -215,20 +163,332 @@ class KGSaveManager:
 
         self.root.option_add('*Font', default_font)
 
-        # 多标签页界面：存档管理（默认页）+ 启动
+        # 通用大按钮样式（先定义，供各标签页使用）
+        btn_style = ttk.Style()
+        btn_style.configure("Large.TButton", font=button_font, padding=12)
+
+        if 'pyperclip' not in dir(self):
+            try:
+                import pyperclip
+            except ImportError:
+                pyperclip = None
+            self._pyperclip = pyperclip
+
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
 
-        tab_save = ttk.Frame(self.notebook, padding="6")
-        tab_launch = ttk.Frame(self.notebook, padding="6")
-        self.notebook.add(tab_save, text="存档管理")
-        self.notebook.add(tab_launch, text="启动")
+        tabs = {
+            "kgsm": ttk.Frame(self.notebook, padding="8"),
+            "game": ttk.Frame(self.notebook, padding="8"),
+            "saves": ttk.Frame(self.notebook, padding="8"),
+            "settings": ttk.Frame(self.notebook, padding="8"),
+        }
+        self.notebook.add(tabs["kgsm"], text=self.t("tab.kgsm"))
+        self.notebook.add(tabs["game"], text=self.t("tab.game"))
+        self.notebook.add(tabs["saves"], text=self.t("tab.saves"))
+        self.notebook.add(tabs["settings"], text=self.t("tab.settings"))
 
-        self.build_save_tab(tab_save, button_font, help_font, log_font)
-        self.build_launch_tab(tab_launch, button_font, log_font)
+        self.build_kgm_tab(tabs["kgsm"], button_font)
+        self.build_game_tab(tabs["game"], button_font, log_font)
+        self.build_saves_tab(tabs["saves"], button_font, help_font, log_font)
+        self.build_settings_tab(tabs["settings"], button_font, log_font)
 
-    def build_save_tab(self, main, button_font, help_font, log_font):
-        """「存档管理」页：左侧按钮 + 右侧存档位与日志。"""
+    def rebuild_ui(self, switch_to=None):
+        """按当前语言重建整个界面（保留输入状态与服务运行状态）。"""
+        self._flush_page_vars()
+
+        old_mode = getattr(self, "kgm_mode_var", None)
+        self._kgm_mode_default = old_mode.get() if old_mode else "recent"
+        old_slot = getattr(self, "selected_slot", None)
+        self._slot_restore = old_slot.get() if old_slot else 0
+
+        if hasattr(self, "notebook"):
+            try:
+                self.notebook.destroy()
+            except Exception:
+                pass
+
+        self.build_ui()
+
+        # 恢复状态
+        try:
+            self.selected_slot.set(self._slot_restore)
+        except Exception:
+            pass
+        if switch_to in TAB_ORDER:
+            self.notebook.select(TAB_ORDER.index(switch_to))
+
+    # ---------- KGSM 页 ----------
+    def build_kgm_tab(self, parent, button_font):
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(2, weight=1)   # 中间两个功能框占主要空间
+        parent.rowconfigure(3, weight=0)
+
+        # 标题
+        ttk.Label(parent, text=self.t("kgsm.heading"),
+                  font=('微软雅黑', 18, 'bold')).grid(
+            row=0, column=0, sticky="w", pady=(0, 10))
+        self.kgm_dir_lbl = ttk.Label(parent, font=('微软雅黑', 9),
+                                     foreground="#666666")
+        self.kgm_dir_lbl.grid(row=1, column=0, sticky="w", pady=(0, 6))
+        self._refresh_kgm_dir()
+
+        # 中间：左右两个功能框
+        middle = ttk.Frame(parent)
+        middle.grid(row=2, column=0, sticky="nsew", pady=(0, 10))
+        middle.columnconfigure(0, weight=1, uniform="kgm")
+        middle.columnconfigure(1, weight=1, uniform="kgm")
+        middle.rowconfigure(0, weight=1)
+
+        # 左：快速启动游戏
+        quick = ttk.LabelFrame(middle, text=self.t("kgsm.quick_title"),
+                               padding="12")
+        quick.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        quick.columnconfigure(0, weight=1)
+        quick.rowconfigure(1, weight=1)
+        ttk.Label(quick, text=self.t("kgsm.quick_desc"), wraplength=380,
+                  justify=tk.LEFT).grid(row=0, column=0, sticky="w", pady=(0, 6))
+        run_quick = ttk.Button(quick, text=self.t("kgsm.btn_run"),
+                               style="Large.TButton", command=self.kgm_quick_run)
+        run_quick.grid(row=2, column=0, sticky="e", pady=(8, 0))
+
+        # 右：复制存档并启动游戏
+        copy = ttk.LabelFrame(middle, text=self.t("kgsm.copy_title"),
+                              padding="12")
+        copy.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+        copy.columnconfigure(0, weight=1)
+        ttk.Label(copy, text=self.t("kgsm.copy_desc"), wraplength=380,
+                  justify=tk.LEFT).grid(row=0, column=0, sticky="w", pady=(0, 8))
+
+        # 单选：最近存档 / 指定存档
+        default_mode = getattr(self, "_kgm_mode_default", "recent")
+        self.kgm_mode_var = tk.StringVar(value=default_mode)
+        radios = ttk.Frame(copy)
+        radios.grid(row=1, column=0, sticky="w", pady=(0, 6))
+        ttk.Radiobutton(radios, text=self.t("kgsm.mode_recent"),
+                        variable=self.kgm_mode_var, value="recent",
+                        command=self._refresh_kgm_save).pack(side=tk.LEFT,
+                                                             padx=(0, 16))
+        ttk.Radiobutton(radios, text=self.t("kgsm.mode_slot"),
+                        variable=self.kgm_mode_var, value="slot",
+                        command=self._refresh_kgm_save).pack(side=tk.LEFT)
+
+        # 当前将复制的存档
+        self.kgm_save_lbl = ttk.Label(copy, foreground="#0a58ca",
+                                      font=('微软雅黑', 10, 'bold'))
+        self.kgm_save_lbl.grid(row=2, column=0, sticky="w", pady=(2, 8))
+
+        run_copy = ttk.Button(copy, text=self.t("kgsm.btn_run"),
+                              style="Large.TButton", command=self.kgm_copy_run)
+        run_copy.grid(row=3, column=0, sticky="e", pady=(8, 0))
+        self._refresh_kgm_save()
+
+        # 底部链接
+        bottom = ttk.Frame(parent)
+        bottom.grid(row=3, column=0, sticky="sew", pady=(2, 0))
+        bottom.columnconfigure(0, weight=1)
+        bottom.columnconfigure(1, weight=1)
+        link1 = self._make_link(bottom, self.t("kgsm.first_use"),
+                                command=lambda: self.notebook.select(
+                                    TAB_ORDER.index("settings")))
+        link1.grid(row=0, column=0, sticky="w")
+        link2 = self._make_link(bottom, self.t("kgsm.download"),
+                                command=self._open_download_page)
+        link2.grid(row=0, column=1, sticky="e")
+
+    def _make_link(self, parent, text, command):
+        lbl = ttk.Label(parent, text=text, foreground="#0645AD", cursor="hand2")
+        lbl.bind("<Button-1>", lambda e: command())
+        return lbl
+
+    def _refresh_kgm_dir(self):
+        if not hasattr(self, "kgm_dir_lbl"):
+            return
+        d = self.cfg.game_dir.strip()
+        if d:
+            self.kgm_dir_lbl.config(text=self.t("kgsm.dir_set", dir=d))
+        else:
+            self.kgm_dir_lbl.config(text=self.t("kgsm.dir_none"))
+
+    def _resolve_kgm_save(self):
+        """返回 (slot_index, exists) ；无可选时 (None, False)。"""
+        if self.kgm_mode_var.get() == "slot":
+            idx = self.cfg.home_slot
+            return idx, bool(self.slot_info[idx].get('exists'))
+        best_i, best_t = None, -1.0
+        for i, info in enumerate(self.slot_info):
+            if info.get('exists') and info.get('mtime', 0) > best_t:
+                best_t = info['mtime']
+                best_i = i
+        if best_i is None:
+            return None, False
+        return best_i, True
+
+    def _refresh_kgm_save(self):
+        if not hasattr(self, "kgm_save_lbl"):
+            return
+        idx, exists = self._resolve_kgm_save()
+        prefix = self.t("kgsm.cur_prefix")
+        if idx is None:
+            text = prefix + self.t("ui.empty_short")
+        elif exists:
+            text = (prefix + f"{SLOT_NAMES[idx]} · "
+                    f"{self.slot_info[idx]['time']}")
+        else:
+            text = prefix + f"{SLOT_NAMES[idx]} · " + self.t("ui.empty_short")
+        self.kgm_save_lbl.config(text=text)
+
+    def _open_download_page(self):
+        how = open_in_browser(GAME_DOWNLOAD_URL)
+        if how is None:
+            messagebox.showerror(self.t("err.launch_fail"),
+                                 "webbrowser: open failed")
+
+    # ---------- 启动游戏页 ----------
+    def build_game_tab(self, parent, button_font, log_font):
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(2, weight=1)
+
+        cfg = ttk.LabelFrame(parent, text=self.t("la.title"), padding="10")
+        cfg.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        cfg.columnconfigure(1, weight=1)
+
+        # 服务目录（与配置页「游戏目录」同一值）
+        ttk.Label(cfg, text=self.t("la.dir")).grid(row=0, column=0, sticky="w",
+                                                   pady=4, padx=(0, 6))
+        self.launch_dir_var = tk.StringVar(value=self.cfg.game_dir)
+        ent_dir = ttk.Entry(cfg, textvariable=self.launch_dir_var)
+        ent_dir.grid(row=0, column=1, sticky="ew", pady=4)
+        ent_dir.bind("<FocusOut>", lambda e: self._flush_page_vars())
+        ttk.Button(cfg, text=self.t("ui.browse"),
+                   command=self._browse_game_dir).grid(row=0, column=2,
+                                                       padx=(6, 0), pady=4)
+
+        # 端口（与配置页「固定端口」同一值）
+        ttk.Label(cfg, text=self.t("la.port")).grid(row=1, column=0,
+                                                    sticky="w", pady=4,
+                                                    padx=(0, 6))
+        self.launch_port_var = tk.StringVar(value=self.cfg.port)
+        ent_port = ttk.Entry(cfg, textvariable=self.launch_port_var, width=10)
+        ent_port.grid(row=1, column=1, sticky="w", pady=4)
+        ent_port.bind("<FocusOut>", lambda e: self._flush_page_vars())
+        ttk.Label(cfg, text=self.t("ui.auto_port"),
+                  foreground="#666666").grid(row=1, column=2, sticky="w",
+                                             padx=(6, 0), pady=4)
+
+        btns = ttk.Frame(cfg)
+        btns.grid(row=2, column=0, columnspan=3, sticky="w", pady=(10, 2))
+        self.btn_web_start = ttk.Button(btns, text=self.t("la.btn_start"),
+                                        style="Large.TButton",
+                                        command=self.web_start_action)
+        self.btn_web_start.pack(side=tk.LEFT, padx=(0, 10))
+        self.btn_web_stop = ttk.Button(btns, text=self.t("la.btn_stop"),
+                                       style="Large.TButton",
+                                       command=self.web_stop_action)
+        self.btn_web_stop.pack(side=tk.LEFT)
+
+        ttk.Label(parent, text=self.t("la.hint"),
+                  foreground="#666666").grid(row=1, column=0, sticky="w",
+                                             pady=(0, 4))
+
+        log_frame = ttk.LabelFrame(parent, text=self.t("la.log_title"),
+                                   padding="6")
+        log_frame.grid(row=2, column=0, sticky="nsew")
+        log_frame.columnconfigure(0, weight=1)
+        log_frame.rowconfigure(0, weight=1)
+
+        self.web_log_text = scrolledtext.ScrolledText(log_frame,
+                                                      wrap=tk.WORD,
+                                                      font=log_font)
+        self.web_log_text.grid(row=0, column=0, sticky="nsew")
+        self.web_log_text.config(state=tk.DISABLED)
+
+        # 与运行状态同步按钮
+        self._update_server_buttons(self.lweb.running)
+        self.web_log(self.t("la.ready"), "<启动>")
+
+    def _update_server_buttons(self, running):
+        if not hasattr(self, "btn_web_start"):
+            return
+        self.btn_web_start.config(state=tk.DISABLED if running else tk.NORMAL)
+        self.btn_web_stop.config(state=tk.NORMAL if running else tk.DISABLED)
+
+    def web_start_action(self):
+        self._start_server_from_cfg(open_browser=True)
+
+    def web_stop_action(self):
+        self.lweb.stop()
+        self._update_server_buttons(False)
+        self.web_log("服务已停止。", "<停止>")
+
+    def _start_server_from_cfg(self, open_browser=True):
+        """按当前配置（游戏目录/固定端口）启动 Web 服务。
+
+        配置为唯一权威来源：两个页面的输入框在失焦(FocusOut)时已
+        各自写回配置。若配置被程序更新（如自动端口），启动前同步界面。
+
+        :return: url 或 None（失败时已弹出错误）
+        """
+        self._sync_page_vars()
+
+        directory = self.cfg.game_dir.strip()
+        if not directory:
+            messagebox.showerror(self.t("err.launch_fail"),
+                                 self.t("err.no_dir"))
+            return None
+        root_dir = Path(directory)
+        if not root_dir.is_dir():
+            messagebox.showerror(self.t("err.launch_fail"),
+                                 self.t("err.dir_missing", dir=directory))
+            return None
+
+        port_text = self.cfg.port.strip()
+        port = 0
+        if port_text:
+            try:
+                port = int(port_text)
+                if not 0 < port < 65536:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror(self.t("err.launch_fail"),
+                                     self.t("err.port_invalid"))
+                return None
+
+        if self.lweb.running:
+            self.web_log("检测到运行中的服务，重启以应用当前设置", "<启动>")
+            self.lweb.stop()
+
+        try:
+            url, actual_port = self.lweb.start(str(root_dir), port)
+        except OSError as e:
+            self.web_log(f"启动失败: {e}", "<错误>")
+            messagebox.showerror(self.t("err.launch_fail"),
+                                 f"port={port_text or '(auto)'}: {e}")
+            return None
+
+        # 自动分配端口时回写实际端口
+        if not port_text:
+            self.cfg.update(port=str(actual_port))
+            self._sync_page_vars()
+
+        self._update_server_buttons(True)
+        self.web_log(f"服务已启动: {url}", "<启动>")
+        self.web_log(f"服务目录: {root_dir}", "<启动>")
+        self.web_log("仅监听 127.0.0.1，只有本机可以访问。", "<启动>")
+
+        if open_browser:
+            self.root.after(300, self._open_browser_and_log, url)
+        return url
+
+    def _open_browser_and_log(self, url):
+        how = open_in_browser(url)
+        if how:
+            self.web_log(f"已在浏览器新窗口打开（{how}）。", "<打开浏览器>")
+        else:
+            self.web_log("打开浏览器失败，请手动访问: " + url, "<错误>")
+
+    # ---------- 存档管理页 ----------
+    def build_saves_tab(self, main, button_font, help_font, log_font):
         main.columnconfigure(0, weight=0)   # 左侧不缩放
         main.columnconfigure(1, weight=1)   # 右侧缩放
         main.rowconfigure(0, weight=1)
@@ -238,43 +498,30 @@ class KGSaveManager:
         left.grid(row=0, column=0, sticky="ns", padx=(0, 15))
         left.grid_propagate(False)
 
-        btn_style = ttk.Style()
-        btn_style.configure("Large.TButton", font=button_font, padding=12)
-
-        self.btn_save = ttk.Button(left, text="存档", style="Large.TButton",
+        self.btn_save = ttk.Button(left, text=self.t("sv.btn_save"),
+                                   style="Large.TButton",
                                    command=self.save_action)
         self.btn_save.pack(fill=tk.X, pady=8, padx=15)
 
-        self.btn_load = ttk.Button(left, text="读档", style="Large.TButton",
+        self.btn_load = ttk.Button(left, text=self.t("sv.btn_load"),
+                                   style="Large.TButton",
                                    command=self.load_action)
         self.btn_load.pack(fill=tk.X, pady=8, padx=15)
 
-        self.btn_cancel = ttk.Button(left, text="取消存档", style="Large.TButton",
+        self.btn_cancel = ttk.Button(left, text=self.t("sv.btn_cancel"),
+                                     style="Large.TButton",
                                      command=self.cancel_action)
         self.btn_cancel.pack(fill=tk.X, pady=8, padx=15)
 
-        ttk.Separator(left, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10, padx=15)
+        ttk.Separator(left, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10,
+                                                       padx=15)
 
-        self.btn_check = ttk.Button(left, text="检查异常文件", style="Large.TButton",
+        self.btn_check = ttk.Button(left, text=self.t("sv.btn_check"),
+                                    style="Large.TButton",
                                     command=self.check_action)
         self.btn_check.pack(fill=tk.X, pady=8, padx=15)
 
-        help_text = (
-            "📖 操作说明\n\n"
-            "【存档】\n"
-            "1. 选中一个存档位\n"
-            "2. 点击「存档」\n"
-            "3. 在游戏导出对话框中粘贴路径并保存\n\n"
-            "【读档】\n"
-            "1. 选中一个存档位\n"
-            "2. 点击「读档」\n"
-            "3. 在游戏导入中粘贴 (Ctrl+V)\n\n"
-            "【备注】\n"
-            "在右侧输入框填写，自动保存到本地。\n\n"
-            "【检查异常文件】\n"
-            "查看不合规文件。\n"
-        )
-        help_label = ttk.Label(left, text=help_text, justify=tk.LEFT,
+        help_label = ttk.Label(left, text=self.t("sv.help"), justify=tk.LEFT,
                                font=help_font, wraplength=190)
         help_label.pack(side=tk.BOTTOM, fill=tk.X, pady=15, padx=15)
 
@@ -286,7 +533,8 @@ class KGSaveManager:
         right.rowconfigure(0, weight=1)   # 存档位区域
         right.rowconfigure(1, weight=2)   # 日志区域
 
-        slots_frame = ttk.LabelFrame(right, text="存档位", padding="8")
+        slots_frame = ttk.LabelFrame(right, text=self.t("sv.title_slots"),
+                                     padding="8")
         slots_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 8))
 
         slots_frame.columnconfigure(0, weight=1)
@@ -327,7 +575,8 @@ class KGSaveManager:
             note_entry.pack(side=tk.LEFT, padx=8, fill=tk.X, expand=True)
             note_entry.insert(0, self.notes[i])
             note_entry.bind("<FocusOut>",
-                            lambda e, idx=i: self.save_note(idx, e.widget.get()))
+                            lambda e, idx=i: self.save_note(idx,
+                                                            e.widget.get()))
 
             self.slot_widgets.append({
                 'time_lbl': time_lbl,
@@ -336,7 +585,8 @@ class KGSaveManager:
 
         self.update_slots_display()
 
-        log_frame = ttk.LabelFrame(right, text="输出日志", padding="8")
+        log_frame = ttk.LabelFrame(right, text=self.t("sv.title_log"),
+                                   padding="8")
         log_frame.grid(row=1, column=0, sticky="nsew")
 
         log_frame.columnconfigure(0, weight=1)
@@ -347,213 +597,174 @@ class KGSaveManager:
         self.log_text.grid(row=0, column=0, sticky="nsew")
         self.log_text.config(state=tk.DISABLED)
 
-        self.log("程序启动")
-        self.log(f"存档库: {SAVE_LIBRARY}")
-        self.log(f"临时文件夹: {TEMP_FOLDER}")
+        if self._first_build:
+            self.log("程序启动")
+            self.log(f"存档库: {SAVE_LIBRARY}")
+            self.log(f"临时文件夹: {TEMP_FOLDER}")
 
-    # ---------------- 启动页（本地静态 Web 服务） ----------------
-    def build_launch_tab(self, parent, button_font, log_font):
-        """「启动」页：一键创建本地 Web 服务并在浏览器新窗口打开。"""
+    # ---------- 配置页 ----------
+    def build_settings_tab(self, parent, button_font, log_font):
         parent.columnconfigure(0, weight=1)
-        parent.rowconfigure(2, weight=1)
 
-        cfg = ttk.LabelFrame(parent, text="本地 Web 服务（仅绑定 127.0.0.1）",
-                             padding="10")
-        cfg.grid(row=0, column=0, sticky="ew", pady=(0, 6))
-        cfg.columnconfigure(1, weight=1)
+        frame = ttk.LabelFrame(parent, text=self.t("tab.settings"),
+                               padding="12")
+        frame.grid(row=0, column=0, sticky="nsew")
+        frame.columnconfigure(1, weight=1)
 
-        ttk.Label(cfg, text="服务目录:").grid(row=0, column=0, sticky="w",
-                                             pady=4, padx=(0, 6))
-        self.web_dir_var = tk.StringVar(value=str(WEB_ROOT))
-        ttk.Entry(cfg, textvariable=self.web_dir_var).grid(row=0, column=1,
-                                                           sticky="ew", pady=4)
-        ttk.Button(cfg, text="浏览...",
-                   command=self.web_browse_dir).grid(row=0, column=2,
-                                                     padx=(6, 0), pady=4)
+        # 语言
+        ttk.Label(frame, text=self.t("st.lang")).grid(row=0, column=0,
+                                                      sticky="w", pady=6,
+                                                      padx=(0, 10))
+        self._lang_codes = [LANG_ZH, LANG_EN]
+        lang_var = tk.StringVar(value=self.cfg.language)
+        lang_box = ttk.Combobox(
+            frame, textvariable=lang_var, state="readonly", width=14,
+            values=[self.t("st.lang_zh"), self.t("st.lang_en")])
+        lang_box.current(self._lang_codes.index(self.cfg.language)
+                         if self.cfg.language in self._lang_codes else 0)
+        lang_box.grid(row=0, column=1, sticky="w", pady=6)
+        lang_box.bind("<<ComboboxSelected>>", self._on_language_selected)
+        self.lang_combo_widget = lang_box
 
-        ttk.Label(cfg, text="端口:").grid(row=1, column=0, sticky="w",
-                                          pady=4, padx=(0, 6))
-        self.web_port_var = tk.StringVar(value="")
-        ttk.Entry(cfg, textvariable=self.web_port_var, width=10).grid(
-            row=1, column=1, sticky="w", pady=4)
-        ttk.Label(cfg, text="留空 = 自动选择空闲端口",
-                  foreground="#666666").grid(row=1, column=2, sticky="w",
-                                             padx=(6, 0), pady=4)
+        # 游戏目录（Web 服务根目录）
+        ttk.Label(frame, text=self.t("st.game_dir")).grid(row=1, column=0,
+                                                          sticky="w", pady=6,
+                                                          padx=(0, 10))
+        self.settings_dir_var = tk.StringVar(value=self.cfg.game_dir)
+        ent_dir = ttk.Entry(frame, textvariable=self.settings_dir_var)
+        ent_dir.grid(row=1, column=1, sticky="ew", pady=6)
+        ent_dir.bind("<FocusOut>", lambda e: self._flush_page_vars())
+        ttk.Button(frame, text=self.t("ui.browse"),
+                   command=self._browse_game_dir).grid(row=1, column=2,
+                                                       padx=(10, 0), pady=6)
 
-        btns = ttk.Frame(cfg)
-        btns.grid(row=2, column=0, columnspan=3, sticky="w", pady=(10, 2))
-        self.btn_web_start = ttk.Button(
-            btns, text="🚀 启动并打开浏览器", style="Large.TButton",
-            command=self.web_start_action)
-        self.btn_web_start.pack(side=tk.LEFT, padx=(0, 10))
-        self.btn_web_stop = ttk.Button(
-            btns, text="停止服务", style="Large.TButton",
-            command=self.web_stop_action, state=tk.DISABLED)
-        self.btn_web_stop.pack(side=tk.LEFT)
+        # 固定端口
+        ttk.Label(frame, text=self.t("st.port")).grid(row=2, column=0,
+                                                      sticky="w", pady=6,
+                                                      padx=(0, 10))
+        self.settings_port_var = tk.StringVar(value=self.cfg.port)
+        ent_port = ttk.Entry(frame, textvariable=self.settings_port_var,
+                             width=12)
+        ent_port.grid(row=2, column=1, sticky="w", pady=6)
+        ent_port.bind("<FocusOut>", lambda e: self._flush_page_vars())
+        ttk.Label(frame, text=self.t("st.port_auto"),
+                  foreground="#666666").grid(row=2, column=2, sticky="w",
+                                             padx=(10, 0), pady=6)
 
-        ttk.Label(parent, text="提示：把需要访问的站点/游戏文件放入服务目录"
-                               "（默认 web/），启动后浏览器访问 "
-                               "http://127.0.0.1:<端口>/",
-                  foreground="#666666").grid(row=1, column=0, sticky="w",
-                                             pady=(0, 4))
+        # 首页指定存档
+        ttk.Label(frame, text=self.t("st.home_slot")).grid(row=3, column=0,
+                                                           sticky="w", pady=6,
+                                                           padx=(0, 10))
+        self.home_slot_var = tk.StringVar()
+        slot_box = ttk.Combobox(frame, textvariable=self.home_slot_var,
+                                state="readonly", width=14,
+                                values=list(SLOT_NAMES))
+        slot_box.current(self.cfg.home_slot)
+        slot_box.grid(row=3, column=1, sticky="w", pady=6)
+        slot_box.bind("<<ComboboxSelected>>", self._on_home_slot_selected)
+        self.home_slot_widget = slot_box
 
-        log_frame = ttk.LabelFrame(parent, text="服务日志", padding="6")
-        log_frame.grid(row=2, column=0, sticky="nsew")
-        log_frame.columnconfigure(0, weight=1)
-        log_frame.rowconfigure(0, weight=1)
+        # 提示
+        ttk.Label(frame, text=self.t("st.hint", path=CONFIG_FILE),
+                  foreground="#888888").grid(row=4, column=0, columnspan=3,
+                                             sticky="w", pady=(14, 0))
 
-        self.web_log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD,
-                                                      font=log_font)
-        self.web_log_text.grid(row=0, column=0, sticky="nsew")
-        self.web_log_text.config(state=tk.DISABLED)
+    def _on_language_selected(self, _event=None):
+        cur = self.lang_combo_widget.current()
+        if 0 <= cur < len(self._lang_codes):
+            code = self._lang_codes[cur]
+            if code != self.cfg.language:
+                self._change_language(code)
 
-        self.web_log("就绪：选择服务目录与端口后，点击「启动并打开浏览器」。",
-                     "<启动>")
+    def _on_home_slot_selected(self, _event=None):
+        cur = self.home_slot_widget.current()
+        if 0 <= cur < SLOT_COUNT:
+            self.cfg.update(home_slot=cur)
+        self._refresh_kgm_save()
 
-    def web_browse_dir(self):
-        """选择服务目录。"""
-        initial = self.web_dir_var.get().strip()
-        if not os.path.isdir(initial):
-            initial = str(BASE_DIR)
-        chosen = filedialog.askdirectory(title="选择服务目录", initialdir=initial)
+    def _change_language(self, code):
+        """切换语言：更新配置并重建界面。"""
+        if code == self.cfg.language:
+            return
+        self.cfg.update(language=code)
+        self.tr.lang = code
+        self.rebuild_ui(switch_to="settings")
+
+    def _browse_game_dir(self):
+        initial = self.cfg.game_dir.strip() or str(BASE_DIR)
+        chosen = filedialog.askdirectory(title=self.t("st.game_dir"),
+                                         initialdir=initial)
         if chosen:
-            self.web_dir_var.set(chosen)
+            self.cfg.update(game_dir=chosen)
+            self._sync_page_vars()
+            self._refresh_kgm_dir()
 
-    def web_start_action(self):
-        """一键创建本地 Web 服务并打开浏览器。"""
-        if self.web_server is not None:
-            self.web_log("服务已在运行，请先「停止服务」。", "<启动>")
-            return
+    # ---------- 页面变量同步 ----------
+    def _flush_page_vars(self):
+        """把各页输入框内容写回配置并保存（重建/启动前调用）。"""
+        changed = False
+        for var_attr, cfg_attr in (
+                ("launch_dir_var", "game_dir"),
+                ("launch_port_var", "port"),
+                ("settings_dir_var", "game_dir"),
+                ("settings_port_var", "port")):
+            var = getattr(self, var_attr, None)
+            if var is None:
+                continue
+            value = var.get().strip()
+            if getattr(self.cfg, cfg_attr) != value:
+                setattr(self.cfg, cfg_attr, value)
+                changed = True
+        if changed:
+            self.cfg.save()
+        self._refresh_kgm_dir()
 
-        # 服务目录：不存在则自动创建
-        root_dir = Path(self.web_dir_var.get().strip())
-        if not root_dir.is_dir():
-            try:
-                root_dir.mkdir(parents=True, exist_ok=True)
-                self.web_log(f"服务目录不存在，已自动创建: {root_dir}", "<启动>")
-            except OSError as e:
-                messagebox.showerror("启动失败", f"无法使用服务目录 {root_dir}：{e}")
-                return
+    def _sync_page_vars(self):
+        """把配置值同步回所有页面输入框。"""
+        for var_attr, value in (
+                ("launch_dir_var", self.cfg.game_dir),
+                ("launch_port_var", self.cfg.port),
+                ("settings_dir_var", self.cfg.game_dir),
+                ("settings_port_var", self.cfg.port)):
+            var = getattr(self, var_attr, None)
+            if var is not None:
+                var.set(value)
 
-        # 端口：留空自动选择
-        port_text = self.web_port_var.get().strip()
-        port = 0  # 0 = 由系统分配空闲端口
-        if port_text:
-            try:
-                port = int(port_text)
-                if not 0 < port < 65536:
-                    raise ValueError
-            except ValueError:
-                messagebox.showerror("端口无效",
-                                     "端口必须是 1-65535 之间的数字，或留空自动选择。")
-                return
-
-        try:
-            _WebHandler._queue = self.event_queue
-            handler = functools.partial(_WebHandler,
-                                        directory=str(root_dir.resolve()))
-            self.web_server = _ThreadingHTTPServer(("127.0.0.1", port), handler)
-            actual_port = self.web_server.server_address[1]
-        except OSError as e:
-            self.web_server = None
-            self.web_log(f"启动失败: {e}", "<错误>")
-            messagebox.showerror(
-                "启动失败",
-                f"无法在端口 {port_text or '(自动)'} 启动服务：\n{e}")
-            return
-
-        self.web_thread = threading.Thread(target=self.web_server.serve_forever,
-                                           name="web-server", daemon=True)
-        self.web_thread.start()
-        self.web_url = f"http://127.0.0.1:{actual_port}/"
-        self.web_port_var.set(str(actual_port))
-        self.btn_web_start.config(state=tk.DISABLED)
-        self.btn_web_stop.config(state=tk.NORMAL)
-        self.web_log(f"服务已启动: {self.web_url}", "<启动>")
-        self.web_log(f"服务目录: {root_dir.resolve()}", "<启动>")
-        self.web_log("仅监听 127.0.0.1，只有本机可以访问。", "<启动>")
-        # 等服务就绪后在浏览器（新窗口）打开
-        self.root.after(300, lambda: self._open_browser_new_window(self.web_url))
-
-    def web_stop_action(self):
-        """停止本地 Web 服务。"""
-        if self.web_server is None:
-            self.web_log("服务未在运行。", "<停止>")
-            return
-        self._web_stop_internal()
-        self.web_log("服务已停止。", "<停止>")
-        self.btn_web_start.config(state=tk.NORMAL)
-        self.btn_web_stop.config(state=tk.DISABLED)
-
-    def _web_stop_internal(self):
-        """内部停止服务（不更新界面），退出程序时也调用。"""
-        server, self.web_server = self.web_server, None
-        if server is None:
-            return
-        try:
-            server.shutdown()  # 须由服务线程之外的线程调用
-        except Exception:
-            pass
-        try:
-            server.server_close()
-        except Exception:
-            pass
-        self.web_thread = None
-
-    def _open_browser_new_window(self, url):
-        """优先用 Edge/Chrome 在新窗口打开；找不到则回退 webbrowser。"""
-        candidates = [
-            os.path.expandvars(
-                r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
-            os.path.expandvars(
-                r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
-            os.path.expandvars(
-                r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
-            os.path.expandvars(
-                r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
-        ]
-        for exe in candidates:
-            if os.path.isfile(exe):
-                try:
-                    subprocess.Popen([exe, "--new-window", url])
-                    self.web_log("已在浏览器新窗口打开。", "<打开浏览器>")
-                    return
-                except OSError:
-                    break
-        try:
-            webbrowser.open(url, new=1)
-            self.web_log("已调用系统默认浏览器打开。", "<打开浏览器>")
-        except Exception as e:
-            self.web_log(f"打开浏览器失败: {e}", "<错误>")
-
-    # ---------------- 备注 ----------------
+    # =========================================================
+    # 备注
+    # =========================================================
     def save_note(self, idx, text):
-        """单条备注变更时调用（FocusOut 触发），限制长度并持久化。"""
         text = text[:MAX_NOTE_LEN]
         if self.notes[idx] != text:
             self.notes[idx] = text
-            self._save_notes()
+            self.cfg.notes[str(idx)] = text
+            self.cfg.save()
 
     def commit_notes(self):
-        """把所有输入框当前内容同步进内存并持久化（操作前/关闭时调用）。"""
+        changed = False
         for i, w in enumerate(self.slot_widgets):
             text = w['note_entry'].get()[:MAX_NOTE_LEN]
             if self.notes[i] != text:
                 self.notes[i] = text
-        self._save_notes()
+                self.cfg.notes[str(i)] = text
+                changed = True
+        if changed:
+            self.cfg.save()
 
     def update_slots_display(self):
         """只刷新时间显示；不重写备注输入框，避免打断正在输入的内容。"""
         self.load_slot_info()
         for i, info in enumerate(self.slot_info):
-            if info['exists']:
+            if info.get('exists'):
                 self.slot_widgets[i]['time_lbl'].config(text=info['time'])
             else:
-                self.slot_widgets[i]['time_lbl'].config(text="(空)")
+                self.slot_widgets[i]['time_lbl'].config(
+                    text=self.t("ui.empty_short"))
 
-    # ---------------- 日志 ----------------
+    # =========================================================
+    # 日志（按页显示：存档操作→存档管理页；服务→启动游戏页）
+    # =========================================================
     def _append_log(self, widget, msg, tag=""):
-        """向指定日志控件追加一行带时间戳的消息。"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         if tag:
             formatted = f"[{timestamp}] {tag} {msg}"
@@ -567,7 +778,6 @@ class KGSaveManager:
 
     def log(self, msg, tag=""):
         """写入「存档管理」页的输出日志。"""
-        # 界面尚未构建完成时（例如 __init__ 早期加载备注失败）退化为打印
         if not hasattr(self, "log_text") or self.log_text is None:
             timestamp = datetime.now().strftime("%H:%M:%S")
             print(f"[{timestamp}] {tag} {msg}" if tag else f"[{timestamp}] {msg}")
@@ -575,12 +785,22 @@ class KGSaveManager:
         self._append_log(self.log_text, msg, tag)
 
     def web_log(self, msg, tag=""):
-        """写入「启动」页的服务日志。"""
+        """写入「启动游戏」页的服务日志。"""
         if not hasattr(self, "web_log_text") or self.web_log_text is None:
             return
         self._append_log(self.web_log_text, msg, tag)
 
-    # ---------------- 取消 / 中断 ----------------
+    # =========================================================
+    # 存档监控（存档管理页逻辑，沿用事件队列）
+    # =========================================================
+    def _is_monitoring(self):
+        with self._state_lock:
+            return self.monitoring
+
+    def _set_monitoring(self, value):
+        with self._state_lock:
+            self.monitoring = value
+
     def cancel_monitor(self):
         if self._is_monitoring():
             self.cancel_event.set()
@@ -597,7 +817,6 @@ class KGSaveManager:
         if self._is_monitoring():
             self.cancel_monitor()
 
-    # ---------------- 存档 ----------------
     def save_action(self):
         self.commit_notes()
 
@@ -609,11 +828,12 @@ class KGSaveManager:
         slot_name = SLOT_NAMES[slot]
         slot_num = slot + 1
 
-        if self.slot_info[slot]['exists']:
-            msg = (f"对 {slot_num:02d} 号位 {slot_name} 进行存档操作？"
-                   f"将会覆盖现有存档。")
+        if self.slot_info[slot].get('exists'):
+            msg = self.t("dlg.save_overwrite",
+                         slot=f"{slot_num:02d} 号位 {slot_name}")
         else:
-            msg = f"对 {slot_num:02d} 号位 {slot_name} 进行存档操作？"
+            msg = self.t("dlg.save_new",
+                         slot=f"{slot_num:02d} 号位 {slot_name}")
 
         if not messagebox.askokcancel(APP_NAME, msg):
             self.log("用户取消存档操作", "<取消存档>")
@@ -632,20 +852,17 @@ class KGSaveManager:
     def start_monitoring(self, slot):
         if self._is_monitoring():
             return
-
         self._set_monitoring(True)
         self.cancel_event.clear()
         try:
             before_files = set(os.listdir(TEMP_FOLDER))
         except OSError:
             before_files = set()
-
         self.monitor_thread = threading.Thread(
             target=self._monitor_worker, args=(slot, before_files), daemon=True)
         self.monitor_thread.start()
 
     def _monitor_worker(self, slot, before_files):
-        """后台线程：监控临时文件夹中新增的 .txt 文件。"""
         try:
             start = time.time()
             while time.time() - start < MONITOR_TIMEOUT:
@@ -655,14 +872,12 @@ class KGSaveManager:
                 time.sleep(0.5)
                 now_files = set(os.listdir(TEMP_FOLDER))
                 new_files = now_files - before_files
-                txt_files = [f for f in new_files
-                             if f.lower().endswith(".txt")]
+                txt_files = [f for f in new_files if f.lower().endswith(".txt")]
                 if txt_files:
                     latest = max(
                         txt_files,
-                        key=lambda f: self._safe_mtime(os.path.join(TEMP_FOLDER, f)),
-                    )
-                    # 等待文件写入稳定，避免读到半成品
+                        key=lambda f: self._safe_mtime(
+                            os.path.join(TEMP_FOLDER, f)))
                     if self._wait_stable(latest):
                         self.event_queue.put(("save_ready", latest, slot))
                         return
@@ -679,7 +894,6 @@ class KGSaveManager:
             return 0.0
 
     def _wait_stable(self, filename, max_wait=5.0):
-        """等待文件大小在一段时间内保持不变且非空。"""
         path = os.path.join(TEMP_FOLDER, filename)
         last_size = -1
         start = time.time()
@@ -694,92 +908,109 @@ class KGSaveManager:
             time.sleep(0.3)
         return False
 
-    # ---------------- 事件队列轮询（UI 线程） ----------------
-    def _poll_queue(self):
-        try:
-            while True:
-                item = self.event_queue.get_nowait()
-                self._handle_event(item)
-        except queue.Empty:
-            pass
-        if self.root.winfo_exists():
-            self.root.after(150, self._poll_queue)
-
-    def _handle_event(self, item):
-        kind = item[0]
-        if kind == "save_ready":
-            self.process_new_file(item[1], item[2])
-        elif kind == "timeout":
-            self.log("存档超时：未在5分钟内检测到新文件，请确保已正确导出存档。",
-                     "<超时>")
-        elif kind == "cancelled":
-            self.log("用户取消存档操作", "<取消存档>")
-        elif kind == "error":
-            self.log(f"监控出错: {item[1]}", "<错误>")
-        elif kind == "server_log":
-            self.web_log(item[1], "<服务>")
-
     def process_new_file(self, filename, slot):
-        """校验并移动检测到的新文件到存档库。"""
         src = os.path.join(TEMP_FOLDER, filename)
         dest_name = f"{SLOT_NAMES[slot]}_{slot + 1}.kgsav"
         dest = os.path.join(SAVE_LIBRARY, dest_name)
-
         try:
             size = os.path.getsize(src)
             if size <= 0:
                 raise ValueError("导出文件为空")
             if size > MAX_SAVE_SIZE:
                 raise ValueError(f"导出文件过大（{size} 字节）")
-
-            # 内容非空校验
             with open(src, "r", encoding="utf-8", errors="replace") as f:
                 head = f.read(64)
             if not head.strip():
                 raise ValueError("导出文件内容为空")
-
             shutil.move(src, dest)
             self.log(f"成功存档: {filename} → {dest_name}", "<完成存档>")
             self.update_slots_display()
+            self._refresh_kgm_save()
         except Exception as e:
             self.log(f"处理存档失败: {e}", "<执行存档>")
             messagebox.showerror("存档失败", str(e))
 
-    # ---------------- 读档 ----------------
+    # =========================================================
+    # KGSM 页运行逻辑
+    # =========================================================
+    def kgm_quick_run(self):
+        """快速启动：服务目录非空则起服务并打开浏览器。"""
+        if not self.cfg.game_dir.strip():
+            messagebox.showerror(self.t("err.launch_fail"),
+                                 self.t("err.no_dir"))
+            return
+        self._start_server_from_cfg(open_browser=True)
+
+    def kgm_copy_run(self):
+        """复制存档并启动：校验所选存档非空后复制到剪贴板再启动。"""
+        if not self.cfg.game_dir.strip():
+            messagebox.showerror(self.t("err.launch_fail"),
+                                 self.t("err.no_dir"))
+            return
+
+        idx, exists = self._resolve_kgm_save()
+        if idx is None:
+            messagebox.showerror(self.t("err.launch_fail"),
+                                 self.t("err.no_saves"))
+            return
+        if not exists:
+            messagebox.showerror(self.t("err.launch_fail"),
+                                 self.t("err.no_save"))
+            return
+
+        try:
+            content = self._read_save_file(self.slot_info[idx]['filename'])
+        except Exception as e:
+            self.log(f"读取存档失败: {e}", "<读档操作>")
+            messagebox.showerror("读档失败", str(e))
+            return
+
+        if not self._copy_to_clipboard(content):
+            return
+        self.log(f"已将 {SLOT_NAMES[idx]} 的存档内容复制到剪贴板", "<读档操作>")
+        self.log("游戏打开后点击 Options → Import，粘贴 (Ctrl+V) 即可导入。")
+
+        self._start_server_from_cfg(open_browser=True)
+
+    def _read_save_file(self, path):
+        """读取存档文件并做基本校验，返回文本内容。"""
+        size = os.path.getsize(path)
+        if size <= 0:
+            raise ValueError("存档文件为空")
+        if size > MAX_SAVE_SIZE:
+            raise ValueError(f"存档文件过大（{size} 字节）")
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    # =========================================================
+    # 存档管理页操作（读档/检查）
+    # =========================================================
     def load_action(self):
         self.stop_ongoing_operation()
         self.commit_notes()
 
         slot = self.selected_slot.get()
-        if not self.slot_info[slot]['exists']:
-            messagebox.showwarning(APP_NAME, f"{SLOT_NAMES[slot]} 没有存档文件")
+        if not self.slot_info[slot].get('exists'):
+            messagebox.showwarning(APP_NAME,
+                                   self.t("dlg.no_file",
+                                          slot=SLOT_NAMES[slot]))
             return
 
         slot_file = self.slot_info[slot]['filename']
         try:
-            size = os.path.getsize(slot_file)
-            if size <= 0:
-                raise ValueError("存档文件为空")
-            if size > MAX_SAVE_SIZE:
-                raise ValueError(f"存档文件过大（{size} 字节）")
-
-            with open(slot_file, "r", encoding="utf-8") as f:
-                content = f.read()
-
+            content = self._read_save_file(slot_file)
             if not self._copy_to_clipboard(content):
                 return
-
             self.log(f"已将 {SLOT_NAMES[slot]} 的存档内容复制到剪贴板",
                      "<读档操作>")
             self.log("请打开游戏，点击 Options → Import，粘贴 (Ctrl+V) 并确认。")
             messagebox.showinfo(
                 APP_NAME,
-                f"已复制 {SLOT_NAMES[slot]} 存档到剪贴板，可以导入到游戏中了。")
+                self.t("dlg.copied_ok", slot=SLOT_NAMES[slot]))
         except Exception as e:
             self.log(f"读取存档失败: {e}", "<读档操作>")
             messagebox.showerror("读档失败", str(e))
 
-    # ---------------- 检查异常文件 ----------------
     def check_action(self):
         self.stop_ongoing_operation()
         self.commit_notes()
@@ -799,8 +1030,6 @@ class KGSaveManager:
             temp_files = []
 
         invalid_lib = [f for f in library_files if f not in valid_names]
-
-        # 合规文件名但内容为空
         empty_lib = []
         for name in valid_names:
             p = os.path.join(SAVE_LIBRARY, name)
@@ -833,11 +1062,40 @@ class KGSaveManager:
         self.log("这些文件不会被程序管理，请自行判断是否转移或删除。", "<检查异常>")
         self.log("=" * 50, "<检查异常>")
 
-    # ---------------- 退出 ----------------
+    # =========================================================
+    # 事件队列轮询（UI 线程）
+    # =========================================================
+    def _poll_queue(self):
+        try:
+            while True:
+                item = self.event_queue.get_nowait()
+                self._handle_event(item)
+        except queue.Empty:
+            pass
+        if self.root.winfo_exists():
+            self.root.after(150, self._poll_queue)
+
+    def _handle_event(self, item):
+        kind = item[0]
+        if kind == "save_ready":
+            self.process_new_file(item[1], item[2])
+        elif kind == "timeout":
+            self.log("存档超时：未在5分钟内检测到新文件，请确保已正确导出存档。",
+                     "<超时>")
+        elif kind == "cancelled":
+            self.log("用户取消存档操作", "<取消存档>")
+        elif kind == "error":
+            self.log(f"监控出错: {item[1]}", "<错误>")
+        elif kind == "server_log":
+            self.web_log(item[1], "<服务>")
+
+    # =========================================================
+    # 退出
+    # =========================================================
     def _on_close(self):
         self.commit_notes()
         self.cancel_event.set()
-        self._web_stop_internal()
+        self.lweb.stop()
         self.root.destroy()
 
 
