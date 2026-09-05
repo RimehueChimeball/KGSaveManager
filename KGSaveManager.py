@@ -125,12 +125,16 @@ class KGSaveManager:
         return self.cfg.slot_name(index)
 
     def _slot_name_text(self, index, exists):
-        """槽位名字显示区：自定义名原样显示；无自定义名时仅在有存档
-        文件时显示默认文件名前缀，无文件不显示（空）。"""
+        """槽位名字显示区文案：
+        - 自定义名：原样显示；
+        - 无自定义名且有存档文件：显示默认文件名前缀；
+        - 无文件：显示“空/empty”占位。"""
         custom = self.cfg.slot_names.get(str(index), "")
         if custom:
             return custom
-        return self.slot_name(index) if exists else ""
+        if exists:
+            return self.slot_name(index)
+        return self.t("ui.empty_short")
 
     def slot_label(self, index):
         """槽位列表显示文本：<翻译前缀>NN.名字（前缀随语言，
@@ -145,13 +149,36 @@ class KGSaveManager:
         """槽位存档文件名前缀（不含 _N.kgsav）。"""
         return self.slot_name(index)
 
+    def slot_candidates(self, index):
+        """槽位可识别的存档文件名候选（按序检查）。
+
+        1) 当前规则：f"{槽位名}_{槽位号}.kgsav"（槽位号=index+1，不补零）
+        2) 兼容改名前的旧默认名文件：f"存档{槽位号}_{槽位号}.kgsav"
+        """
+        n = index + 1
+        primary = f"{self.slot_name(index)}_{n}.kgsav"
+        legacy = f"存档{n}_{n}.kgsav"
+        candidates = [primary]
+        if legacy != primary:
+            candidates.append(legacy)
+        return candidates
+
     def load_slot_info(self):
-        """从存档库读取各存档位的信息（含时间与 mtime）。"""
+        """从存档库读取各存档位的信息（含时间与 mtime）。
+
+        识别规则：槽位 N（1 起）优先匹配 f"{槽位名}_{N}.kgsav"；
+        若改名后没有新文件名，回退匹配旧默认名 f"存档{N}_{N}.kgsav"。
+        """
         self.slot_info = []
         for i in range(SLOT_COUNT):
-            slot_file = SAVE_LIBRARY / f"{self.slot_name(i)}_{i + 1}.kgsav"
+            slot_file = None
+            for name in self.slot_candidates(i):
+                p = SAVE_LIBRARY / name
+                if p.is_file():
+                    slot_file = p
+                    break
             try:
-                if slot_file.is_file():
+                if slot_file is not None:
                     st = slot_file.stat()
                     time_str = datetime.fromtimestamp(st.st_mtime).strftime(
                         "%Y-%m-%d %H:%M:%S")
@@ -891,7 +918,10 @@ class KGSaveManager:
             self.cfg.save()
 
     def update_slots_display(self):
-        """刷新存档位行的名字与时间；不重写备注输入框，避免打断输入。"""
+        """刷新存档位行的名字与时间；不重写备注输入框，避免打断输入。
+
+        空槽位：名字区显示“空/empty”，时间列留白。
+        """
         self.load_slot_info()
         for i, info in enumerate(self.slot_info):
             w = self.slot_widgets[i]
@@ -899,7 +929,7 @@ class KGSaveManager:
             if info.get('exists'):
                 w['time_lbl'].config(text=info['time'])
             else:
-                w['time_lbl'].config(text=self.t("ui.empty_short"))
+                w['time_lbl'].config(text="")
         self._refresh_settings_slot_combo()
         self._refresh_kgm_save()
 
@@ -1229,8 +1259,10 @@ class KGSaveManager:
 
         self.log("开始检查异常文件...", "<检查异常>")
 
-        valid_names = {f"{self.slot_name(i)}_{i + 1}.kgsav"
-                       for i in range(SLOT_COUNT)}
+        # 合规文件名：当前槽位名规则 + 旧默认名 存档N_N 兼容
+        valid_names = set()
+        for i in range(SLOT_COUNT):
+            valid_names.update(self.slot_candidates(i))
 
         try:
             library_files = sorted(os.listdir(SAVE_LIBRARY))
