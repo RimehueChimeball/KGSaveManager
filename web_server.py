@@ -11,7 +11,10 @@ import http.server
 import os
 import socketserver
 import subprocess
+import urllib.parse
 import webbrowser
+
+from web_bridge import bridge_js
 
 
 class _WebHandler(http.server.SimpleHTTPRequestHandler):
@@ -32,6 +35,59 @@ class _ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
 
+class _BridgeWebHandler(_WebHandler):
+    """带存档桥的处理器：HTML 响应注入 bridge.js，并提供 /kgsm-bridge.js。
+
+    - LocalWebServer.start(bridge=...) 时启用；游戏文件本身不被修改，
+      注入只发生在内存响应里。
+    """
+
+    def _bridge(self):
+        return getattr(self.server, "kgsm_bridge", None)
+
+    def do_GET(self):
+        bridge = self._bridge()
+        path = urllib.parse.urlsplit(self.path).path
+        if bridge is not None and path == "/kgsm-bridge.js":
+            js = bridge_js(getattr(self.server, "kgsm_ws_url", ""))
+            body = js.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type",
+                             "text/javascript; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if bridge is not None and (path.endswith((".html", ".htm"))
+                                   or path == "/"):
+            target = self.translate_path(path)
+            if os.path.isdir(target):
+                target = os.path.join(target, "index.html")
+            if os.path.isfile(target):
+                try:
+                    with open(target, "rb") as f:
+                        raw = f.read()
+                except OSError:
+                    self.send_error(403)
+                    return
+                text = raw.decode("utf-8", "replace")
+                marker = text.lower().rfind("</body>")
+                script = '<script src="/kgsm-bridge.js"></script>'
+                if marker >= 0:
+                    text = text[:marker] + script + text[marker:]
+                else:
+                    text += script
+                body = text.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type",
+                                 "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+        super().do_GET()
+
+
 class LocalWebServer:
     """本地静态文件服务的生命周期管理。"""
 
@@ -49,20 +105,26 @@ class LocalWebServer:
     def url(self):
         return self._url
 
-    def start(self, directory, port=0):
+    def start(self, directory, port=0, bridge=None):
         """启动服务。
 
         :param directory: 服务根目录（需已存在）
         :param port: 端口号，0 表示自动分配空闲端口
+        :param bridge: WebSocketBridge 实例；提供时启用页面注入
         :return: (url, actual_port)
         :raises OSError: 端口被占用/绑定失败等
         """
         if self.running:
             raise RuntimeError("服务已在运行")
-        root = str(os.path.abspath(directory))
+        root = os.path.abspath(directory)
         _WebHandler._queue = self._queue
-        handler = functools.partial(_WebHandler, directory=root)
+        handler_cls = _BridgeWebHandler if bridge is not None else _WebHandler
+        handler = functools.partial(handler_cls, directory=root)
         self._server = _ThreadingHTTPServer(("127.0.0.1", port), handler)
+        if bridge is not None:
+            setattr(self._server, "kgsm_bridge", bridge)
+            setattr(self._server, "kgsm_ws_url",
+                    f"ws://127.0.0.1:{bridge.port}/")
         actual_port = self._server.server_address[1]
         self._thread = __import__("threading").Thread(
             target=self._server.serve_forever, name="web-server", daemon=True)

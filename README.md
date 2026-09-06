@@ -5,8 +5,8 @@ A Kittens Game save manager for Windows (Python + Tkinter, no third-party depend
 ## Features
 
 - Four tabs, fixed order: KGSM → Launch Game → Save Management → Settings (UI is bilingual, zh/en)
-- Save Management: 10 slots, auto-detected from filenames `name_slot.kgsav`; save/load, rename (renames the file on disk only), manual refresh, auto-saved notes, abnormal-file checker
-- Launch Game: local static web server (bound to 127.0.0.1 only), one click to start and open in a new browser window, with a live server log
+- Save Management: 10 slots, auto-detected from filenames `name_slot.kgsav`; auto save (via local bridge), manual save (drop file / paste text), load, rename, refresh, notes, abnormal-file checker
+- Launch Game: local static web server (127.0.0.1 only) + a WebSocket save bridge; one click to start and open in a new browser window, with a live server log
 - KGSM home: quick launch the game; copy a save and launch; two download links (author's original / community fork, both on GitHub)
 - Settings: language, browser (system default auto-detected), game directory, port, home save slot; every change is auto-saved to `kgsm_data/kgsm_config.json`
 - All data lives in `kgsm_data/` (save library, temp folder, config); back up or migrate by copying that one folder
@@ -19,7 +19,8 @@ python KGSaveManager.py
 
 ## Usage
 
-- Save: select a slot → click "Save" → paste the path copied by the program into the game's Export dialog and save as .txt
+- Auto Save: launch the game via KGSM, then click "Auto Save"; the game's current save is pulled over the bridge and written to the selected slot (confirms when overwriting)
+- Manual Save: opens a dialog — top part shows the temp folder (copy it with "Copy Path"); dropping an exported save file there saves it automatically and closes the window with a "save detected" notice; bottom part lets you paste the save text and click OK. Closing the window cancels
 - Load: select a slot → click "Load" → paste (Ctrl+V) into the game's Import
 - Rename: requires an existing save in the slot; renaming renames the disk file (`newname_slot.kgsav`); save first if the slot is empty
 - Refresh: after adding/renaming files outside the program, click "Refresh" to rescan the save library

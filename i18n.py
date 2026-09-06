@@ -82,10 +82,13 @@ _ZH = {
     "sv.btn_check": "检查异常文件",
     "sv.help": (
         "操作说明\n\n"
-        "【存档】\n"
-        "1. 选中一个存档位\n"
-        "2. 点击「存档」\n"
-        "3. 在游戏导出对话框中粘贴路径并保存\n\n"
+        "【自动存档】\n"
+        "用 KGSM 启动游戏（页面已连接）后，点「自动存档」\n"
+        "即可把游戏当前存档直接写入选中槽位。\n\n"
+        "【手动存档】\n"
+        "弹窗上部：把游戏导出的存档文件放入临时文件夹，\n"
+        "检测到后自动保存并关闭；\n"
+        "下部：粘贴存档文本后点「确定」。\n\n"
         "【读档】\n"
         "1. 选中一个存档位\n"
         "2. 点击「读档」\n"
@@ -110,6 +113,29 @@ _ZH = {
     "st.browser_eff": "当前系统默认浏览器",
     "st.browser_auto": "未检测到（将使用系统关联打开）",
     "st.hint": "所有修改自动保存到：{path}",
+
+    # ---- 存档（自动/手动） ----
+    "sv.btn_auto_save": "自动存档",
+    "sv.btn_manual_save": "手动存档",
+    "msg.auto_no_conn": "自动存档需要先用 KGSM 启动游戏（需要本地服务与存档桥）。",
+    "msg.auto_no_page": "游戏页面尚未连接，请确认已在浏览器打开游戏后重试。",
+    "msg.auto_overwrite": "自动存档到 {slot}？将覆盖现有存档。",
+    "msg.auto_saved": "已自动存档: {dest}",
+    "msg.auto_timeout": "自动存档超时：游戏页面没有响应。",
+    "msg.manual_title": "手动存档",
+    "msg.manual_tip": "把存档文件导入此文件夹",
+    "msg.manual_hint": "上方：把游戏导出的存档文件放入临时文件夹，检测到存档后自动保存并关闭窗口。\n下方：也可以直接把存档文本粘贴进输入框，点「确定」保存；关闭窗口表示取消操作。",
+    "msg.manual_detected": "检测到存档",
+    "msg.manual_detected_saved": "检测到存档，已保存到 {slot}。",
+    "msg.btn_ok": "确定",
+    "msg.btn_close": "关闭",
+    "msg.btn_copy_path": "复制路径",
+    "msg.path_copied": "已复制路径到剪贴板: {path}",
+    "msg.paste_empty": "请先粘贴存档内容，或把存档文件放入临时文件夹。",
+    "msg.saved_to": "已写入存档: {dest}",
+    "msg.invalid_ask": "存档可能/疑似不合法，仍要保存吗？",
+    "msg.invalid_skip": "已取消写入（存档疑似不合法）。",
+    "msg.paste_invalid_file": "放入的存档可能/疑似不合法，仍要保存吗？",
 
     # ---- 日志/标签与消息（输出内容） ----
     "tag.cancel": "取消存档",
@@ -245,10 +271,14 @@ _EN = {
     "sv.btn_check": "Check Abnormal Files",
     "sv.help": (
         "Help\n\n"
-        "[Save]\n"
-        "1. Select a slot\n"
-        "2. Click \u201cSave\u201d\n"
-        "3. Paste the path into the game's Export dialog\n\n"
+        "[Auto Save]\n"
+        "Launch the game via KGSM (page connected), then click "
+        "\u201cAuto Save\u201d to write the game's current save directly "
+        "into the selected slot.\n\n"
+        "[Manual Save]\n"
+        "Top: drop the exported save file into the temp folder; it is saved "
+        "automatically and the window closes when detected.\n"
+        "Bottom: paste the save text and click OK.\n\n"
         "[Load]\n"
         "1. Select a slot\n"
         "2. Click \u201cLoad\u201d\n"
@@ -273,6 +303,38 @@ _EN = {
     "st.browser_eff": "Current system default browser",
     "st.browser_auto": "not detected (will open via OS association)",
     "st.hint": "All changes are saved automatically to: {path}",
+
+    # ---- Save (auto / manual) ----
+    "sv.btn_auto_save": "Auto Save",
+    "sv.btn_manual_save": "Manual Save",
+    "msg.auto_no_conn": "Auto-save requires the game to be launched via "
+                        "KGSM (local server and save bridge needed).",
+    "msg.auto_no_page": "The game page is not connected yet. Open the game "
+                        "in the browser and try again.",
+    "msg.auto_overwrite": "Auto-save to {slot}? The existing save will be "
+                          "overwritten.",
+    "msg.auto_saved": "Auto-saved: {dest}",
+    "msg.auto_timeout": "Auto-save timed out: no response from the game.",
+    "msg.manual_title": "Manual Save",
+    "msg.manual_tip": "Import the save file into this folder",
+    "msg.manual_hint": "Top: drop the exported save file into the temp "
+                       "folder; once detected it will be saved and this "
+                       "window closes.\nBottom: alternatively paste the save "
+                       "text into the box and click OK; closing the window "
+                       "cancels the operation.",
+    "msg.manual_detected": "Save file detected",
+    "msg.manual_detected_saved": "Save detected and stored to {slot}.",
+    "msg.btn_ok": "OK",
+    "msg.btn_close": "Close",
+    "msg.btn_copy_path": "Copy Path",
+    "msg.path_copied": "Path copied to clipboard: {path}",
+    "msg.paste_empty": "Paste the save text first, or drop a save file into "
+                       "the temp folder.",
+    "msg.saved_to": "Save written: {dest}",
+    "msg.invalid_ask": "The save may/might be invalid. Save anyway?",
+    "msg.invalid_skip": "Write cancelled (the save looks invalid).",
+    "msg.paste_invalid_file": "The dropped save may/might be invalid. "
+                              "Save anyway?",
 
     # ---- Log tags & messages (output) ----
     "tag.cancel": "Cancel",
