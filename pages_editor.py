@@ -286,9 +286,19 @@ class EditorPageMixin:
                     add(iid, v, str(k), path + [k])
             elif isinstance(obj, list):
                 for i, v in enumerate(obj):
+                    label = str(i)
+                    if isinstance(v, dict) and v:
+                        k0 = next(iter(v))
+                        val0 = v[k0]
+                        if isinstance(val0, (str, int, float, bool)) or \
+                                val0 is None:
+                            label = f"{i} · {k0}: {str(val0)[:24]}"
+                    elif isinstance(v, (str, int, float, bool)) or \
+                            v is None:
+                        label = f"{i} · {str(v)[:24]}"
                     iid = tree.insert(parent_iid, "end",
-                                      text=f"index{i}", values=("",))
-                    add(iid, v, f"index{i}", path + [i])
+                                      text=label, values=("",))
+                    add(iid, v, label, path + [i])
             else:
                 val = obj if isinstance(obj, str) else json_dump(obj)
                 iid = tree.insert(parent_iid, "end", text=key_text,

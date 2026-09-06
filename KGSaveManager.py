@@ -348,14 +348,18 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
 
     # ---------- KGSM 页 ----------
     def build_kgm_tab(self, parent, button_font):
-        """主页：左侧页面切换按钮 + 右侧新手引导流程。"""
+        """主页：标题 + 左侧页面按钮 + 右侧新手引导流程。"""
         parent.columnconfigure(0, weight=0)
         parent.columnconfigure(1, weight=1)
-        parent.rowconfigure(0, weight=1)
+        parent.rowconfigure(1, weight=1)
+
+        ttk.Label(parent, text=self.t("kgsm.heading"),
+                  font=('微软雅黑', 18, 'bold')).grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
 
         # 左侧：除 KGSM 外的所有页面，按钮垂直排列
         nav = ttk.Frame(parent, width=210)
-        nav.grid(row=0, column=0, sticky="ns", padx=(0, 14))
+        nav.grid(row=1, column=0, sticky="ns", padx=(0, 14))
         nav.grid_propagate(False)
         for key in ("game", "saves", "editor", "download", "settings"):
             ttk.Button(
@@ -364,13 +368,10 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                     TAB_ORDER.index(k))).pack(fill=tk.X, pady=6)
 
         # 右侧：新手引导（垂直流程）
-        guide = ttk.Frame(parent)
-        guide.grid(row=0, column=1, sticky="nsew")
+        guide = ttk.LabelFrame(parent, text=self.t("kgsm.guide_title"),
+                               padding="18")
+        guide.grid(row=1, column=1, sticky="nsew")
         guide.columnconfigure(0, weight=1)
-
-        ttk.Label(guide, text=self.t("kgsm.guide_title"),
-                  font=('微软雅黑', 15, 'bold')).pack(anchor="w",
-                                                     pady=(4, 12))
 
         steps = (
             (1, "kgsm.step_doc", self.open_offline_doc),
@@ -385,15 +386,16 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             if idx:
                 ttk.Label(guide, text="↓", foreground="#999999").pack()
             row = ttk.Frame(guide)
-            row.pack(fill=tk.X, pady=4)
-            ttk.Label(row, text=f"{num}", width=3, anchor="center",
-                      font=('微软雅黑', 11, 'bold')).pack(side=tk.LEFT)
+            row.pack(fill=tk.X, pady=5)
+            ttk.Label(row, text=str(num), width=3, anchor="center",
+                      font=('微软雅黑', 12, 'bold')).pack(side=tk.LEFT)
             link = self._make_link(row, self.t(key), command=cmd)
-            link.pack(side=tk.LEFT, padx=(8, 0))
+            link.pack(side=tk.LEFT, padx=(10, 0))
 
+        ttk.Separator(guide, orient=tk.HORIZONTAL).pack(fill=tk.X,
+                                                        pady=(16, 10))
         ttk.Label(guide, text=self.t("kgsm.guide_hint"),
-                  foreground="#888888", wraplength=520).pack(
-            anchor="w", pady=(18, 0))
+                  foreground="#888888", wraplength=560).pack(anchor="w")
 
     def open_offline_doc(self):
         """打开内置英文离线文档（单页 HTML）。"""

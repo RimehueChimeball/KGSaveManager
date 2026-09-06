@@ -1,15 +1,18 @@
 # KGSaveManager
 
-A Kittens Game save manager for Windows (Python + Tkinter, no third-party dependencies).
+A save manager for Kittens Game on Windows (Python + Tkinter, no third-party dependencies).
 
 ## Features
 
-- Four tabs, fixed order: KGSM → Launch Game → Save Management → Settings (UI is bilingual, zh/en)
-- Save Management: 10 slots, auto-detected from filenames `name_slot.kgsav`; auto save (via local bridge), manual save (drop file / paste text), load, rename, refresh, notes, abnormal-file checker
-- Launch Game: local static web server (127.0.0.1 only) + a WebSocket save bridge; one click to start and open in a new browser window, with a live server log
-- KGSM home: quick launch the game; copy a save and launch; two download links (author's original / community fork, both on GitHub)
-- Settings: language, browser (system default auto-detected), game directory, port, home save slot; every change is auto-saved to `kgsm_data/kgsm_config.json`
-- All data lives in `kgsm_data/` (save library, temp folder, config); back up or migrate by copying that one folder
+- Bilingual interface (Chinese / English); language is detected from the system on first run
+- Tabs in fixed order: KGSM, Launch Game, Save Management, Edit Save, Download Game, Settings
+- Save Management: 10 slots recognized from filenames (`name_1.kgsav` .. `name_10.kgsav`); auto save (WebSocket bridge), manual save (drop file or paste text), copy save, auto load, rename, refresh, per-slot notes, abnormal-file check
+- Edit Save: open a slot file or the running game; view/source modes; value editing; backup (`.bak`); write-back re-encodes to the game format
+- Launch Game: local static web server (127.0.0.1) with an injected save bridge; opens the game in a new browser window
+- Download Game: two GitHub repositories, GitHub direct or mirror sources, connectivity test, flattened extraction with `index.html` check
+- Settings: language, browser, game directory, port, home save slot; changes are saved automatically
+- External translations: JSON or PO files in the `i18n/` folder next to the program
+- Runtime data in `kgsm_data/`; run logs in `kgsm_data/kgsm_log/`, one file per launch
 
 ## Run
 
@@ -17,31 +20,38 @@ A Kittens Game save manager for Windows (Python + Tkinter, no third-party depend
 python KGSaveManager.py
 ```
 
+## Quick Start
+
+1. Download the game (Download Game tab, keep the default repository and version).
+2. Set the game directory in Settings (the folder containing `index.html`).
+3. Launch the game (Launch Game tab). The page connects to the save bridge.
+4. Save or load saves in Save Management.
+
 ## Usage
 
-- Auto Save: launch the game via KGSM, then click "Auto Save"; the game's current save is pulled over the bridge and written to the selected slot (confirms when overwriting)
-- Manual Save: opens a dialog — top part shows the temp folder (copy it with "Copy Path"); dropping an exported save file there saves it automatically and closes the window with a "save detected" notice; bottom part lets you paste the save text and click OK. Closing the window cancels
-- Load: select a slot → click "Load" → paste (Ctrl+V) into the game's Import
-- Rename: requires an existing save in the slot; renaming renames the disk file (`newname_slot.kgsav`); save first if the slot is empty
-- Refresh: after adding/renaming files outside the program, click "Refresh" to rescan the save library
-- Launch game: first set the game directory in Settings (point to the folder containing the game files)
-- First time: open Settings to set the game directory, then download the game on the KGSM tab
+- Auto Save: requires the game launched via KGSM and connected. Writes the current game save to the selected slot; confirms on overwrite.
+- Manual Save: dialog with the temp folder path (Copy Path button) and a text area. Drop the exported file into the temp folder, or paste the save text and press OK. Pasted content is validated.
+- Copy Save: copies the slot content to the clipboard for the game Import.
+- Auto Load: confirms once, then sends the slot content to the game page; the page reloads.
+- Rename: renames the slot file. The slot must contain a save.
+- Refresh: rescans the save library.
+- Edit Save: open a file or live source; edit values in view mode or edit JSON in source mode; Write saves the result.
 
-## Layout
+## Data Layout
 
 ```
-KGSaveManager/
-├─ KGSaveManager.py     # Main program
-├─ i18n.py              # zh/en translations
-├─ config_store.py      # Config storage (auto-save)
-├─ web_server.py        # Local web server
-├─ utils.py             # Windows DPI settings
-├─ KGSaveManager.spec   # PyInstaller config
-├─ README.md (en) / README_zh.md (zh)
-└─ kgsm_data/           # Runtime data (git-ignored)
-   ├─ kittens_saves/    # Save library
-   ├─ kgsm_temp/        # Export staging folder
-   └─ kgsm_config.json  # Config (notes included)
+program/
+├─ KGSaveManager.py
+├─ i18n.py / config_store.py / web_server.py / web_bridge.py
+├─ savecodec.py / downloader.py
+├─ pages_download.py / pages_editor.py / save_flows.py
+├─ kgsm_logging.py / utils.py
+├─ docs/guide_en.html
+└─ kgsm_data/
+   ├─ kittens_saves/
+   ├─ kgsm_temp/
+   ├─ kgsm_log/
+   └─ kgsm_config.json
 ```
 
 ## Build
@@ -51,9 +61,4 @@ pip install pyinstaller
 pyinstaller KGSaveManager.spec
 ```
 
-Output goes to `dist/KGSaveManager/`.
-
-## Notes
-
-- Slot names come from save filenames and are not translated (they are the real filenames).
-- Saving works by the game exporting into the temp folder, then the program moves, renames and overwrites the save in the library.
+Output: `dist/KGSaveManager/KGSaveManager.exe`.

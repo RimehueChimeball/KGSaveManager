@@ -3,34 +3,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KGSaveManager · Offline Guide</title>
+<title>KGSaveManager — Offline Guide</title>
 <style>
-  :root { --side: 250px; --accent:#2c6e49; --line:#e3e3e3; }
+  :root { --accent: #2c6e49; --line: #dcdcdc; }
   * { box-sizing: border-box; }
-  body { margin:0; font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif;
-         color:#222; display:flex; min-height:100vh; }
-  nav { width:var(--side); flex:none; background:#f7f8fa; border-right:1px solid var(--line);
-        overflow-y:auto; position:sticky; top:0; height:100vh; padding:16px 8px; }
-  nav a { display:block; color:#333; text-decoration:none; padding:5px 10px;
-          border-radius:4px; font-size:13.5px; }
-  nav a:hover { background:#e8ecef; }
-  nav .l1 { font-weight:600; margin-top:10px; color:#111; }
-  nav .l2 { padding-left:20px; font-size:12.8px; }
-  nav .l3 { padding-left:34px; font-size:12.3px; color:#555; }
-  main { flex:1; padding:24px 36px 60px; max-width:860px; }
-  h1 { margin-top:0; }
-  h2 { border-bottom:1px solid var(--line); padding-bottom:6px; margin-top:34px; }
-  h3 { margin-top:22px; }
-  code { background:#f0f0f0; padding:1px 5px; border-radius:4px;
-         font-size:12.8px; }
-  pre { background:#f6f6f6; border:1px solid var(--line); padding:10px;
-        border-radius:6px; overflow-x:auto; }
-  table { border-collapse:collapse; width:100%; }
-  th,td { border:1px solid var(--line); padding:6px 9px; text-align:left;
-          font-size:13.5px; }
-  .ok { color:var(--accent); font-weight:600; }
-  .warn { color:#b25a00; }
-  a.toc { color:var(--accent); }
+  body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #222;
+         display: flex; min-height: 100vh; }
+  nav { width: 250px; flex: none; background: #f7f8fa;
+        border-right: 1px solid var(--line); overflow-y: auto;
+        position: sticky; top: 0; height: 100vh; padding: 14px 8px; }
+  nav a { display: block; color: #333; text-decoration: none;
+          padding: 4px 10px; border-radius: 4px; font-size: 13px; }
+  nav a:hover { background: #e8ecef; }
+  nav .l1 { font-weight: 600; margin-top: 10px; }
+  nav .l2 { padding-left: 20px; font-size: 12.5px; }
+  main { flex: 1; padding: 22px 34px 60px; max-width: 860px; }
+  h1 { margin-top: 0; }
+  h2 { border-bottom: 1px solid var(--line); padding-bottom: 5px;
+       margin-top: 30px; }
+  code { background: #f0f0f0; padding: 1px 5px; border-radius: 4px; }
+  pre { background: #f6f6f6; border: 1px solid var(--line); padding: 10px;
+        border-radius: 6px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid var(--line); padding: 6px 9px;
+           text-align: left; font-size: 13.5px; }
 </style>
 </head>
 <body>
@@ -40,237 +36,240 @@
   <a class="l2" href="#home">Home (KGSM)</a>
   <a class="l2" href="#tabs">Tabs</a>
   <a class="l1" href="#save-mgmt">Save Management</a>
-  <a class="l2" href="#slot-model">Slot model &amp; filenames</a>
-  <a class="l2" href="#auto-save">Auto save</a>
-  <a class="l2" href="#manual-save">Manual save</a>
-  <a class="l2" href="#copy-load">Copy save / load</a>
-  <a class="l2" href="#rename-refresh">Rename &amp; refresh</a>
-  <a class="l2" href="#notes-check">Notes &amp; checker</a>
+  <a class="l2" href="#slot-model">Slot Model &amp; Filenames</a>
+  <a class="l2" href="#auto-save">Auto Save</a>
+  <a class="l2" href="#manual-save">Manual Save</a>
+  <a class="l2" href="#copy-load">Copy Save / Auto Load</a>
+  <a class="l2" href="#rename-refresh">Rename &amp; Refresh</a>
+  <a class="l2" href="#notes-check">Notes &amp; File Check</a>
   <a class="l1" href="#editor">Save Editor</a>
-  <a class="l2" href="#ed-sources">Sources</a>
-  <a class="l2" href="#ed-views">View &amp; source</a>
-  <a class="l2" href="#ed-write">Write &amp; backup</a>
+  <a class="l2" href="#ed-sources">Data Sources</a>
+  <a class="l2" href="#ed-views">View &amp; Source</a>
+  <a class="l2" href="#ed-write">Write &amp; Backup</a>
   <a class="l1" href="#launch">Launch Game &amp; Web Server</a>
-  <a class="l2" href="#server">Local server &amp; bridge</a>
-  <a class="l2" href="#browser">Browser rules</a>
+  <a class="l2" href="#server">Server &amp; Bridge</a>
+  <a class="l2" href="#browser">Browser Usage</a>
   <a class="l1" href="#download">Download Game</a>
-  <a class="l2" href="#dl-sources">Sources &amp; mirrors</a>
+  <a class="l2" href="#dl-sources">Repositories &amp; Mirrors</a>
   <a class="l2" href="#dl-versions">Versions</a>
-  <a class="l2" href="#dl-test">Connectivity test</a>
-  <a class="l2" href="#dl-flow">Download flow</a>
+  <a class="l2" href="#dl-test">Connectivity Test</a>
+  <a class="l2" href="#dl-flow">Download Procedure</a>
   <a class="l1" href="#settings">Settings</a>
-  <a class="l2" href="#language">Language &amp; external i18n</a>
+  <a class="l2" href="#language">Language</a>
+  <a class="l2" href="#external-i18n">External Translations</a>
   <a class="l2" href="#browser-cfg">Browser</a>
-  <a class="l2" href="#paths">Paths &amp; quotes</a>
-  <a class="l2" href="#misc-cfg">Port &amp; home slot</a>
+  <a class="l2" href="#paths">Paths &amp; Quotes</a>
+  <a class="l2" href="#other-cfg">Port &amp; Home Slot</a>
   <a class="l1" href="#data">Data &amp; Logs</a>
-  <a class="l2" href="#kgsm-data">Folder layout</a>
-  <a class="l2" href="#logs">Run logs</a>
+  <a class="l2" href="#kgsm-data">Folder Layout</a>
+  <a class="l2" href="#logs">Run Logs</a>
   <a class="l1" href="#trouble">Troubleshooting</a>
   <a class="l1" href="#build">Building the EXE</a>
 </nav>
 <main>
 <h1>KGSaveManager — Offline Guide</h1>
-<p>A Windows desktop companion for <em>Kittens Game</em>: bilingual UI
-(English/中文), 10 named save slots, a local web server with a save bridge,
-a save editor, and a game downloader. Zero third-party Python dependencies.
-Version: v1.1.0.</p>
+<p>KGSaveManager is a save manager for Kittens Game on Windows (Python +
+Tkinter, bilingual UI, zero third-party dependencies). Version: v1.1.0.</p>
 
 <h2 id="quick-start">Quick Start</h2>
 <ol>
-  <li><b>Read this guide.</b> The home page links here under
-      “Getting Started → Read the offline guide”.</li>
-  <li><b>Get the game.</b> Open the <em>Download Game</em> tab, keep the
-      default repository and version, pick <code>github.com</code> first
-      (switch to a mirror if it fails), choose a folder (default:
-      <code>program\KittensGame</code>), and press
-      <span class="ok">Start Download</span>. Optionally tick
-      “use this folder as the service directory”.</li>
-  <li><b>Configure.</b> Open <em>Settings</em>: check the game directory
-      (pointed at the folder containing <code>index.html</code>), language,
-      browser, and optionally a fixed port.</li>
-  <li><b>Launch.</b> Open <em>Launch Game</em> (or “Launch the game” on the
-      home guide) to start the local server and open the game in a new
-      browser window. The game page auto-connects to the save bridge.</li>
+  <li>Read this guide.</li>
+  <li>Open the <em>Download Game</em> tab. Keep the default repository and
+      version. Select <code>github.com</code> as the source; if it fails,
+      select a mirror. Choose a destination folder (default:
+      <code>program\KittensGame</code>) and start the download. Tick
+      “use this folder as the service directory” if desired.</li>
+  <li>Open <em>Settings</em>. Verify the game directory points to the folder
+      that contains <code>index.html</code>. Set language and browser if
+      needed.</li>
+  <li>Open <em>Launch Game</em> or use “Launch the game” on the home page.
+      The local server starts and the game opens in a new browser window.
+      The game page connects to the save bridge automatically.</li>
 </ol>
 
 <h2 id="interface">Interface</h2>
 <h3 id="home">Home (KGSM)</h3>
-<p>The home page has no launch widgets anymore. On the left, buttons list
-every page except the home page for one-click navigation. On the right, the
-<b>Getting Started</b> flow walks you through: read the guide →
-download → configure → launch. You can switch pages anytime via the left
-buttons or the top tabs.</p>
+<p>The home page shows the program title. The left column lists buttons for
+every page except the home page. The right column shows the getting-started
+flow: read the offline guide, download the game, configure, launch. Each
+step is a link.</p>
 <h3 id="tabs">Tabs</h3>
-<p>Fixed order: <b>KGSM → Launch Game → Save Management → Edit Save →
-Download Game → Settings</b>. Logs belong to their own page: save actions in
-Save Management, server/bridge events in Launch Game, download events in
-Download Game; the home page shows no logs.</p>
+<p>Fixed order: KGSM, Launch Game, Save Management, Edit Save, Download
+Game, Settings. Logs appear on the page they belong to: save actions in
+Save Management, server and bridge events in Launch Game, download events in
+Download Game. The home page shows no logs.</p>
 
 <h2 id="save-mgmt">Save Management</h2>
-<h3 id="slot-model">Slot model &amp; filenames</h3>
-<p>Ten slots. A slot is <em>identified by scanning the save library</em>,
-not by config: files look like <code>name_1.kgsav</code> … 
-<code>name_10.kgsav</code> where <code>name</code> is the slot name
-(default <code>存档N</code>, kept as-is — filenames are never translated).
-The slot label shows a translated prefix (<code>Save 01.</code> /
-<code>存档01.</code>) plus the filename prefix. Empty slots show
-<code>empty</code>. If several files match a slot, the newest wins.
-Deleting the config file never breaks recognition.</p>
-<h3 id="auto-save">Auto save</h3>
-<p>Launch the game through KGSM (the injected page connects to the local
-WebSocket bridge). Then click <b>Auto Save</b> on the selected slot. KGSM
-confirms when overwriting, pulls the game’s current save over the bridge,
-and writes it directly to the slot file — no clipboard, no temp step.</p>
-<h3 id="manual-save">Manual save</h3>
-<p><b>Manual Save</b> opens a dialog with two parts:</p>
+<h3 id="slot-model">Slot Model &amp; Filenames</h3>
+<p>There are 10 slots. Slots are identified by scanning the save library,
+not by configuration. Files are named
+<code>name_1.kgsav</code> through <code>name_10.kgsav</code>. The default
+slot name is <code>存档N</code>. Filenames are never translated. The slot
+label shows a translated prefix (<code>Save 01.</code> or
+<code>存档01.</code>) followed by the filename prefix. Empty slots show
+<code>empty</code>. If multiple files match a slot, the newest is used.
+Deleting the configuration file does not affect recognition.</p>
+<h3 id="auto-save">Auto Save</h3>
+<p>Launch the game through KGSM so the page connects to the WebSocket
+bridge. Select a slot and click <em>Auto Save</em>. If the slot already has
+a save, confirm the overwrite. The current save is retrieved over the
+bridge and written to the slot file.</p>
+<h3 id="manual-save">Manual Save</h3>
+<p>Manual Save opens a dialog with two areas.</p>
 <ul>
-  <li><b>Top:</b> the temp folder path with a <b>Copy Path</b> button
-      (the path is <em>not</em> copied automatically). Drop the game’s
-      exported file into this folder — once detected (and stable) the save is
-      written, the window closes by itself, and a “save detected” notice
-      appears.</li>
-  <li><b>Bottom:</b> a large box to paste the exported save text, then press
-      <b>OK</b>. Pasting is format-checked first; if the content “may/might
-      be invalid” you are asked before saving. <b>Close</b> cancels.</li>
+  <li>Top: the temp folder path and a Copy Path button. The path is not
+      copied automatically. Drop the exported save file into the folder.
+      When a stable file is detected, it is written, the window closes, and
+      a “save detected” message is shown.</li>
+  <li>Bottom: a text area for pasting the exported save text, and an OK
+      button. Pasted text is validated. If the content may be invalid, the
+      program asks for confirmation. Closing the window cancels the
+      operation.</li>
 </ul>
-<h3 id="copy-load">Copy save / load</h3>
-<p><b>Copy Save</b> copies the selected slot’s text to the clipboard — paste
-it into the game’s Import (Ctrl+V). <b>Auto Load</b> (from the game side)
-asks once in KGSM (“this overwrites current progress”), then sends the save
-to the page, which stores it and reloads automatically.</p>
-<h3 id="rename-refresh">Rename &amp; refresh</h3>
-<p><b>Rename</b> renames the slot’s disk file (<code>name_1.kgsav</code> →
-<code>newname_1.kgsav</code>); the slot must have a save first. Renaming
-never touches config. <b>Refresh</b> rescans the library after you add or
-rename files outside the program. The slot list scrolls with the mouse
-wheel.</p>
-<h3 id="notes-check">Notes &amp; checker</h3>
-<p>Notes are saved automatically per slot inside the config file (the only
-slot-related data the config stores). <b>Check Abnormal Files</b> lists
-files the program does not manage (unparsable names, leftovers in the temp
-folder, empty saves).</p>
+<h3 id="copy-load">Copy Save / Auto Load</h3>
+<p>Copy Save copies the selected slot content to the clipboard; paste it
+into the game Import (Ctrl+V). Auto Load asks once for confirmation, then
+sends the slot content to the game page. The page stores it and reloads.</p>
+<h3 id="rename-refresh">Rename &amp; Refresh</h3>
+<p>Rename changes the slot file name. A save must exist in the slot first.
+Renaming does not modify the configuration. Refresh rescans the library
+after files are added or renamed outside the program.</p>
+<h3 id="notes-check">Notes &amp; File Check</h3>
+<p>Notes are saved per slot in the configuration file. Check Abnormal Files
+lists files that do not match the naming rules, leftover temp files, and
+empty save files.</p>
 
 <h2 id="editor">Save Editor</h2>
-<h3 id="ed-sources">Sources</h3>
-<p>Open a <b>save slot (file)</b> or the <b>running game (live)</b> — live
-pulls the current save over the bridge. Opening a file first creates a
-<code>.bak</code> backup next to it.</p>
-<h3 id="ed-views">View &amp; source</h3>
-<p>Two displays of the same data: <b>View</b> shows a key/value tree
-(dictionary keys as-is; arrays as <code>index0</code>, <code>index1</code>,
-…). Double-click a leaf to edit its value (JSON types are auto-detected;
-unparsable text is stored as a string). <b>Source</b> shows pretty-printed
-JSON, preserving key order (no sorting).</p>
-<h3 id="ed-write">Write &amp; backup</h3>
-<p><b>Write</b> re-encodes (lz-string Base64, same format the game exports)
-and atomically overwrites the slot file, or — in live mode — sends the whole
-save to the game, which reloads it. Whole-save replacement is the current
-live-editing model.</p>
+<h3 id="ed-sources">Data Sources</h3>
+<p>Open a save slot file, or the running game. Live mode retrieves the
+current save through the bridge. Opening a file creates a backup with the
+extension <code>.bak</code> before any change.</p>
+<h3 id="ed-views">View &amp; Source</h3>
+<p>The editor shows one data set in two views. View mode is a key/value
+tree. Object keys are shown as is. Array elements are labeled with the
+index and, when the element is an object, its first key and value (for
+example <code>0 · name: Ironworks</code>); scalar elements show the index
+and the value. Double-click a leaf to edit its value. JSON types are
+detected automatically; unparsable input is stored as a string. Source mode
+shows the JSON with indentation. Key order is preserved; no sorting is
+applied.</p>
+<h3 id="ed-write">Write &amp; Backup</h3>
+<p>Write re-encodes the data to the lz-string Base64 format used by the game
+and replaces the slot file atomically. In live mode, Write sends the save
+to the game; the page reloads to load it.</p>
 
 <h2 id="launch">Launch Game &amp; Web Server</h2>
-<h3 id="server">Local server &amp; bridge</h3>
-<p>The server serves the configured game directory on <code>127.0.0.1</code>
-only. While running, HTML responses are injected in memory with
-<code>bridge.js</code> (your game files are never modified) and a local
-WebSocket bridge starts on a separate port. The page reconnects
-automatically after refresh.</p>
-<h3 id="browser">Browser rules</h3>
-<p>Only <b>launching the game</b> opens a new browser window; hyperlinks
-open normally in the same browser. The configured browser (Settings →
-Browser) is used everywhere; “system default” mode resolves the real default
-browser at runtime.</p>
+<h3 id="server">Server &amp; Bridge</h3>
+<p>The server serves the configured game directory on
+<code>127.0.0.1</code>. HTML responses are modified in memory to include
+<code>bridge.js</code>; game files on disk are not changed. A WebSocket
+bridge listens on a separate port. The page reconnects after reload.</p>
+<h3 id="browser">Browser Usage</h3>
+<p>A new browser window is opened only when launching the game. Hyperlinks
+open in the current browser. The browser configured in Settings is used for
+all links. The “system default” option resolves the system default browser
+at runtime.</p>
 
 <h2 id="download">Download Game</h2>
-<h3 id="dl-sources">Sources &amp; mirrors</h3>
-<p>Two repositories, both from GitHub: the <b>author’s original</b>
-(<code>nuclear-unicorn/kittensgame</code>) and the <b>community fork</b>
-(<code>kitten-science/kittensgame</code>). The download source list:
-<code>github.com</code> (direct) plus mirror proxies
-(<code>ghproxy.net</code>, <code>ghfast.top</code>, <code>gh-proxy.com</code>)
-that fetch the same file when GitHub is blocked or slow.</p>
+<h3 id="dl-sources">Repositories &amp; Mirrors</h3>
+<p>Two GitHub repositories are available: the author’s original
+(<code>nuclear-unicorn/kittensgame</code>) and the community fork
+(<code>kitten-science/kittensgame</code>). Download sources are
+<code>github.com</code> (direct) and mirror proxies
+(<code>ghproxy.net</code>, <code>ghfast.top</code>,
+<code>gh-proxy.com</code>). Mirrors return the same file.</p>
 <h3 id="dl-versions">Versions</h3>
-<p>These repos publish no real releases. The version list therefore shows
-only the repository’s <b>default branch</b> (the latest version) plus any
-genuine release tags. Development branches (dev/, chore/, dependabot/, …)
-are hidden — they are not playable versions.</p>
-<h3 id="dl-test">Connectivity test</h3>
-<p><b>Test Connectivity</b> probes every source in parallel (HEAD, ~6 s
-timeout) for the current version and shows OK/FAIL per source, so you can
-pick the fastest working mirror.</p>
-<h3 id="dl-flow">Download flow</h3>
-<p>Destination folder defaults to <code>program\KittensGame</code>. If it
-already contains files you are asked to confirm before continuing (content
-is cleared). The zip downloads into <code>.temp</code> under the target
-(never the app data temp), is unzipped with the <b>single top folder
-flattened away</b>, and <code>index.html</code> must exist at the root.
-“Delete temporary download files after completion” (default on) removes the
-<code>.temp</code> folder. Optionally the folder is set as the service
-directory when done.</p>
+<p>These repositories publish no release tags. The version list contains
+the repository default branch (the latest version) and any genuine release
+tags. Development branches are not listed.</p>
+<h3 id="dl-test">Connectivity Test</h3>
+<p>Test Connectivity checks all sources in parallel with a short timeout
+and reports OK or FAIL for each source.</p>
+<h3 id="dl-flow">Download Procedure</h3>
+<p>The zip file is downloaded to <code>.temp</code> under the destination
+folder. If the destination contains files, the program asks for
+confirmation and clears the folder. After extraction, the single top-level
+folder is flattened; <code>index.html</code> must exist at the root. The
+.temp folder is removed after completion unless the option is disabled.</p>
 
 <h2 id="settings">Settings</h2>
-<h3 id="language">Language &amp; external i18n</h3>
-<p>UI language: zh / en. When no config exists the system language is used.
-The <code>Language</code> label stays English by design. You can <b>add
-external translations</b>: put <code>*.json</code> (either
-<code>{"zh":{...},"en":{...}}</code> or a single-language map) or
-<code>*.po</code> files into an <code>i18n/</code> folder next to the
-program; they are merged on startup. Language is inferred from the filename
-(<code>zh*</code> → Chinese, otherwise English).</p>
+<h3 id="language">Language</h3>
+<p>The interface supports Chinese and English. If no configuration exists,
+the system language is used. The Language label itself is always displayed
+in English.</p>
+<h3 id="external-i18n">External Translations</h3>
+<p>Translations can be added without modifying the program. Place files in
+the <code>i18n/</code> folder next to the program. Two formats are
+supported.</p>
+<p>JSON. Recommended structure:</p>
+<pre>{
+  "zh": { "tab.saves": "存档管理" },
+  "en": { "tab.saves": "My Custom Saves" }
+}</pre>
+<p>Single-language JSON is also accepted; the language is inferred from the
+file name (<code>zh*</code> means Chinese, anything else means English).
+Example <code>zh.json</code>:</p>
+<pre>{ "sv.btn_save": "保存档案" }</pre>
+<p>PO files contain msgid/msgstr pairs. Example <code>en.po</code>:</p>
+<pre>msgid "sv.btn_save"
+msgstr "Save Archive"</pre>
+<p>English example (<code>en.json</code>):</p>
+<pre>{ "sv.btn_save": "Save Archive", "dl.btn_download": "Fetch Game" }</pre>
+<p>Keys that do not exist in the built-in tables are added; keys that exist
+are overridden.</p>
 <h3 id="browser-cfg">Browser</h3>
-<p>Auto-detected on first start. Browse to pick an <code>.exe</code>, or
-reset to “system default”.</p>
-<h3 id="paths">Paths &amp; quotes</h3>
-<p>Pasted paths are cleaned automatically: surrounding quotes (as Windows
-copy adds) are stripped and separators are normalized to backslashes, so
-both <code>"C:/Games/KG"</code> and <code>C:\Games\KG</code> work.</p>
-<h3 id="misc-cfg">Port &amp; home slot</h3>
-<p><b>Fixed port</b> — empty means auto-pick. <b>Home save slot</b> is the
-slot used by the copy-and-launch helpers. The bottom “About” area links to
-the project and the author’s GitHub profile (labels are intentionally not
-translated).</p>
+<p>The browser is detected on first start. Use Browse to select an
+executable, or reset to system default.</p>
+<h3 id="paths">Paths &amp; Quotes</h3>
+<p>Paths are normalized when saved. Surrounding quotes are removed and
+separators are converted to backslashes, so
+<code>"C:/Games/KG"</code> and <code>C:\Games\KG</code> are both accepted.</p>
+<h3 id="other-cfg">Port &amp; Home Slot</h3>
+<p>The port field is optional; empty means an automatic port. Home Save
+Slot selects the slot used by copy helpers. The About area links to the
+project and the author profile.</p>
 
 <h2 id="data">Data &amp; Logs</h2>
-<h3 id="kgsm-data">Folder layout</h3>
+<h3 id="kgsm-data">Folder Layout</h3>
 <pre>program/
-├─ KGSaveManager.py       main program
+├─ KGSaveManager.py
 ├─ i18n.py / config_store.py / web_server.py / web_bridge.py
 ├─ savecodec.py / downloader.py
 ├─ pages_download.py / pages_editor.py / save_flows.py
 ├─ kgsm_logging.py / utils.py
-├─ docs/guide_en.html     this guide
-└─ kgsm_data/             all runtime data — copy this one folder to back up
-   ├─ kittens_saves/      save library (name_N.kgsav)
-   ├─ kgsm_temp/          staging for manual file import
-   ├─ kgsm_log/           run logs, one file per launch
-   └─ kgsm_config.json    language/browser/dir/port/home slot/notes</pre>
-<h3 id="logs">Run logs</h3>
+├─ docs/guide_en.html
+└─ kgsm_data/
+   ├─ kittens_saves/   save library
+   ├─ kgsm_temp/       staging folder for manual import
+   ├─ kgsm_log/        run logs, one file per launch
+   └─ kgsm_config.json configuration and notes</pre>
+<p>All runtime data is in <code>kgsm_data/</code>. Back up by copying this
+folder.</p>
+<h3 id="logs">Run Logs</h3>
 <p>A new log file is created at each launch:
-<code>kgsm_log/YYYYMMDD_HHMMSS.log</code>. It records startup info (version,
-platform, Python, config summary), web server &amp; bridge start/stop, save
-and download activity, and errors — useful when reporting issues.</p>
+<code>kgsm_log/YYYYMMDD_HHMMSS.log</code>. It records the application
+version, platform, Python version, configuration summary, server and bridge
+start and stop, save and download operations, and errors.</p>
 
 <h2 id="trouble">Troubleshooting</h2>
 <ul>
-  <li><b>Nothing opens when using “system default” browser:</b> the empty
-      entry means “system default” and is intentional; the Settings hint
-      shows the detected browser. Try the Connectivity Test on the download
-      page if the network is involved.</li>
-  <li><b>“Game page not connected”:</b> launch the game via KGSM and wait a
-      moment, or reload the game page — the bridge reconnects.</li>
-  <li><b>Mirror download fails:</b> switch source or run the connectivity
-      test; or enable your accelerator and use <code>github.com</code>.</li>
-  <li><b>“Save may/might be invalid”:</b> the text did not decode as a
-      Kittens Game save; only proceed if you are sure.</li>
-  <li><b>Inputs steal focus:</b> press <code>Esc</code> to drop focus;
-      switching pages returns focus to the notebook.</li>
+  <li>Browser field is empty: this means “system default”. The Settings
+      hint shows the detected browser.</li>
+  <li>“Game page is not connected”: launch the game through KGSM and reload
+      the page if necessary.</li>
+  <li>Download fails: select another source or run the connectivity test.
+      You may also enable an accelerator and use <code>github.com</code>.</li>
+  <li>“Save may be invalid”: the text could not be decoded as a Kittens
+      Game save. Proceed only if the content is known to be correct.</li>
+  <li>Focus: press Esc to remove focus from an input. Page switching
+      returns focus to the notebook.</li>
 </ul>
 
 <h2 id="build">Building the EXE</h2>
 <pre>pip install pyinstaller
 pyinstaller KGSaveManager.spec</pre>
 <p>Output: <code>dist/KGSaveManager/KGSaveManager.exe</code>. The spec
-declares all split modules explicitly and disables UPX.</p>
+declares all modules and includes the <code>docs/</code> folder.</p>
 </main>
 </body>
 </html>
