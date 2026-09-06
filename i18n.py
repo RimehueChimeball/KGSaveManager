@@ -167,7 +167,7 @@ _ZH = {
     "dl.repo_author": "作者原版 · nuclear-unicorn/kittensgame",
     "dl.repo_community": "社区版 · kitten-science/kittensgame",
     "dl.version": "版本",
-    "dl.version_tip": "默认 main（最新）即可；只有想玩旧版才切换到下方列出的标签版本。",
+    "dl.version_tip": "保持默认（仓库最新分支，通常为 main/master）即可；只有想玩旧版才切换列出的标签版本。",
     "dl.refresh_versions": "刷新版本列表",
     "dl.mirror": "下载源",
     "dl.mirror_tip": "github.com = 从 GitHub 官网直连下载；镜像站用于官网被墙/慢时加速，内容相同。",
@@ -428,8 +428,9 @@ _EN = {
     "dl.repo_author": "Author's original · nuclear-unicorn/kittensgame",
     "dl.repo_community": "Community fork · kitten-science/kittensgame",
     "dl.version": "Version",
-    "dl.version_tip": "main (latest) is fine for normal use; switch to a "
-                      "tagged version only to play an older build.",
+    "dl.version_tip": "Keep the default (the repo's latest branch, usually "
+                      "main/master); switch to a tagged version only to "
+                      "play an older build.",
     "dl.refresh_versions": "Refresh versions",
     "dl.mirror": "Download source",
     "dl.mirror_tip": "github.com downloads directly from GitHub. Mirrors "

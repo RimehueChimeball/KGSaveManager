@@ -227,9 +227,15 @@ class DownloadPageMixin:
 
     # 事件处理（由主类 _handle_event 分发）
     def _handle_dl_versions(self, items):
-        labels = [f"{kind}: {label}" for kind, label, _ref in items]
-        self.dl["ver_map"] = {f"{k}: {lab}": ref
-                              for k, lab, ref in items}
+        labels = []
+        mapping = {}
+        for kind, label, ref in items:
+            disp = label if kind == "branch" else f"{label}"
+            if kind != "branch":
+                disp = f"{label} (tag)"
+            labels.append(disp)
+            mapping[disp] = ref
+        self.dl["ver_map"] = mapping
         self.dl_version_combo.configure(values=labels)
         if labels:
             self.dl_version_combo.current(0)

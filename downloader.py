@@ -50,23 +50,24 @@ def _http_json(url, timeout=20):
 
 
 def list_versions(owner, repo):
-    """返回可用版本 [(kind, label, ref)]。
+    """返回可用版本 [(kind, label, ref)]——只列“真正可玩”的选择。
 
-    kind: 'branch' 或 'tag'；ref 是 zip 用的引用段。
+    两仓库都没有像样的 release；开发分支（dev/chore/experimental/feature/
+    dependabot…）不是可玩版本，全部不列出。这里只提供：
+    - 仓库默认分支（一般是 main，即最新版）；
+    - 真实存在的 release 标签（若有）。
     """
-    items = [("branch", "main", "refs/heads/main")]
+    items = []
+    default_branch = "main"
     try:
-        branches = _http_json(
-            f"https://api.github.com/repos/{owner}/{repo}/branches")
-        names = [b.get("name") for b in branches if b.get("name")]
-        for n in names:
-            if n not in ("main",):
-                items.append(("branch", n, f"refs/heads/{n}"))
+        info = _http_json(f"https://api.github.com/repos/{owner}/{repo}")
+        db = info.get("default_branch")
+        if db:
+            default_branch = db
     except Exception:
-        # 拿不到分支列表时，补充常见默认分支
-        for extra in ("master",):
-            if extra not in {x[1] for x in items}:
-                items.append(("branch", extra, f"refs/heads/{extra}"))
+        pass
+    items.append(("branch", default_branch,
+                  f"refs/heads/{default_branch}"))
     try:
         rels = _http_json(
             f"https://api.github.com/repos/{owner}/{repo}/releases",
