@@ -162,6 +162,36 @@ _ZH = {
     "ed.value_prompt": "输入新值（自动识别 JSON 类型，无法解析则存为字符串）：",
     "ed.invalid_value": "请输入 JSON 可解析的数值，或留空取消。",
 
+    # ---- 下载游戏 ----
+    "tab.download": "下载游戏",
+    "dl.repo": "来源仓库",
+    "dl.repo_author": "作者原版（nuclear-unicorn/kittensgame）",
+    "dl.repo_community": "社区版（kitten-science/kittensgame）",
+    "dl.version": "版本（分支/标签）",
+    "dl.refresh_versions": "刷新版本列表",
+    "dl.mirror": "下载源",
+    "dl.mirror_direct": "GitHub 直连",
+    "dl.dir": "存放目录",
+    "dl.dir_default_tip": "默认：程序目录\\KittensGame",
+    "dl.set_service_dir": "下载完成后，把该目录设为服务目录（游戏目录）",
+    "dl.btn_download": "开始下载",
+    "dl.log": "下载日志",
+    "dl.busy": "正在下载，请稍候…",
+    "dl.version_fail": "获取版本列表失败：{e}",
+    "dl.version_pick": "请选择一个版本。",
+    "dl.dir_missing": "存放目录为空或不合法：{dir}",
+    "dl.dir_has_content": "目标目录已存在且非空：{dir}\n继续将清空其中内容，确定继续吗？",
+    "dl.downloading": "正在下载（{mb:.1f} MB）: {url}",
+    "dl.downloaded": "下载完成：{file}（{mb:.1f} MB）",
+    "dl.unzip": "正在解压…",
+    "dl.no_index": "解压后未在目录根找到 index.html（{dir}）",
+    "dl.done": "下载完成，游戏目录：{dir}",
+    "dl.service_set": "已把该目录设置为服务目录（游戏目录）。",
+    "dl.cleanup": "已清理临时文件。",
+    "dl.fail": "下载失败：{e}",
+    "dl.not_a_zip": "下载内容不是有效的 zip 包（可能版本不存在或镜像异常）。",
+    "dl.cancel": "已取消下载。",
+
     # ---- 日志/标签与消息（输出内容） ----
     "tag.cancel": "取消存档",
     "tag.save": "执行存档",
@@ -176,6 +206,7 @@ _ZH = {
     "tag.stop": "停止",
     "tag.server": "服务",
     "tag.browser": "打开浏览器",
+    "tag.download": "下载",
     "msg.clipboard_fail": "写入剪贴板失败: {e}",
     "msg.server_stopped": "服务已停止。",
     "msg.server_restart": "检测到运行中的服务，重启以应用当前设置",
@@ -391,6 +422,42 @@ _EN = {
     "ed.invalid_value": "Enter a JSON-parsable value, or leave empty to "
                         "cancel.",
 
+    # ---- Download game ----
+    "tab.download": "Download Game",
+    "dl.repo": "Source repository",
+    "dl.repo_author": "Author's original (nuclear-unicorn/kittensgame)",
+    "dl.repo_community": "Community fork (kitten-science/kittensgame)",
+    "dl.version": "Version (branch/tag)",
+    "dl.refresh_versions": "Refresh versions",
+    "dl.mirror": "Download source",
+    "dl.mirror_direct": "GitHub direct",
+    "dl.dir": "Destination folder",
+    "dl.dir_default_tip": "Default: program folder\\KittensGame",
+    "dl.set_service_dir": "After download, use this folder as the service "
+                          "(game) directory",
+    "dl.btn_download": "Start Download",
+    "dl.log": "Download Log",
+    "dl.busy": "Downloading, please wait…",
+    "dl.version_fail": "Failed to list versions: {e}",
+    "dl.version_pick": "Choose a version first.",
+    "dl.dir_missing": "Destination folder is empty or invalid: {dir}",
+    "dl.dir_has_content": "The destination already exists and is not empty: "
+                          "{dir}\nContinuing will clear its contents. "
+                          "Continue?",
+    "dl.downloading": "Downloading ({mb:.1f} MB): {url}",
+    "dl.downloaded": "Downloaded: {file} ({mb:.1f} MB)",
+    "dl.unzip": "Extracting…",
+    "dl.no_index": "No index.html found at the folder root after extraction "
+                    "({dir})",
+    "dl.done": "Download complete. Game folder: {dir}",
+    "dl.service_set": "This folder has been set as the service (game) "
+                      "directory.",
+    "dl.cleanup": "Temporary files cleaned up.",
+    "dl.fail": "Download failed: {e}",
+    "dl.not_a_zip": "The downloaded content is not a valid zip (the version "
+                    "may not exist or the mirror failed).",
+    "dl.cancel": "Download cancelled.",
+
     # ---- Log tags & messages (output) ----
     "tag.cancel": "Cancel",
     "tag.save": "Saving",
@@ -405,6 +472,7 @@ _EN = {
     "tag.stop": "Stop",
     "tag.server": "Server",
     "tag.browser": "Browser",
+    "tag.download": "Download",
     "msg.clipboard_fail": "Failed to write clipboard: {e}",
     "msg.server_stopped": "Server stopped.",
     "msg.server_restart": "A server is running; restarting to apply settings.",

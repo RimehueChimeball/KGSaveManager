@@ -33,6 +33,7 @@ from tkinter import filedialog, messagebox, scrolledtext, simpledialog, ttk
 import savecodec
 from config_store import AppConfig
 from i18n import LANG_EN, LANG_ZH, Translator
+from pages_download import DownloadPageMixin
 from savecodec import validate as validate_save_text
 from utils import setup_dpi_and_scaling
 from web_bridge import WebSocketBridge
@@ -66,8 +67,8 @@ SAVE_LIBRARY = DATA_FOLDER / "kittens_saves"     # 存档库文件夹
 TEMP_FOLDER = DATA_FOLDER / "kgsm_temp"          # 临时文件夹（接收游戏导出文件）
 CONFIG_FILE = DATA_FOLDER / "kgsm_config.json"   # 配置/备注持久化文件
 
-# 标签页固定顺序：KGSM / 启动游戏 / 存档管理 / 修改存档 / 配置
-TAB_ORDER = ("kgsm", "game", "saves", "editor", "settings")
+# 标签页固定顺序：KGSM / 启动游戏 / 存档管理 / 修改存档 / 下载游戏 / 配置
+TAB_ORDER = ("kgsm", "game", "saves", "editor", "download", "settings")
 
 
 def json_loads(text):
@@ -88,7 +89,7 @@ def json_pretty(obj):
     return json.dumps(obj, ensure_ascii=False, indent=2)
 
 
-class KGSaveManager:
+class KGSaveManager(DownloadPageMixin):
     def __init__(self, root):
         self.root = root
         self.root.title(f"{APP_NAME} {APP_VERSION}")
@@ -121,6 +122,9 @@ class KGSaveManager:
         # 本地 Web 服务与存档桥（多页共用同一个服务）
         self.lweb = LocalWebServer(self.event_queue)
         self.bridge = None
+        # Mixin 页需要的基础常量
+        self.base_dir = BASE_DIR
+        self.tab_order = TAB_ORDER
 
         # 首次构建标志（重建界面时不重复输出“程序启动”日志）
         self._first_build = True
@@ -269,12 +273,14 @@ class KGSaveManager:
             "game": ttk.Frame(self.notebook, padding="8"),
             "saves": ttk.Frame(self.notebook, padding="8"),
             "editor": ttk.Frame(self.notebook, padding="8"),
+            "download": ttk.Frame(self.notebook, padding="8"),
             "settings": ttk.Frame(self.notebook, padding="8"),
         }
         self.notebook.add(tabs["kgsm"], text=self.t("tab.kgsm"))
         self.notebook.add(tabs["game"], text=self.t("tab.game"))
         self.notebook.add(tabs["saves"], text=self.t("tab.saves"))
         self.notebook.add(tabs["editor"], text=self.t("tab.editor"))
+        self.notebook.add(tabs["download"], text=self.t("tab.download"))
         self.notebook.add(tabs["settings"], text=self.t("tab.settings"))
 
         # 切换标签页时把焦点还给笔记本本身，避免输入框抢焦点
@@ -286,6 +292,7 @@ class KGSaveManager:
         self.build_game_tab(tabs["game"], button_font, log_font)
         self.build_saves_tab(tabs["saves"], button_font, help_font, log_font)
         self.build_editor_tab(tabs["editor"], button_font, log_font)
+        self.build_download_tab(tabs["download"], button_font, log_font)
         self.build_settings_tab(tabs["settings"], button_font, log_font)
 
     def _on_tab_changed(self, _event=None):
@@ -407,10 +414,11 @@ class KGSaveManager:
 
         dl_box = ttk.Frame(bottom)
         dl_box.grid(row=0, column=1, sticky="e")
-        for key, url in (("kgsm.download_1", GAME_DOWNLOAD_URLS[0]),
-                         ("kgsm.download_2", GAME_DOWNLOAD_URLS[1])):
-            link = self._make_link(dl_box, self.t(key),
-                                   command=lambda u=url: self._open_external(u))
+        for key, repo_key in (("kgsm.download_1", "author"),
+                              ("kgsm.download_2", "community")):
+            link = self._make_link(
+                dl_box, self.t(key),
+                command=lambda k=repo_key: self.open_download_tab(k))
             link.pack(side=tk.TOP, anchor="e")
 
     def _make_link(self, parent, text, command):
@@ -2035,6 +2043,19 @@ class KGSaveManager:
                          self.t("tag.done"))
         elif kind == "auto_save_fail":
             self.log(self.t("msg.auto_timeout"), self.t("tag.timeout"))
+        elif kind == "dl_log":
+            self._dl_log(item[1])
+        elif kind == "dl_versions":
+            self._handle_dl_versions(item[2])
+        elif kind == "dl_progress":
+            self._handle_dl_progress(item[1])
+        elif kind == "dl_done":
+            self._handle_dl_done(item[1], item[2])
+        elif kind == "dl_fail":
+            self._handle_dl_fail(item[1],
+                                 bool(item[2]) if len(item) > 2 else False)
+        elif kind == "dl_canceled":
+            self._handle_dl_cancel()
 
     # =========================================================
     # 退出
