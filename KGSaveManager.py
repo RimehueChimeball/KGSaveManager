@@ -45,7 +45,7 @@ from web_server import LocalWebServer, open_in_browser
 
 # ==================== 配置 ====================
 APP_NAME = "KittensGame Save Manager"
-APP_VERSION = "v1.1.0"
+APP_VERSION = "v1.2.0"
 SLOT_COUNT = 10                                  # 存档位数量
 MAX_NOTE_LEN = 200                               # 单条备注最大长度
 MAX_SAVE_SIZE = 64 * 1024 * 1024                 # 单个存档最大体积（字节）
@@ -70,6 +70,7 @@ DATA_FOLDER = BASE_DIR / "kgsm_data"             # 数据总目录：备份/迁�
 SAVE_LIBRARY = DATA_FOLDER / "kittens_saves"     # 存档库文件夹
 TEMP_FOLDER = DATA_FOLDER / "kgsm_temp"          # 临时文件夹（接收游戏导出文件）
 CONFIG_FILE = DATA_FOLDER / "kgsm_config.json"   # 配置/备注持久化文件
+BACKUP_DIR = DATA_FOLDER / "backups"             # 存档备份目录（编辑前备份）
 
 # 标签页固定顺序：KGSM / 启动游戏 / 存档管理 / 修改存档 / 下载游戏 / 配置
 TAB_ORDER = ("kgsm", "game", "saves", "editor", "download", "settings")
@@ -139,6 +140,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         self.save_library = SAVE_LIBRARY
         self.max_save_size = MAX_SAVE_SIZE
         self.temp_folder = TEMP_FOLDER
+        self.backup_dir = BACKUP_DIR
 
         # 首次构建标志（重建界面时不重复输出“程序启动”日志）
         self._first_build = True
@@ -154,7 +156,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
     # 基础工具
     # =========================================================
     def _ensure_dirs(self):
-        for folder in (DATA_FOLDER, SAVE_LIBRARY, TEMP_FOLDER):
+        for folder in (DATA_FOLDER, SAVE_LIBRARY, TEMP_FOLDER, BACKUP_DIR):
             folder.mkdir(parents=True, exist_ok=True)
 
     def t(self, key, **kw):
@@ -366,6 +368,8 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                 nav, text=self.t(f"tab.{key}"), style="Large.TButton",
                 command=lambda k=key: self.notebook.select(
                     TAB_ORDER.index(k))).pack(fill=tk.X, pady=6)
+        ttk.Label(nav, text="© 2026 RimehueChimeball",
+                  foreground="#999999").pack(side=tk.BOTTOM, pady=10)
 
         # 右侧：新手引导（垂直流程）
         guide = ttk.LabelFrame(parent, text=self.t("kgsm.guide_title"),
@@ -873,6 +877,10 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             about, "霁绣凇铃RimehueChimeball - Github",
             command=lambda: self._open_external(PROFILE_URL))
         profile_link.grid(row=0, column=1, sticky="e")
+        doc_link = self._make_link(
+            about, "Offline Guide (docs/guide_en.html)",
+            command=self.open_offline_doc)
+        doc_link.grid(row=1, column=0, sticky="w", pady=(4, 0))
 
         self._refresh_browser_eff()
 

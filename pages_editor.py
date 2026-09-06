@@ -169,12 +169,17 @@ class EditorPageMixin:
                 messagebox.showerror(self.t("err.load_fail"),
                                      self.t("ed.parse_err", err="decode"))
                 return
-            # 打开前自动备份
+            # 打开前自动备份到备份目录（名字.kgsav.日期.bak）
             try:
-                bak = path.with_name("." + path.name + ".bak")
-                bak.write_bytes(path.read_bytes())
-                self.log(self.t("ed.backup", path=bak.name),
-                         self.t("tag.load"))
+                from datetime import datetime as _dt
+                backup_dir = getattr(self, "backup_dir", None)
+                if backup_dir is not None:
+                    backup_dir.mkdir(parents=True, exist_ok=True)
+                    ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+                    bak = backup_dir / f"{path.name}.{ts}.bak"
+                    bak.write_bytes(path.read_bytes())
+                    self.log(self.t("ed.backup", path=bak.name),
+                             self.t("tag.load"))
             except OSError as e:
                 self.log(self.t("msg.read_fail", e=e), self.t("tag.error"))
             self._edit.update({"data": obj, "slot": slot, "path": str(path),

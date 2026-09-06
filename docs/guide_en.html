@@ -65,11 +65,12 @@
   <a class="l2" href="#logs">Run Logs</a>
   <a class="l1" href="#trouble">Troubleshooting</a>
   <a class="l1" href="#build">Building the EXE</a>
+  <a class="l1" href="#about">About</a>
 </nav>
 <main>
 <h1>KGSaveManager — Offline Guide</h1>
 <p>KGSaveManager is a save manager for Kittens Game on Windows (Python +
-Tkinter, bilingual UI, zero third-party dependencies). Version: v1.1.0.</p>
+Tkinter, bilingual UI, zero third-party dependencies). Version: v1.2.0.</p>
 
 <h2 id="quick-start">Quick Start</h2>
 <ol>
@@ -134,6 +135,18 @@ sends the slot content to the game page. The page stores it and reloads.</p>
 <p>Rename changes the slot file name. A save must exist in the slot first.
 Renaming does not modify the configuration. Refresh rescans the library
 after files are added or renamed outside the program.</p>
+<h3 id="manual-add">Adding a Save Manually</h3>
+<p>To add a save without the game export flow:</p>
+<ol>
+  <li>Copy the exported save text into a file named
+      <code>任意名_槽位号.kgsav</code> (for example
+      <code>存档3_3.kgsav</code> for slot 3). The name before the final
+      underscore becomes the slot name.</li>
+  <li>Place the file in the save library:
+      <code>kgsm_data/kittens_saves/</code>.</li>
+  <li>Open the program and click <b>Refresh</b> in Save Management, or
+      switch to the Save Management tab again.</li>
+</ol>
 <h3 id="notes-check">Notes &amp; File Check</h3>
 <p>Notes are saved per slot in the configuration file. Check Abnormal Files
 lists files that do not match the naming rules, leftover temp files, and
@@ -217,6 +230,25 @@ msgstr "Save Archive"</pre>
 <pre>{ "sv.btn_save": "Save Archive", "dl.btn_download": "Fetch Game" }</pre>
 <p>Keys that do not exist in the built-in tables are added; keys that exist
 are overridden.</p>
+<p>Where the keys come from: the built-in Chinese and English strings are
+defined in <code>i18n.py</code>, in the dictionaries <code>_ZH</code> and
+<code>_EN</code> inside <code>STRINGS</code>. Any UI text can be overridden
+by using the same key in an external file. Key prefixes used by the
+program:</p>
+<table>
+<tr><th>Prefix</th><th>Area</th><th>Examples</th></tr>
+<tr><td>tab.*</td><td>tab titles</td><td>tab.saves, tab.settings</td></tr>
+<tr><td>kgsm.*</td><td>home page</td><td>kgsm.guide_title, kgsm.step_doc</td></tr>
+<tr><td>sv.*</td><td>Save Management</td><td>sv.btn_auto_save, sv.btn_load</td></tr>
+<tr><td>la.*</td><td>Launch Game</td><td>la.btn_start, la.log_title</td></tr>
+<tr><td>st.*</td><td>Settings</td><td>st.game_dir, st.home_slot</td></tr>
+<tr><td>ed.*</td><td>Save Editor</td><td>ed.btn_open, ed.value_title</td></tr>
+<tr><td>dl.*</td><td>Download Game</td><td>dl.mirror, dl.btn_test</td></tr>
+<tr><td>dlg.* / err.* / msg.*</td><td>dialogs, messages, logs</td><td>dlg.no_file, err.no_dir</td></tr>
+<tr><td>tag.*</td><td>log tags</td><td>tag.start, tag.done</td></tr>
+</table>
+<p>To confirm the exact key for a visible text, open <code>i18n.py</code>
+and search for the text value in <code>_ZH</code>.</p>
 <h3 id="browser-cfg">Browser</h3>
 <p>The browser is detected on first start. Use Browse to select an
 executable, or reset to system default.</p>
@@ -241,10 +273,13 @@ project and the author profile.</p>
 └─ kgsm_data/
    ├─ kittens_saves/   save library
    ├─ kgsm_temp/       staging folder for manual import
+   ├─ backups/         dated backups, name.kgsav.YYYYMMDD_HHMMSS.bak
    ├─ kgsm_log/        run logs, one file per launch
    └─ kgsm_config.json configuration and notes</pre>
 <p>All runtime data is in <code>kgsm_data/</code>. Back up by copying this
-folder.</p>
+folder. The Save Editor writes a dated backup
+(<code>名字.kgsav.日期.bak</code>) into <code>backups/</code> each time a
+slot file is opened for editing.</p>
 <h3 id="logs">Run Logs</h3>
 <p>A new log file is created at each launch:
 <code>kgsm_log/YYYYMMDD_HHMMSS.log</code>. It records the application
@@ -270,6 +305,17 @@ start and stop, save and download operations, and errors.</p>
 pyinstaller KGSaveManager.spec</pre>
 <p>Output: <code>dist/KGSaveManager/KGSaveManager.exe</code>. The spec
 declares all modules and includes the <code>docs/</code> folder.</p>
+
+<h2 id="about">About</h2>
+<p>KGSaveManager manages Kittens Game saves on Windows. It provides save
+slots, auto and manual save, a save editor, a local web server with a save
+bridge, and a game downloader. The interface supports Chinese and English,
+including external translation files.</p>
+<ul>
+  <li>Project: <a href="https://github.com/RimehueChimeball/KGSaveManager">KGSaveManager - Github</a></li>
+  <li>Author: <a href="https://github.com/RimehueChimeball">霁绣凇铃RimehueChimeball - Github</a></li>
+</ul>
+<p>© 2026 RimehueChimeball</p>
 </main>
 </body>
 </html>
