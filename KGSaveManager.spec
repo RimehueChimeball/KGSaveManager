@@ -12,7 +12,7 @@ a = Analysis(
     datas=[],
     hiddenimports=['i18n', 'config_store', 'web_server', 'utils',
                    'web_bridge', 'savecodec', 'downloader',
-                   'pages_download'],
+                   'pages_download', 'pages_editor', 'save_flows'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
