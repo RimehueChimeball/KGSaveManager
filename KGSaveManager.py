@@ -114,12 +114,8 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         self.slot_info = []
         self.load_slot_info()
 
-        # 线程同步：监控标志 + 取消事件 + 事件队列
-        self._state_lock = threading.Lock()
-        self.monitoring = False
-        self.cancel_event = threading.Event()
+        # 后台线程与 UI 通信的事件队列
         self.event_queue = queue.Queue()
-        self.monitor_thread = None
 
         # 本地 Web 服务与存档桥（多页共用同一个服务）
         self.lweb = LocalWebServer(self.event_queue)
@@ -1168,145 +1164,13 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         self._append_log(self.web_log_text, msg, tag)
 
     # =========================================================
-    # 存档监控（存档管理页逻辑，沿用事件队列）
+    # 通用小工具
     # =========================================================
-    def _is_monitoring(self):
-        with self._state_lock:
-            return self.monitoring
-
-    def _set_monitoring(self, value):
-        with self._state_lock:
-            self.monitoring = value
-
-    def cancel_monitor(self):
-        if self._is_monitoring():
-            self.cancel_event.set()
-            self.log(self.t("msg.cancel_pending"), self.t("tag.cancel"))
-            return True
-        self.log(self.t("msg.no_operation"), self.t("tag.cancel"))
-        return False
-
-    def cancel_action(self):
-        self.commit_notes()
-        self.cancel_monitor()
-
-    def stop_ongoing_operation(self):
-        if self._is_monitoring():
-            self.cancel_monitor()
-
-    def save_action(self):
-        self.commit_notes()
-
-        if self._is_monitoring():
-            self.log(self.t("msg.busy"), self.t("tag.save"))
-            return
-
-        slot = self.selected_slot.get()
-        slot_text = self.slot_label(slot)
-
-        if self.slot_info[slot].get('exists'):
-            msg = self.t("dlg.save_overwrite", slot=slot_text)
-        else:
-            msg = self.t("dlg.save_new", slot=slot_text)
-
-        if not messagebox.askokcancel(APP_NAME, msg):
-            self.log(self.t("msg.user_cancel"), self.t("tag.cancel"))
-            return
-
-        self.log(self.t("msg.save_start", slot=slot_text), self.t("tag.save"))
-
-        temp_abs = str(TEMP_FOLDER.resolve())
-        if not self._copy_to_clipboard(temp_abs):
-            return
-        self.log(self.t("msg.copied_path", path=temp_abs))
-        self.log(self.t("msg.export_hint"))
-
-        self.start_monitoring(slot)
-
-    def start_monitoring(self, slot):
-        if self._is_monitoring():
-            return
-        self._set_monitoring(True)
-        self.cancel_event.clear()
-        try:
-            before_files = set(os.listdir(TEMP_FOLDER))
-        except OSError:
-            before_files = set()
-        self.monitor_thread = threading.Thread(
-            target=self._monitor_worker, args=(slot, before_files), daemon=True)
-        self.monitor_thread.start()
-
-    def _monitor_worker(self, slot, before_files):
-        try:
-            start = time.time()
-            while time.time() - start < MONITOR_TIMEOUT:
-                if self.cancel_event.is_set():
-                    self.event_queue.put(("cancelled",))
-                    return
-                time.sleep(0.5)
-                now_files = set(os.listdir(TEMP_FOLDER))
-                new_files = now_files - before_files
-                txt_files = [f for f in new_files if f.lower().endswith(".txt")]
-                if txt_files:
-                    latest = max(
-                        txt_files,
-                        key=lambda f: self._safe_mtime(
-                            os.path.join(TEMP_FOLDER, f)))
-                    if self._wait_stable(latest):
-                        self.event_queue.put(("save_ready", latest, slot))
-                        return
-            self.event_queue.put(("timeout",))
-        except Exception as e:
-            self.event_queue.put(("error", str(e)))
-        finally:
-            self._set_monitoring(False)
-
     def _safe_mtime(self, path):
         try:
             return os.path.getmtime(path)
         except OSError:
             return 0.0
-
-    def _wait_stable(self, filename, max_wait=5.0):
-        path = os.path.join(TEMP_FOLDER, filename)
-        last_size = -1
-        start = time.time()
-        while time.time() - start < max_wait:
-            try:
-                size = os.path.getsize(path)
-            except OSError:
-                return False
-            if size == last_size and size > 0:
-                return True
-            last_size = size
-            time.sleep(0.3)
-        return False
-
-    def process_new_file(self, filename, slot):
-        src = os.path.join(TEMP_FOLDER, filename)
-        # 槽位名 = 该位已有文件名前缀（无则默认 存档N）——移动时重命名并覆盖写入
-        base = self.slot_name(slot) or self.slot_default_base(slot)
-        dest_name = f"{base}_{slot + 1}.kgsav"
-        dest = os.path.join(SAVE_LIBRARY, dest_name)
-        try:
-            size = os.path.getsize(src)
-            if size <= 0:
-                raise ValueError(self.t("err.export_empty"))
-            if size > MAX_SAVE_SIZE:
-                raise ValueError(self.t("err.file_too_large", size=size))
-            with open(src, "r", encoding="utf-8", errors="replace") as f:
-                head = f.read(64)
-            if not head.strip():
-                raise ValueError(self.t("err.export_content_empty"))
-            # os.replace：移动+重命名一步完成，已存在时直接覆盖（原子）
-            os.replace(src, dest)
-            self.log(self.t("msg.save_success", src=filename, dest=dest_name),
-                     self.t("tag.done"))
-            self.update_slots_display()
-            self._refresh_kgm_save()
-        except Exception as e:
-            self.log(self.t("msg.process_fail", e=e), self.t("tag.save"))
-            messagebox.showerror(self.t("err.save_fail"), str(e))
 
     # =========================================================
     # KGSM 页运行逻辑
@@ -1365,7 +1229,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
     # 存档管理页操作（读档/检查）
     # =========================================================
     def load_action(self):
-        self.stop_ongoing_operation()
         self.commit_notes()
 
         slot = self.selected_slot.get()
@@ -1391,7 +1254,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             messagebox.showerror(self.t("err.load_fail"), str(e))
 
     def check_action(self):
-        self.stop_ongoing_operation()
         self.commit_notes()
 
         self.log(self.t("msg.check_start"), self.t("tag.check"))
@@ -1456,16 +1318,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
 
     def _handle_event(self, item):
         kind = item[0]
-        if kind == "save_ready":
-            self.process_new_file(item[1], item[2])
-        elif kind == "timeout":
-            self.log(self.t("msg.monitor_timeout"), self.t("tag.timeout"))
-        elif kind == "cancelled":
-            self.log(self.t("msg.user_cancel"), self.t("tag.cancel"))
-        elif kind == "error":
-            self.log(self.t("msg.monitor_error", e=item[1]),
-                     self.t("tag.error"))
-        elif kind == "server_log":
+        if kind == "server_log":
             self.web_log(item[1], self.t("tag.server"))
         elif kind == "auto_save_data":
             dest = self._write_save_to_slot(item[1], item[2])
@@ -1495,7 +1348,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
     # =========================================================
     def _on_close(self):
         self.commit_notes()
-        self.cancel_event.set()
         self._stop_web_all()
         self.root.destroy()
 
