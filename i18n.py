@@ -57,8 +57,7 @@ _ZH = {
     "kgsm.btn_run": "运行",
     "kgsm.first_use_q": "第一次使用？",
     "kgsm.btn_config": "配置程序",
-    "kgsm.download_1": "下载游戏 · Kittens Game（作者原版 · GitHub）",
-    "kgsm.download_2": "下载游戏 · Kittens Game（社区版 · GitHub）",
+    "kgsm.download": "下载游戏 · Kittens Game（GitHub）",
 
     # ---- 启动游戏页 ----
     "la.title": "本地 Web 服务（仅本机 127.0.0.1 可访问）",
@@ -164,12 +163,14 @@ _ZH = {
 
     # ---- 下载游戏 ----
     "tab.download": "下载游戏",
-    "dl.repo": "来源仓库",
-    "dl.repo_author": "作者原版（nuclear-unicorn/kittensgame）",
-    "dl.repo_community": "社区版（kitten-science/kittensgame）",
-    "dl.version": "版本（分支/标签）",
+    "dl.repo": "来源仓库（GitHub）",
+    "dl.repo_author": "作者原版 · nuclear-unicorn/kittensgame",
+    "dl.repo_community": "社区版 · kitten-science/kittensgame",
+    "dl.version": "版本",
+    "dl.version_tip": "默认 main（最新）即可；只有想玩旧版才切换到下方列出的标签版本。",
     "dl.refresh_versions": "刷新版本列表",
     "dl.mirror": "下载源",
+    "dl.mirror_tip": "github.com = 从 GitHub 官网直连下载；镜像站用于官网被墙/慢时加速，内容相同。",
     "dl.mirror_direct": "GitHub 直连",
     "dl.dir": "存放目录",
     "dl.dir_default_tip": "默认：程序目录\\KittensGame",
@@ -300,8 +301,7 @@ _EN = {
     "kgsm.btn_run": "Run",
     "kgsm.first_use_q": "First time here?",
     "kgsm.btn_config": "Configure",
-    "kgsm.download_1": "Download Game · Kittens Game (Original by Author · GitHub)",
-    "kgsm.download_2": "Download Game · Kittens Game (Community Fork · GitHub)",
+    "kgsm.download": "Download Game · Kittens Game (GitHub)",
 
     # ---- Launch Game page ----
     "la.title": "Local Web Server (bound to 127.0.0.1 only)",
@@ -424,12 +424,17 @@ _EN = {
 
     # ---- Download game ----
     "tab.download": "Download Game",
-    "dl.repo": "Source repository",
-    "dl.repo_author": "Author's original (nuclear-unicorn/kittensgame)",
-    "dl.repo_community": "Community fork (kitten-science/kittensgame)",
-    "dl.version": "Version (branch/tag)",
+    "dl.repo": "Source repository (GitHub)",
+    "dl.repo_author": "Author's original · nuclear-unicorn/kittensgame",
+    "dl.repo_community": "Community fork · kitten-science/kittensgame",
+    "dl.version": "Version",
+    "dl.version_tip": "main (latest) is fine for normal use; switch to a "
+                      "tagged version only to play an older build.",
     "dl.refresh_versions": "Refresh versions",
     "dl.mirror": "Download source",
+    "dl.mirror_tip": "github.com downloads directly from GitHub. Mirrors "
+                     "help when GitHub is blocked or slow; content is the "
+                     "same.",
     "dl.mirror_direct": "GitHub direct",
     "dl.dir": "Destination folder",
     "dl.dir_default_tip": "Default: program folder\\KittensGame",

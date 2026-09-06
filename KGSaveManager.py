@@ -414,12 +414,10 @@ class KGSaveManager(DownloadPageMixin):
 
         dl_box = ttk.Frame(bottom)
         dl_box.grid(row=0, column=1, sticky="e")
-        for key, repo_key in (("kgsm.download_1", "author"),
-                              ("kgsm.download_2", "community")):
-            link = self._make_link(
-                dl_box, self.t(key),
-                command=lambda k=repo_key: self.open_download_tab(k))
-            link.pack(side=tk.TOP, anchor="e")
+        dl_link = self._make_link(
+            dl_box, self.t("kgsm.download"),
+            command=lambda: self.open_download_tab("author"))
+        dl_link.pack(side=tk.TOP, anchor="e")
 
     def _make_link(self, parent, text, command):
         lbl = ttk.Label(parent, text=text, foreground="#0645AD", cursor="hand2")

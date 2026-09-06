@@ -25,9 +25,9 @@ REPOS = {
     "community": {"owner": "kitten-science", "repo": "kittensgame"},
 }
 
-# 下载源：空串 = GitHub 直连；其余为镜像前缀
+# 下载源：空串 = GitHub 官网直连；其余为镜像前缀
 MIRRORS = {
-    "GitHub 直连": "",
+    "github.com": "",
     "ghproxy.net": "https://mirror.ghproxy.com/",
     "ghfast.top": "https://ghfast.top/",
     "gh-proxy.com": "https://gh-proxy.com/",

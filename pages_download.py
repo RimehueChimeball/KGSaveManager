@@ -32,7 +32,7 @@ class DownloadPageMixin:
             },
         }
         self.dl_repo_var = tk.StringVar(value=self.t("dl.repo_author"))
-        self.dl_mirror_var = tk.StringVar(value="GitHub 直连")
+        self.dl_mirror_var = tk.StringVar(value="github.com")
         self.dl_dir_var = tk.StringVar(
             value=str(getattr(self, "base_dir", os.getcwd()) /
                       "KittensGame"))
@@ -85,6 +85,13 @@ class DownloadPageMixin:
             variable=self.dl_set_dir_var)
         self.dl_set_dir_check.grid(row=4, column=0, columnspan=3, sticky="w",
                                    pady=(4, 0))
+
+        ttk.Label(cfg, text=self.t("dl.version_tip"),
+                  foreground="#888888").grid(row=5, column=0, columnspan=3,
+                                             sticky="w", pady=(6, 0))
+        ttk.Label(cfg, text=self.t("dl.mirror_tip"),
+                  foreground="#888888").grid(row=6, column=0, columnspan=3,
+                                             sticky="w", pady=(2, 0))
 
         ttk.Label(parent, text=self.t("dl.dir_default_tip"),
                   foreground="#888888").grid(row=1, column=0, sticky="w",
