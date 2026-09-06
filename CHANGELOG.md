@@ -1,35 +1,42 @@
-# 更新日志
+# Changelog
 
-按版本记录主要变更。以下版本为私有开发历史；仓库目前尚未公开。
+All notable changes are listed by version.
 
-## v1.2.0（当前）
+## v1.2.0
 
-- 修改存档：打开槽位文件前，在 `kgsm_data/backups/` 生成带日期的备份，
-  格式 `名字.kgsav.YYYYMMDD_HHMMSS.bak`。
-- 主页（KGSM）改版：左侧为各页按钮，右侧为新手引导流程（读文档、下载、
-  配置、启动）；保留页面标题；左下角曾放置版权行（后续版本视需要决定）。
-- 外部翻译：启动时加载 `i18n/` 目录下的 JSON 与 PO 文件；
-  文档说明文件格式与 key 前缀。
-- 修改存档视图：数组元素以“下标 · 首键: 值”显示。
-- 路径规范化：保存时去除首尾引号并统一为反斜杠。
-- 运行日志系统：`kgsm_data/kgsm_log/<启动时间>.log`，每次启动一个文件。
-- 新增英文离线文档 `docs/guide_en.html`，打包时一并包含。
-- 文档措辞改为平实的技术语言。
+- Save Editor: before opening a slot file, a dated backup is written to
+  `kgsm_data/backups/` as `name.kgsav.YYYYMMDD_HHMMSS.bak`.
+- Home (KGSM): redesigned with page buttons on the left and a getting
+  started flow on the right (read guide, download, configure, launch).
+  The page title is retained.
+- External translations: JSON and PO files under `i18n/` are loaded at
+  startup. The guide documents the format and key prefixes.
+- Save Editor view: array elements are labeled with the index and, for
+  objects, the first key and value.
+- Paths are normalized when saved (quotes removed, backslashes used).
+- Run log system: `kgsm_data/kgsm_log/<start time>.log`, one file per
+  launch.
+- English offline documentation added: `docs/guide_en.html`, bundled with
+  the executable.
+- Documentation wording revised to plain technical language.
 
 ## v1.1.0
 
-- 日志与弹窗文案全部中英化。
-- README 结构调整：英文为主文件，中文单独成文件。
-- PyInstaller spec 显式声明模块并验证打包。
-- 存档识别改为按存档库文件名；配置文件只保存备注。
-- 新增修改存档页：解码、视图/源码编辑、按游戏格式重编码写回
-  （移植 lz-string 压缩算法）。
-- 经本地 WebSocket 桥实现自动存档与自动读档；手动存档对话框
-  （文件导入或粘贴文本并校验）。
-- 新增下载游戏页：仓库、版本、镜像、连通性测试、解压摊平。
-- 代码拆分为模块与页面 Mixin。
+- Logs and dialogs fully localized (zh/en).
+- README restructured: English main file, separate Chinese version.
+- PyInstaller spec updated with explicit modules; build verified.
+- Slot recognition reads names from library filenames; config stores only
+  notes.
+- Save Editor added: decode, edit (view/source), re-encode and write back;
+  lz-string compression ported for write-back.
+- Auto save and auto load over a local WebSocket bridge; manual save
+  dialog (file import or pasted text with validation).
+- Download Game page: repositories, versions, mirrors, connectivity test,
+  flattened extraction.
+- Code split into modules with page mixins.
 
 ## v1.0.0
 
-- 首个版本：标签页界面（KGSM、启动游戏、存档管理、配置）、10 个存档位、
-  备注持久化、本地 Web 服务、中英界面。
+- Initial release: tabbed GUI (KGSM, Launch Game, Save Management,
+  Settings), 10 save slots, notes persistence, local web server, bilingual
+  UI.
