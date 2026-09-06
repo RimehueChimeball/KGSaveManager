@@ -98,6 +98,19 @@ def _exe_from_command(command):
     return ""
 
 
+def _clean_path(value):
+    """规范化路径：去掉复制粘贴的首尾引号、统一为系统分隔符（Win 反斜杠）。"""
+    v = str(value or "").strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
+        v = v[1:-1].strip()
+    if v:
+        try:
+            v = os.path.normpath(v)
+        except Exception:
+            pass
+    return v
+
+
 class AppConfig:
     def __init__(self, path):
         self.path = Path(path)
@@ -134,11 +147,11 @@ class AppConfig:
         # 浏览器：初始化配置（首次创建文件）时自动检测写入
         browser = data.get("browser", "")
         if isinstance(browser, str):
-            self.browser = browser.strip()
+            self.browser = _clean_path(browser)
         if not existed:
             self.browser = detect_browser_path()
 
-        self.game_dir = str(data.get("game_dir", "") or "").strip()
+        self.game_dir = _clean_path(data.get("game_dir", ""))
         port = data.get("port", "")
         self.port = str(port).strip() if port not in (None, "") else ""
 
@@ -200,12 +213,12 @@ class AppConfig:
                 self.language = kwargs["language"]
                 changed = True
         if "browser" in kwargs:
-            v = str(kwargs["browser"] or "").strip()
+            v = _clean_path(kwargs["browser"])
             if self.browser != v:
                 self.browser = v
                 changed = True
         if "game_dir" in kwargs:
-            v = str(kwargs["game_dir"] or "").strip()
+            v = _clean_path(kwargs["game_dir"])
             if self.game_dir != v:
                 self.game_dir = v
                 changed = True

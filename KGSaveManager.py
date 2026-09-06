@@ -32,7 +32,9 @@ from tkinter import filedialog, messagebox, scrolledtext, simpledialog, ttk
 
 import savecodec
 from config_store import AppConfig
-from i18n import LANG_EN, LANG_ZH, Translator
+from i18n import (LANG_EN, LANG_ZH, Translator,
+                  load_external_translations)
+from kgsm_logging import AppLogger
 from pages_download import DownloadPageMixin
 from pages_editor import EditorPageMixin
 from save_flows import SaveFlowMixin
@@ -102,7 +104,17 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         # 数据目录与配置（配置读取/首启自动创建）
         self._ensure_dirs()
         self.cfg = AppConfig(CONFIG_FILE)
+        # 外部翻译（程序目录 i18n/ 下的 json/po）先于界面加载
+        load_external_translations(BASE_DIR / "i18n")
         self.tr = Translator(self.cfg.language)
+
+        # 运行日志（每次启动一个文件，记录启动信息与关键操作）
+        self.logger = AppLogger(
+            DATA_FOLDER / "kgsm_log", APP_VERSION,
+            extra_header=[f"游戏目录: {self.cfg.game_dir or '(未设置)'}",
+                          f"语言: {self.cfg.language}",
+                          f"配置: {CONFIG_FILE}",
+                          f"日志目录: {DATA_FOLDER / 'kgsm_log'}"])
 
         # 当前选中的存档位索引（0-based）
         self.selected_slot = tk.IntVar(value=0)
@@ -552,6 +564,8 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         self._stop_web_all()
         self._update_server_buttons(False)
         self.web_log(self.t("msg.server_stopped"), self.t("tag.stop"))
+        if getattr(self, "logger", None) is not None:
+            self.logger.action("WEB_STOP", "服务与存档桥已停止")
 
     def _stop_web_all(self):
         """停止 Web 服务与存档桥（含重启与退出时）。"""
@@ -966,7 +980,8 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
     # ---------- 页面变量同步 ----------
     def _flush_page_vars(self):
         """把各页输入框内容写回配置并保存（重建/启动前调用）。"""
-        changed = False
+        # 把各页输入框内容（可能带引号/斜杠）规范化后写回配置并保存
+        ups = {}
         for var_attr, cfg_attr in (
                 ("launch_dir_var", "game_dir"),
                 ("launch_port_var", "port"),
@@ -976,12 +991,17 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             var = getattr(self, var_attr, None)
             if var is None:
                 continue
-            value = var.get().strip()
+            value = var.get()
+            if cfg_attr in ("game_dir", "browser"):
+                from config_store import _clean_path
+                value = _clean_path(value)
+                var.set(value)
+            else:
+                value = value.strip()
             if getattr(self.cfg, cfg_attr) != value:
-                setattr(self.cfg, cfg_attr, value)
-                changed = True
-        if changed:
-            self.cfg.save()
+                ups[cfg_attr] = value
+        if ups:
+            self.cfg.update(**ups)
         self._refresh_kgm_dir()
 
     def _sync_page_vars(self):
@@ -1349,6 +1369,12 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
     def _on_close(self):
         self.commit_notes()
         self._stop_web_all()
+        if getattr(self, "logger", None) is not None:
+            try:
+                self.logger.action("EXIT", "程序退出")
+                self.logger.close()
+            except Exception:
+                pass
         self.root.destroy()
 
 

@@ -574,3 +574,97 @@ class Translator:
             except (KeyError, IndexError):
                 return text
         return text
+
+
+# ---------------- 外部翻译加载（程序目录 i18n/ 下的 json / po） ----------------
+
+def _lang_from_stem(stem):
+    s = stem.lower()
+    return LANG_ZH if s.startswith("zh") else LANG_EN
+
+
+def load_external_translations(folder):
+    """把程序目录 i18n/ 下的外部翻译合并进 STRINGS。
+
+    - *.json：可为 {lang: {key: text}}（lang∈zh/en），或单语言
+      {key: text}（语言按文件名前缀推断，zh_*→zh，其余→en）
+    - *.po：解析 msgid/msgstr；语言同样按文件名前缀推断
+    :return: 已加载的文件名列表
+    """
+    import json
+    loaded = []
+    if not folder:
+        return loaded
+    try:
+        import os
+        if not os.path.isdir(folder):
+            return loaded
+        for name in sorted(os.listdir(folder)):
+            path = os.path.join(folder, name)
+            stem, ext = os.path.splitext(name)
+            lang = _lang_from_stem(stem)
+            try:
+                if ext.lower() == ".json":
+                    with open(path, encoding="utf-8-sig") as f:
+                        data = json.load(f)
+                    if isinstance(data, dict):
+                        if any(k in data for k in (LANG_ZH, LANG_EN)):
+                            for lng, table in data.items():
+                                if (lng in (LANG_ZH, LANG_EN)
+                                        and isinstance(table, dict)):
+                                    STRINGS[lng].update(table)
+                        else:
+                            STRINGS[lang].update(
+                                {str(k): str(v) for k, v in data.items()})
+                    loaded.append(name)
+                elif ext.lower() == ".po":
+                    with open(path, encoding="utf-8-sig") as f:
+                        table = _parse_po(f.read())
+                    if table:
+                        STRINGS[lang].update(table)
+                    loaded.append(name)
+            except Exception:
+                continue
+    except OSError:
+        pass
+    return loaded
+
+
+def _parse_po(text):
+    """极简 po 解析：msgid/msgstr 文本块（忽略复数与上下文）。"""
+    table = {}
+    key = None
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line or line.startswith("#"):
+            i += 1
+            continue
+        if line.startswith("msgid "):
+            key = _po_string(line[len("msgid "):])
+            i += 1
+            while i < len(lines) and lines[i].strip().startswith('"'):
+                key += _po_string(lines[i].strip())
+                i += 1
+            continue
+        if line.startswith("msgstr "):
+            val = _po_string(line[len("msgstr "):])
+            i += 1
+            while i < len(lines) and lines[i].strip().startswith('"'):
+                val += _po_string(lines[i].strip())
+                i += 1
+            if key is not None and val:
+                table[key] = val
+            key = None
+            continue
+        i += 1
+    return table
+
+
+def _po_string(tok):
+    try:
+        import ast
+        return ast.literal_eval(tok)
+    except Exception:
+        return tok.strip().strip('"')

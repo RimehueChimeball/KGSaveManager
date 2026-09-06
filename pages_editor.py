@@ -287,8 +287,8 @@ class EditorPageMixin:
             elif isinstance(obj, list):
                 for i, v in enumerate(obj):
                     iid = tree.insert(parent_iid, "end",
-                                      text=f"[{i}]", values=("",))
-                    add(iid, v, f"[{i}]", path + [i])
+                                      text=f"index{i}", values=("",))
+                    add(iid, v, f"index{i}", path + [i])
             else:
                 val = obj if isinstance(obj, str) else json_dump(obj)
                 iid = tree.insert(parent_iid, "end", text=key_text,
