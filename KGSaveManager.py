@@ -368,8 +368,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                 nav, text=self.t(f"tab.{key}"), style="Large.TButton",
                 command=lambda k=key: self.notebook.select(
                     TAB_ORDER.index(k))).pack(fill=tk.X, pady=6)
-        ttk.Label(nav, text="© 2026 RimehueChimeball",
-                  foreground="#999999").pack(side=tk.BOTTOM, pady=10)
 
         # 右侧：新手引导（垂直流程）
         guide = ttk.LabelFrame(parent, text=self.t("kgsm.guide_title"),

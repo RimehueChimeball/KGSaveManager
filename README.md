@@ -62,3 +62,7 @@ pyinstaller KGSaveManager.spec
 ```
 
 Output: `dist/KGSaveManager/KGSaveManager.exe`.
+
+## License
+
+MIT License. See [LICENSE](LICENSE). Copyright (c) 2026 RimehueChimeball.
