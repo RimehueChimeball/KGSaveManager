@@ -19,6 +19,7 @@ KittensGame 存档管理器 (KGSaveManager)
 web_server.py（本地 Web 服务）、utils.py（DPI）。
 """
 
+import json
 import os
 import queue
 import sys
@@ -29,6 +30,7 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, simpledialog, ttk
 
+import savecodec
 from config_store import AppConfig
 from i18n import LANG_EN, LANG_ZH, Translator
 from savecodec import validate as validate_save_text
@@ -64,8 +66,26 @@ SAVE_LIBRARY = DATA_FOLDER / "kittens_saves"     # 存档库文件夹
 TEMP_FOLDER = DATA_FOLDER / "kgsm_temp"          # 临时文件夹（接收游戏导出文件）
 CONFIG_FILE = DATA_FOLDER / "kgsm_config.json"   # 配置/备注持久化文件
 
-# 标签页固定顺序：KGSM / 启动游戏 / 存档管理 / 配置
-TAB_ORDER = ("kgsm", "game", "saves", "settings")
+# 标签页固定顺序：KGSM / 启动游戏 / 存档管理 / 修改存档 / 配置
+TAB_ORDER = ("kgsm", "game", "saves", "editor", "settings")
+
+
+def json_loads(text):
+    return json.loads(text)
+
+
+def json_dump(obj):
+    """紧凑 JSON（JS JSON.stringify 风格）。"""
+    return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+
+
+def json_compact(obj):
+    return json_dump(obj)
+
+
+def json_pretty(obj):
+    """美化排版（保留键序，不排序）。"""
+    return json.dumps(obj, ensure_ascii=False, indent=2)
 
 
 class KGSaveManager:
@@ -248,17 +268,35 @@ class KGSaveManager:
             "kgsm": ttk.Frame(self.notebook, padding="8"),
             "game": ttk.Frame(self.notebook, padding="8"),
             "saves": ttk.Frame(self.notebook, padding="8"),
+            "editor": ttk.Frame(self.notebook, padding="8"),
             "settings": ttk.Frame(self.notebook, padding="8"),
         }
         self.notebook.add(tabs["kgsm"], text=self.t("tab.kgsm"))
         self.notebook.add(tabs["game"], text=self.t("tab.game"))
         self.notebook.add(tabs["saves"], text=self.t("tab.saves"))
+        self.notebook.add(tabs["editor"], text=self.t("tab.editor"))
         self.notebook.add(tabs["settings"], text=self.t("tab.settings"))
+
+        # 切换标签页时把焦点还给笔记本本身，避免输入框抢焦点
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        # 全局 Esc：让当前输入框失去焦点
+        self.root.bind("<Escape>", self._clear_focus)
 
         self.build_kgm_tab(tabs["kgsm"], button_font)
         self.build_game_tab(tabs["game"], button_font, log_font)
         self.build_saves_tab(tabs["saves"], button_font, help_font, log_font)
+        self.build_editor_tab(tabs["editor"], button_font, log_font)
         self.build_settings_tab(tabs["settings"], button_font, log_font)
+
+    def _on_tab_changed(self, _event=None):
+        """切页后不把焦点留在输入框上（还给笔记本）。"""
+        if hasattr(self, "notebook") and self._widget_alive(self.notebook):
+            self.notebook.focus_set()
+
+    def _clear_focus(self, _event=None):
+        """Esc：让当前输入框失去焦点。"""
+        if hasattr(self, "notebook") and self._widget_alive(self.notebook):
+            self.notebook.focus_set()
 
     def rebuild_ui(self, switch_to=None):
         """按当前语言重建整个界面（保留输入状态与服务运行状态）。"""
@@ -624,6 +662,11 @@ class KGSaveManager:
                                           command=self.manual_save_action)
         self.btn_manual_save.pack(fill=tk.X, pady=8, padx=15)
 
+        self.btn_auto_load = ttk.Button(left, text=self.t("sv.btn_auto_load"),
+                                        style="Large.TButton",
+                                        command=self.auto_load_action)
+        self.btn_auto_load.pack(fill=tk.X, pady=8, padx=15)
+
         self.btn_load = ttk.Button(left, text=self.t("sv.btn_load"),
                                    style="Large.TButton",
                                    command=self.load_action)
@@ -981,6 +1024,25 @@ class KGSaveManager:
                 w['time_lbl'].config(text="")
         self._refresh_settings_slot_combo()
         self._refresh_kgm_save()
+        self._refresh_edit_slots()
+
+    def _refresh_edit_slots(self):
+        """让修改存档页的槽位下拉跟随存档库刷新。"""
+        if not hasattr(self, "_edit") or not hasattr(self, "edit_mode_var"):
+            return
+        if not self._widget_alive(self.edit_slot_combo):
+            return
+        ids = [i for i, info in enumerate(self.slot_info)
+               if info.get('exists')]
+        mapping = {self.slot_label(i): i for i in ids}
+        self._edit["slot_ids"] = ids
+        self._edit["slot_map"] = mapping
+        cur = self.edit_slot_var.get()
+        if self.edit_mode_var.get() == "file":
+            values = list(mapping.keys())
+            self.edit_slot_combo.configure(values=values)
+            if cur not in mapping:
+                self.edit_slot_var.set(values[0] if values else "")
 
     def _refresh_settings_slot_combo(self):
         """让配置页「首页指定存档」下拉框跟随槽位名字刷新。"""
@@ -1099,9 +1161,330 @@ class KGSaveManager:
         else:
             self.event_queue.put(("auto_save_fail", slot))
 
-    # =========================================================
-    # 手动存档对话框（导入文件 / 粘贴文本）
-    # =========================================================
+    # ---------------- 自动读档（KGSM 侧确认后提交给游戏） ----------------
+    def auto_load_action(self):
+        self.commit_notes()
+        if not (self.lweb.running and self.bridge is not None):
+            messagebox.showwarning(APP_NAME, self.t("msg.auto_no_conn"))
+            return
+        if not self.bridge.has_client:
+            messagebox.showwarning(APP_NAME, self.t("msg.auto_no_page"))
+            return
+
+        slot = self.selected_slot.get()
+        if not self.slot_info[slot].get('exists'):
+            messagebox.showwarning(APP_NAME,
+                                   self.t("dlg.no_file",
+                                          slot=self.slot_label(slot)))
+            return
+        if not messagebox.askyesno(
+                APP_NAME,
+                self.t("msg.auto_load_ask", slot=self.slot_label(slot))):
+            self.log(self.t("msg.user_cancel"), self.t("tag.cancel"))
+            return
+
+        try:
+            blob = self._read_save_file(self.slot_info[slot]['filename'])
+        except Exception as e:
+            self.log(self.t("msg.read_fail", e=e), self.t("tag.error"))
+            messagebox.showerror(self.t("err.load_fail"), str(e))
+            return
+
+        if self.bridge.apply_save(blob):
+            self.log(self.t("msg.auto_load_sent"), self.t("tag.load"))
+            messagebox.showinfo(APP_NAME, self.t("msg.auto_load_sent"))
+        else:
+            self.log(self.t("msg.auto_load_fail"), self.t("tag.error"))
+            messagebox.showerror(self.t("err.load_fail"),
+                                 self.t("msg.auto_load_fail"))
+
+    # ---------------- 修改存档页 ----------------
+    def build_editor_tab(self, parent, button_font, log_font):
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(2, weight=1)
+        self._edit = {"data": None, "mode": "file", "slot": -1,
+                      "path": None, "src_touched": False,
+                      "slot_map": {}, "leaf": {}}
+
+        bar = ttk.Frame(parent)
+        bar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        bar.columnconfigure(4, weight=1)
+        self.edit_mode_var = tk.StringVar(value="file")
+        ttk.Radiobutton(bar, text=self.t("ed.mode_file"),
+                        variable=self.edit_mode_var, value="file",
+                        command=self._edit_mode_changed).grid(
+            row=0, column=0, padx=(0, 10))
+        ttk.Radiobutton(bar, text=self.t("ed.mode_live"),
+                        variable=self.edit_mode_var, value="live",
+                        command=self._edit_mode_changed).grid(
+            row=0, column=1, padx=(0, 14))
+        ttk.Label(bar, text=self.t("ed.slot")).grid(row=0, column=2)
+        self.edit_slot_var = tk.StringVar()
+        self.edit_slot_combo = ttk.Combobox(
+            bar, textvariable=self.edit_slot_var, state="readonly",
+            width=24, takefocus=0)
+        self.edit_slot_combo.grid(row=0, column=3, padx=(6, 10))
+        self.edit_open_btn = ttk.Button(bar, text=self.t("ed.btn_open"),
+                                        style="Large.TButton",
+                                        command=self.edit_open_action)
+        self.edit_open_btn.grid(row=0, column=4, sticky="e")
+        self.edit_write_btn = ttk.Button(bar, text=self.t("ed.btn_write"),
+                                         style="Large.TButton",
+                                         command=self.edit_write_action)
+        self.edit_write_btn.grid(row=0, column=5, padx=(8, 0))
+
+        viewbar = ttk.Frame(parent)
+        viewbar.grid(row=1, column=0, sticky="ew", pady=(0, 4))
+        self.edit_view_var = tk.StringVar(value="tree")
+        ttk.Radiobutton(viewbar, text=self.t("ed.view_tree"),
+                        variable=self.edit_view_var, value="tree",
+                        command=self._edit_view_changed).pack(
+            side=tk.LEFT, padx=(0, 10))
+        ttk.Radiobutton(viewbar, text=self.t("ed.view_source"),
+                        variable=self.edit_view_var, value="source",
+                        command=self._edit_view_changed).pack(side=tk.LEFT)
+
+        pane = ttk.Frame(parent)
+        pane.grid(row=2, column=0, sticky="nsew")
+        pane.columnconfigure(0, weight=1)
+        pane.rowconfigure(0, weight=1)
+
+        # 视图：键/值 树
+        self._edit_tree_frame = ttk.Frame(pane)
+        self.edit_tree = ttk.Treeview(self._edit_tree_frame,
+                                      columns=("value",),
+                                      show="tree headings")
+        self.edit_tree.heading("#0", text="key")
+        self.edit_tree.heading("value", text="value")
+        vsb = ttk.Scrollbar(self._edit_tree_frame, orient="vertical",
+                            command=self.edit_tree.yview)
+        self.edit_tree.configure(yscrollcommand=vsb.set)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.edit_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.edit_tree.bind("<Double-1>", self._edit_tree_edit)
+
+        # 源码：JSON 文本
+        self._edit_src_frame = ttk.Frame(pane)
+        self.edit_source = scrolledtext.ScrolledText(
+            self._edit_src_frame, wrap=tk.NONE, font=log_font)
+        self.edit_source.pack(fill=tk.BOTH, expand=True)
+        self.edit_source.bind("<KeyRelease>",
+                              lambda e: self._mark_src_touched())
+
+        self._edit_view_changed()
+        self._edit_mode_changed()
+
+    def _edit_mode_changed(self):
+        mode = self.edit_mode_var.get()
+        self._edit["mode"] = mode
+        if mode == "file":
+            ids = [i for i, info in enumerate(self.slot_info)
+                   if info.get('exists')]
+            self._edit["slot_ids"] = ids
+            self._edit["slot_map"] = {self.slot_label(i): i for i in ids}
+            self.edit_slot_combo.configure(
+                values=list(self._edit["slot_map"].keys()))
+            self.edit_slot_combo.state(["!disabled"])
+        else:
+            self.edit_slot_combo.state(["disabled"])
+
+    def _edit_view_changed(self):
+        if self.edit_view_var.get() == "source":
+            if self._edit["data"] is not None and not self._edit[
+                    "src_touched"]:
+                self.edit_source.delete("1.0", "end")
+                self.edit_source.insert(
+                    "1.0", json_pretty(self._edit["data"]))
+            self._edit_tree_frame.grid_forget()
+            self._edit_src_frame.grid(row=0, column=0, sticky="nsew")
+        else:
+            self._edit_tree_frame.grid(row=0, column=0, sticky="nsew")
+            self._edit_src_frame.grid_forget()
+            self._rebuild_edit_tree()
+
+    def _mark_src_touched(self):
+        self._edit["src_touched"] = True
+
+    def _current_data_text(self):
+        return json_compact(self._edit["data"]) if self._edit[
+            "data"] is not None else ""
+
+    def edit_open_action(self):
+        mode = self._edit["mode"]
+        if mode == "file":
+            label = self.edit_slot_var.get()
+            slot = self._edit["slot_map"].get(label, -1)
+            if slot < 0 or not self.slot_info[slot].get('exists'):
+                messagebox.showwarning(APP_NAME, self.t("ed.no_slot"))
+                return
+            path = Path(self.slot_info[slot]['filename'])
+            try:
+                content = self._read_save_file(str(path))
+            except Exception as e:
+                messagebox.showerror(self.t("err.load_fail"), str(e))
+                return
+            obj = self._decode_to_obj(content)
+            if obj is None:
+                messagebox.showerror(self.t("err.load_fail"),
+                                     self.t("ed.parse_err", err="decode"))
+                return
+            # 打开前自动备份
+            try:
+                bak = path.with_name("." + path.name + ".bak")
+                bak.write_bytes(path.read_bytes())
+                self.log(self.t("ed.backup", path=bak.name),
+                         self.t("tag.load"))
+            except OSError as e:
+                self.log(self.t("msg.read_fail", e=e), self.t("tag.error"))
+            self._edit.update({"data": obj, "slot": slot, "path": str(path),
+                               "src_touched": False})
+            self._edit_view_changed()
+            self.log(self.t("ed.loaded", name=self.slot_label(slot)),
+                     self.t("tag.load"))
+        else:
+            if not (self.lweb.running and self.bridge is not None
+                    and self.bridge.has_client):
+                messagebox.showwarning(APP_NAME, self.t("ed.no_bridge"))
+                return
+            content = self.bridge.request_save(timeout=15)
+            obj = self._decode_to_obj(content or "")
+            if obj is None:
+                messagebox.showerror(self.t("err.load_fail"),
+                                     self.t("ed.parse_err", err="decode"))
+                return
+            self._edit.update({"data": obj, "slot": -1, "path": None,
+                               "src_touched": False})
+            self._edit_view_changed()
+            self.log(self.t("ed.pulled"), self.t("tag.load"))
+
+    def _decode_to_obj(self, text):
+        s = (text or "").strip()
+        if not s:
+            return None
+        try:
+            if s[0] == "{":
+                return json_loads(s)
+        except Exception:
+            pass
+        out = savecodec.decompress_base64(s)
+        if not out or out[0] != "{":
+            out = savecodec.decompress_utf16(s)
+        if out and out[0] == "{":
+            return json_loads(out)
+        return None
+
+    def edit_write_action(self):
+        if self.edit_view_var.get() == "source" and self._edit[
+                "src_touched"]:
+            try:
+                obj = json_loads(self.edit_source.get("1.0", "end"))
+            except Exception as e:
+                messagebox.showerror(
+                    self.t("err.save_fail"),
+                    self.t("ed.parse_err", err=str(e)))
+                return
+            self._edit["data"] = obj
+            self._edit["src_touched"] = False
+        if self._edit["data"] is None:
+            messagebox.showwarning(APP_NAME, self.t("ed.no_slot"))
+            return
+
+        mode = self._edit["mode"]
+        compact = json_compact(self._edit["data"])
+        blob = savecodec.compress_base64(compact)
+        if mode == "file":
+            path = self._edit.get("path")
+            if path is None:
+                slot = self._edit.get("slot", self.selected_slot.get())
+            else:
+                slot = self._edit.get("slot")
+            if slot < 0:
+                messagebox.showwarning(APP_NAME, self.t("ed.no_slot"))
+                return
+            dest = Path(path) if path else SAVE_LIBRARY / (
+                f"{self.slot_name(slot) or self.slot_default_base(slot)}"
+                f"_{slot + 1}.kgsav")
+            tmp = dest.with_name("." + dest.name + ".tmp")
+            try:
+                tmp.write_text(blob, encoding="utf-8")
+                os.replace(str(tmp), str(dest))
+                self.update_slots_display()
+                self.log(self.t("ed.saved", dest=dest.name),
+                         self.t("tag.done"))
+            except OSError as e:
+                self.log(self.t("msg.process_fail", e=e),
+                         self.t("tag.error"))
+        else:
+            if not (self.lweb.running and self.bridge is not None
+                    and self.bridge.has_client):
+                messagebox.showwarning(APP_NAME, self.t("ed.no_bridge"))
+                return
+            if self.bridge.apply_save(blob):
+                self.log(self.t("ed.sent"), self.t("tag.done"))
+                messagebox.showinfo(APP_NAME, self.t("ed.sent"))
+            else:
+                self.log(self.t("msg.auto_load_fail"), self.t("tag.error"))
+
+    def _rebuild_edit_tree(self):
+        tree = self.edit_tree
+        tree.delete(*tree.get_children())
+        self._edit["leaf"] = {}
+        data = self._edit["data"]
+        if data is None:
+            return
+
+        def add(parent_iid, obj, key_text, path):
+            if isinstance(obj, dict):
+                if not obj:
+                    tree.insert(parent_iid, "end", text=key_text,
+                                values=("{}",))
+                    return
+                for k, v in obj.items():
+                    iid = tree.insert(parent_iid, "end", text=str(k),
+                                      values=("",))
+                    add(iid, v, str(k), path + [k])
+            elif isinstance(obj, list):
+                for i, v in enumerate(obj):
+                    iid = tree.insert(parent_iid, "end",
+                                      text=f"[{i}]", values=("",))
+                    add(iid, v, f"[{i}]", path + [i])
+            else:
+                val = obj if isinstance(obj, str) else json_dump(obj)
+                iid = tree.insert(parent_iid, "end", text=key_text,
+                                  values=(val,))
+                self._edit["leaf"][iid] = path
+
+        tree.insert("", "end", text="(root)", values=("",))
+        add("", data, "", [])
+
+    def _edit_tree_edit(self, _event=None):
+        iid = self.edit_tree.focus()
+        if not iid or iid not in self._edit["leaf"]:
+            return
+        path = self._edit["leaf"][iid]
+        node = self._edit["data"]
+        for key in path[:-1]:
+            node = node[key]
+        leaf_key = path[-1]
+        cur = node[leaf_key]
+        initial = cur if isinstance(cur, str) else json_dump(cur)
+        raw = simpledialog.askstring(self.t("ed.value_title"),
+                                     self.t("ed.value_prompt"),
+                                     initialvalue=initial,
+                                     parent=self.root)
+        if raw is None:
+            return
+        raw = raw.strip()
+        if not raw:
+            return
+        try:
+            value = json_loads(raw)
+        except Exception:
+            value = raw
+        node[leaf_key] = value
+        self._edit["src_touched"] = False
+        self._rebuild_edit_tree()
+
     def manual_save_action(self):
         self.commit_notes()
 
@@ -1122,7 +1505,10 @@ class KGSaveManager:
         win.transient(self.root)
         win.resizable(False, False)
         win.geometry("640x470")
+        # 打开时不把焦点给输入框：焦点落在窗口本身；Esc 让输入框失去焦点
         win.grab_set()
+        win.focus_set()
+        win.bind("<Escape>", lambda e: win.focus_set())
         self._manual_ctx = {
             "slot": slot,
             "win": win,

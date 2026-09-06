@@ -126,6 +126,126 @@ def decompress_utf16(text):
         return None
 
 
+def _compress_base64_units(text):
+    """移植 LZString._compress 的 Base64 变体（6 位/符号）的位打包。
+
+    语义要点（对照 lz-string 源码）：
+    - 字面量写出时 enlarge_in 递减两次，引用写出时递减一次；
+    - 编码按 LSB 优先逐位写入；
+    - 结束码为 2，最后补零填满一个 6 位符号。
+    """
+    dictionary = {}      # 片段 -> 编码
+    first_use = {}       # 单字符首次出现（尚未按字面量写出）
+    context = ""
+    enlarge_in = 2
+    next_code = 3
+    num_bits = 2
+    out = []
+    d = 0
+    S = 0
+    e = 6
+    grow_count = 0       # 本次 flush 待补的 enlarge 递减次数
+
+    def add_bit(bit):
+        nonlocal d, S
+        d = (d << 1) | (1 if bit else 0)
+        if S == e - 1:
+            out.append(d)
+            d = 0
+            S = 0
+        else:
+            S += 1
+
+    def add_value(value, bits):
+        t = value
+        for _ in range(bits):
+            add_bit(t & 1)
+            t >>= 1
+
+    def grow():
+        nonlocal enlarge_in, num_bits
+        enlarge_in -= 1
+        if enlarge_in == 0:
+            enlarge_in = 1 << num_bits
+            num_bits += 1
+
+    def write_literal(ch):
+        code = ord(ch)
+        if code < 256:
+            add_value(0, num_bits)
+            add_value(code, 8)
+        else:
+            add_value(1, num_bits)
+            add_value(code, 16)
+        nonlocal grow_count
+        grow_count += 2          # 字面量：对照源码递减两次
+        first_use.pop(ch, None)
+
+    def write_reference(code):
+        add_value(code, num_bits)
+        nonlocal grow_count
+        grow_count += 1          # 引用：递减一次
+
+    def flush(is_tail):
+        nonlocal context, grow_count
+        if not context:
+            return
+        grow_count = 0
+        if context in first_use:
+            write_literal(context)
+        else:
+            write_reference(dictionary[context])
+        for _ in range(grow_count):
+            grow()
+        if is_tail:
+            context = ""
+        else:
+            context = ""          # 调用方随后会重建上下文
+
+    for ch in text:
+        if ch not in dictionary:
+            dictionary[ch] = next_code
+            next_code += 1
+            first_use[ch] = True
+        pair = context + ch
+        if pair in dictionary:
+            context = pair
+            continue
+        if context:
+            flush(False)
+            dictionary[pair] = next_code
+            next_code += 1
+        context = ch
+
+    if context:
+        flush(True)
+
+    # 结束码 2
+    add_value(2, num_bits)
+    # 补足最后一个 6 位符号
+    while True:
+        d <<= 1
+        if S == e - 1:
+            out.append(d)
+            break
+        S += 1
+    return out
+
+
+def compress_base64(text):
+    """把存档 JSON 文本压缩为 lz-string Base64 字符串（含 = 补位）。"""
+    units = _compress_base64_units(text)
+    res = "".join(_B64_ALPHABET[u] for u in units)
+    rest = len(res) % 4
+    if rest == 1:
+        res += "==="
+    elif rest == 2:
+        res += "=="
+    elif rest == 3:
+        res += "="
+    return res
+
+
 def validate(text):
     """校验存档文本。
 

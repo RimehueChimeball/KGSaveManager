@@ -49,6 +49,13 @@ def bridge_js(ws_url):
         "      if(msg && msg.type==='request_save'){\n"
         "        var data=currentSave();\n"
         "        ws.send(JSON.stringify({type:'save_data',id:msg.id,data:data}));\n"
+        "      } else if(msg && msg.type==='apply_save' && typeof msg.data==='string' && msg.data){\n"
+        "        try{\n"
+        "          var ls=window.LCstorage||window.localStorage;\n"
+        "          if(ls){ ls.setItem(KGSM_SAVE_KEY, msg.data); }\n"
+        "          ws.send(JSON.stringify({type:'apply_ok',id:msg.id}));\n"
+        "          setTimeout(function(){ location.reload(); }, 120);\n"
+        "        }catch(e2){ ws.send(JSON.stringify({type:'apply_err',id:msg.id,err:String(e2)})); }\n"
         "      }\n"
         "    }catch(e){}\n"
         "  };\n"
@@ -145,6 +152,22 @@ class WebSocketBridge:
         if pend and pend['data'] is not None:
             return pend['data']
         return None
+
+    def apply_save(self, blob, timeout=5.0):
+        """把存档文本下发给页面（页面写入本地存档后自动刷新）。
+
+        :return: True 表示已发送给已连接的页面；无连接/出错返回 False
+        """
+        with self._lock:
+            client = next((c for c in self._clients if not c.closed), None)
+            if client is None:
+                return False
+        try:
+            self._send_text(client, json.dumps(
+                {"type": "apply_save", "id": self._next_id, "data": blob}))
+            return True
+        except Exception:
+            return False
 
     def _clear_pending(self, req_id):
         with self._lock:

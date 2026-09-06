@@ -75,7 +75,7 @@ _ZH = {
     "sv.title_log": "输出日志",
     "sv.slot_prefix": "存档",
     "sv.btn_save": "存档",
-    "sv.btn_load": "读档",
+    "sv.btn_load": "复制存档",
     "sv.btn_cancel": "取消存档",
     "sv.btn_rename": "改名",
     "sv.btn_refresh": "刷新",
@@ -136,6 +136,31 @@ _ZH = {
     "msg.invalid_ask": "存档可能/疑似不合法，仍要保存吗？",
     "msg.invalid_skip": "已取消写入（存档疑似不合法）。",
     "msg.paste_invalid_file": "放入的存档可能/疑似不合法，仍要保存吗？",
+
+    # ---- 自动读档 / 存档编辑 ----
+    "sv.btn_auto_load": "自动读档",
+    "msg.auto_load_ask": "自动读档将覆盖游戏当前进度并载入 {slot} 的存档，确认？",
+    "msg.auto_load_sent": "已发送存档到游戏，页面将自动刷新载入。",
+    "msg.auto_load_fail": "发送到游戏失败（页面未连接）。",
+    "tab.editor": "修改存档",
+    "ed.mode_file": "存档槽位（文件）",
+    "ed.mode_live": "运行中的游戏（实时）",
+    "ed.slot": "槽位",
+    "ed.btn_open": "打开",
+    "ed.btn_write": "写入",
+    "ed.view_tree": "视图",
+    "ed.view_source": "源码",
+    "ed.no_slot": "请先选择一个有存档的槽位。",
+    "ed.no_bridge": "实时模式需要游戏由 KGSM 启动并已连接。",
+    "ed.loaded": "已载入存档: {name}",
+    "ed.pulled": "已拉取游戏当前存档。",
+    "ed.parse_err": "源码不是合法 JSON：{err}",
+    "ed.saved": "已保存到 {dest}",
+    "ed.backup": "已备份原存档: {path}",
+    "ed.sent": "已发送到游戏，页面将刷新载入。",
+    "ed.value_title": "修改数值",
+    "ed.value_prompt": "输入新值（自动识别 JSON 类型，无法解析则存为字符串）：",
+    "ed.invalid_value": "请输入 JSON 可解析的数值，或留空取消。",
 
     # ---- 日志/标签与消息（输出内容） ----
     "tag.cancel": "取消存档",
@@ -264,7 +289,7 @@ _EN = {
     "sv.title_log": "Output Log",
     "sv.slot_prefix": "Save",
     "sv.btn_save": "Save",
-    "sv.btn_load": "Load",
+    "sv.btn_load": "Copy Save",
     "sv.btn_cancel": "Cancel Saving",
     "sv.btn_rename": "Rename",
     "sv.btn_refresh": "Refresh",
@@ -335,6 +360,36 @@ _EN = {
     "msg.invalid_skip": "Write cancelled (the save looks invalid).",
     "msg.paste_invalid_file": "The dropped save may/might be invalid. "
                               "Save anyway?",
+
+    # ---- Auto load / save editor ----
+    "sv.btn_auto_load": "Auto Load",
+    "msg.auto_load_ask": "Auto-load will overwrite the current in-game "
+                         "progress with the {slot} save. Continue?",
+    "msg.auto_load_sent": "Save sent to the game; the page will reload to "
+                          "load it.",
+    "msg.auto_load_fail": "Failed to send to the game (page not connected).",
+    "tab.editor": "Edit Save",
+    "ed.mode_file": "Save slot (file)",
+    "ed.mode_live": "Running game (live)",
+    "ed.slot": "Slot",
+    "ed.btn_open": "Open",
+    "ed.btn_write": "Write",
+    "ed.view_tree": "View",
+    "ed.view_source": "Source",
+    "ed.no_slot": "Select a slot that has a save file first.",
+    "ed.no_bridge": "Live mode needs the game launched via KGSM and "
+                    "connected.",
+    "ed.loaded": "Save loaded: {name}",
+    "ed.pulled": "Current game save pulled.",
+    "ed.parse_err": "The source is not valid JSON: {err}",
+    "ed.saved": "Saved to {dest}",
+    "ed.backup": "Original save backed up: {path}",
+    "ed.sent": "Sent to the game; the page will reload to load it.",
+    "ed.value_title": "Edit Value",
+    "ed.value_prompt": "Enter a new value (JSON type auto-detected; falls "
+                       "back to a string if unparsable):",
+    "ed.invalid_value": "Enter a JSON-parsable value, or leave empty to "
+                        "cancel.",
 
     # ---- Log tags & messages (output) ----
     "tag.cancel": "Cancel",
