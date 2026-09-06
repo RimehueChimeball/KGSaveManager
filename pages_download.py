@@ -86,12 +86,10 @@ class DownloadPageMixin:
         self.dl_set_dir_check.grid(row=4, column=0, columnspan=3, sticky="w",
                                    pady=(4, 0))
 
-        ttk.Label(cfg, text=self.t("dl.version_tip"),
-                  foreground="#888888").grid(row=5, column=0, columnspan=3,
-                                             sticky="w", pady=(6, 0))
-        ttk.Label(cfg, text=self.t("dl.mirror_tip"),
-                  foreground="#888888").grid(row=6, column=0, columnspan=3,
-                                             sticky="w", pady=(2, 0))
+        self.dl_keep_temp_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(cfg, text=self.t("dl.keep_temp"),
+                        variable=self.dl_keep_temp_var).grid(
+            row=5, column=0, columnspan=3, sticky="w", pady=(4, 0))
 
         ttk.Label(parent, text=self.t("dl.dir_default_tip"),
                   foreground="#888888").grid(row=1, column=0, sticky="w",
@@ -194,18 +192,21 @@ class DownloadPageMixin:
         self.dl_progress_var.set(0)
         threading.Thread(
             target=self._dl_worker,
-            args=(repo, mirror, ref, target, self.dl_set_dir_var.get()),
+            args=(repo, mirror, ref, target, self.dl_set_dir_var.get(),
+                  self.dl_keep_temp_var.get()),
             daemon=True).start()
 
     def _dl_cancel(self):
         self.dl["cancel"].set()
 
-    def _dl_worker(self, repo, mirror, ref, target, set_service):
+    def _dl_worker(self, repo, mirror, ref, target, set_service,
+                   delete_temp):
         try:
             downloader.install_game(
                 repo, mirror, ref, target,
                 progress=self._dl_progress_cb,
-                cancel=lambda: self.dl["cancel"].is_set())
+                cancel=lambda: self.dl["cancel"].is_set(),
+                delete_temp=delete_temp)
             if set_service:
                 self.cfg.update(game_dir=target)
                 self._sync_page_vars()

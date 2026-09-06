@@ -152,9 +152,10 @@ def _flatten_extract(zip_path, target_dir):
 
 
 def install_game(repo_key, mirror, ref, target_dir, progress=None,
-                 cancel=None):
+                 cancel=None, delete_temp=True):
     """一键下载+解压+摊平到 target_dir（清空旧内容）。
 
+    :param delete_temp: 完成后是否删除目标目录下的 .temp（含原始 zip）
     :return: (最终游戏目录, 是否已设置) 仅目录即可
     """
     owner = REPOS[repo_key]["owner"]
@@ -190,6 +191,7 @@ def install_game(repo_key, mirror, ref, target_dir, progress=None,
     if not os.path.isfile(os.path.join(target_dir, "index.html")):
         raise DownloadError("index.html missing after extraction")
 
-    # 清理临时目录
-    shutil.rmtree(staging, ignore_errors=True)
+    # 是否清理临时目录
+    if delete_temp:
+        shutil.rmtree(staging, ignore_errors=True)
     return target_dir

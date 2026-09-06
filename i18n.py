@@ -167,14 +167,13 @@ _ZH = {
     "dl.repo_author": "作者原版 · nuclear-unicorn/kittensgame",
     "dl.repo_community": "社区版 · kitten-science/kittensgame",
     "dl.version": "版本",
-    "dl.version_tip": "保持默认（仓库最新分支，通常为 main/master）即可；只有想玩旧版才切换列出的标签版本。",
     "dl.refresh_versions": "刷新版本列表",
     "dl.mirror": "下载源",
-    "dl.mirror_tip": "github.com = 从 GitHub 官网直连下载；镜像站用于官网被墙/慢时加速，内容相同。",
     "dl.mirror_direct": "GitHub 直连",
     "dl.dir": "存放目录",
     "dl.dir_default_tip": "默认：程序目录\\KittensGame",
     "dl.set_service_dir": "下载完成后，把该目录设为服务目录（游戏目录）",
+    "dl.keep_temp": "下载完成后删除临时下载文件",
     "dl.btn_download": "开始下载",
     "dl.log": "下载日志",
     "dl.busy": "正在下载，请稍候…",
@@ -428,19 +427,14 @@ _EN = {
     "dl.repo_author": "Author's original · nuclear-unicorn/kittensgame",
     "dl.repo_community": "Community fork · kitten-science/kittensgame",
     "dl.version": "Version",
-    "dl.version_tip": "Keep the default (the repo's latest branch, usually "
-                      "main/master); switch to a tagged version only to "
-                      "play an older build.",
     "dl.refresh_versions": "Refresh versions",
     "dl.mirror": "Download source",
-    "dl.mirror_tip": "github.com downloads directly from GitHub. Mirrors "
-                     "help when GitHub is blocked or slow; content is the "
-                     "same.",
     "dl.mirror_direct": "GitHub direct",
     "dl.dir": "Destination folder",
     "dl.dir_default_tip": "Default: program folder\\KittensGame",
     "dl.set_service_dir": "After download, use this folder as the service "
                           "(game) directory",
+    "dl.keep_temp": "Delete temporary download files after completion",
     "dl.btn_download": "Start Download",
     "dl.log": "Download Log",
     "dl.busy": "Downloading, please wait…",
