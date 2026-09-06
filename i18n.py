@@ -58,6 +58,12 @@ _ZH = {
     "kgsm.first_use_q": "第一次使用？",
     "kgsm.btn_config": "配置程序",
     "kgsm.download": "下载游戏 · Kittens Game（GitHub）",
+    "kgsm.guide_title": "新手引导",
+    "kgsm.step_doc": "阅读离线文档 · 快速开始",
+    "kgsm.step_dl": "下载游戏",
+    "kgsm.step_cfg": "配置程序",
+    "kgsm.step_run": "启动游戏",
+    "kgsm.guide_hint": "提示：也可用左侧按钮或顶部标签页随时切换页面。按 1→4 完成设置后即可开始游戏。",
 
     # ---- 启动游戏页 ----
     "la.title": "本地 Web 服务（仅本机 127.0.0.1 可访问）",
@@ -303,6 +309,13 @@ _EN = {
     "kgsm.first_use_q": "First time here?",
     "kgsm.btn_config": "Configure",
     "kgsm.download": "Download Game · Kittens Game (GitHub)",
+    "kgsm.guide_title": "Getting Started",
+    "kgsm.step_doc": "Read the offline guide · Quick start",
+    "kgsm.step_dl": "Download the game",
+    "kgsm.step_cfg": "Configure",
+    "kgsm.step_run": "Launch the game",
+    "kgsm.guide_hint": "Tip: use the left buttons or the top tabs to switch "
+                       "pages anytime. Follow 1→4 to get started.",
 
     # ---- Launch Game page ----
     "la.title": "Local Web Server (bound to 127.0.0.1 only)",

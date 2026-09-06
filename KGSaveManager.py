@@ -348,90 +348,62 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
 
     # ---------- KGSM 页 ----------
     def build_kgm_tab(self, parent, button_font):
-        parent.columnconfigure(0, weight=1)
-        parent.rowconfigure(2, weight=1)   # 中间两个功能框占主要空间
-        parent.rowconfigure(3, weight=0)
+        """主页：左侧页面切换按钮 + 右侧新手引导流程。"""
+        parent.columnconfigure(0, weight=0)
+        parent.columnconfigure(1, weight=1)
+        parent.rowconfigure(0, weight=1)
 
-        # 标题
-        ttk.Label(parent, text=self.t("kgsm.heading"),
-                  font=('微软雅黑', 18, 'bold')).grid(
-            row=0, column=0, sticky="w", pady=(0, 10))
-        self.kgm_dir_lbl = ttk.Label(parent, font=('微软雅黑', 9),
-                                     foreground="#666666")
-        self.kgm_dir_lbl.grid(row=1, column=0, sticky="w", pady=(0, 6))
-        self._refresh_kgm_dir()
+        # 左侧：除 KGSM 外的所有页面，按钮垂直排列
+        nav = ttk.Frame(parent, width=210)
+        nav.grid(row=0, column=0, sticky="ns", padx=(0, 14))
+        nav.grid_propagate(False)
+        for key in ("game", "saves", "editor", "download", "settings"):
+            ttk.Button(
+                nav, text=self.t(f"tab.{key}"), style="Large.TButton",
+                command=lambda k=key: self.notebook.select(
+                    TAB_ORDER.index(k))).pack(fill=tk.X, pady=6)
 
-        # 中间：左右两个功能框
-        middle = ttk.Frame(parent)
-        middle.grid(row=2, column=0, sticky="nsew", pady=(0, 10))
-        middle.columnconfigure(0, weight=1, uniform="kgm")
-        middle.columnconfigure(1, weight=1, uniform="kgm")
-        middle.rowconfigure(0, weight=1)
+        # 右侧：新手引导（垂直流程）
+        guide = ttk.Frame(parent)
+        guide.grid(row=0, column=1, sticky="nsew")
+        guide.columnconfigure(0, weight=1)
 
-        # 左：快速启动游戏
-        quick = ttk.LabelFrame(middle, text=self.t("kgsm.quick_title"),
-                               padding="12")
-        quick.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        quick.columnconfigure(0, weight=1)
-        quick.rowconfigure(1, weight=1)
-        ttk.Label(quick, text=self.t("kgsm.quick_desc"), wraplength=380,
-                  justify=tk.LEFT).grid(row=0, column=0, sticky="w", pady=(0, 6))
-        run_quick = ttk.Button(quick, text=self.t("kgsm.btn_run"),
-                               style="Large.TButton", command=self.kgm_quick_run)
-        run_quick.grid(row=2, column=0, sticky="e", pady=(8, 0))
+        ttk.Label(guide, text=self.t("kgsm.guide_title"),
+                  font=('微软雅黑', 15, 'bold')).pack(anchor="w",
+                                                     pady=(4, 12))
 
-        # 右：复制存档并启动游戏
-        copy = ttk.LabelFrame(middle, text=self.t("kgsm.copy_title"),
-                              padding="12")
-        copy.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
-        copy.columnconfigure(0, weight=1)
-        ttk.Label(copy, text=self.t("kgsm.copy_desc"), wraplength=380,
-                  justify=tk.LEFT).grid(row=0, column=0, sticky="w", pady=(0, 8))
+        steps = (
+            (1, "kgsm.step_doc", self.open_offline_doc),
+            (2, "kgsm.step_dl",
+             lambda: self.notebook.select(TAB_ORDER.index("download"))),
+            (3, "kgsm.step_cfg",
+             lambda: self.notebook.select(TAB_ORDER.index("settings"))),
+            (4, "kgsm.step_run",
+             lambda: self.notebook.select(TAB_ORDER.index("game"))),
+        )
+        for idx, (num, key, cmd) in enumerate(steps):
+            if idx:
+                ttk.Label(guide, text="↓", foreground="#999999").pack()
+            row = ttk.Frame(guide)
+            row.pack(fill=tk.X, pady=4)
+            ttk.Label(row, text=f"{num}", width=3, anchor="center",
+                      font=('微软雅黑', 11, 'bold')).pack(side=tk.LEFT)
+            link = self._make_link(row, self.t(key), command=cmd)
+            link.pack(side=tk.LEFT, padx=(8, 0))
 
-        # 单选：最近存档 / 指定存档
-        default_mode = getattr(self, "_kgm_mode_default", "recent")
-        self.kgm_mode_var = tk.StringVar(value=default_mode)
-        radios = ttk.Frame(copy)
-        radios.grid(row=1, column=0, sticky="w", pady=(0, 6))
-        ttk.Radiobutton(radios, text=self.t("kgsm.mode_recent"),
-                        variable=self.kgm_mode_var, value="recent",
-                        command=self._refresh_kgm_save).pack(side=tk.LEFT,
-                                                             padx=(0, 16))
-        ttk.Radiobutton(radios, text=self.t("kgsm.mode_slot"),
-                        variable=self.kgm_mode_var, value="slot",
-                        command=self._refresh_kgm_save).pack(side=tk.LEFT)
+        ttk.Label(guide, text=self.t("kgsm.guide_hint"),
+                  foreground="#888888", wraplength=520).pack(
+            anchor="w", pady=(18, 0))
 
-        # 当前将复制的存档
-        self.kgm_save_lbl = ttk.Label(copy, foreground="#0a58ca",
-                                      font=('微软雅黑', 10, 'bold'))
-        self.kgm_save_lbl.grid(row=2, column=0, sticky="w", pady=(2, 8))
-
-        run_copy = ttk.Button(copy, text=self.t("kgsm.btn_run"),
-                              style="Large.TButton", command=self.kgm_copy_run)
-        run_copy.grid(row=3, column=0, sticky="e", pady=(8, 0))
-        self._refresh_kgm_save()
-
-        # 底部：左侧“第一次使用？”+ 配置按钮；右侧两个下载游戏链接
-        bottom = ttk.Frame(parent)
-        bottom.grid(row=3, column=0, sticky="sew", pady=(2, 0))
-        bottom.columnconfigure(0, weight=1)
-        bottom.columnconfigure(1, weight=1)
-
-        first_box = ttk.Frame(bottom)
-        first_box.grid(row=0, column=0, sticky="w")
-        ttk.Label(first_box, text=self.t("kgsm.first_use_q")).pack(
-            side=tk.LEFT)
-        ttk.Button(first_box, text=self.t("kgsm.btn_config"),
-                   command=lambda: self.notebook.select(
-                       TAB_ORDER.index("settings"))).pack(side=tk.LEFT,
-                                                          padx=(10, 0))
-
-        dl_box = ttk.Frame(bottom)
-        dl_box.grid(row=0, column=1, sticky="e")
-        dl_link = self._make_link(
-            dl_box, self.t("kgsm.download"),
-            command=lambda: self.open_download_tab("author"))
-        dl_link.pack(side=tk.TOP, anchor="e")
+    def open_offline_doc(self):
+        """打开内置英文离线文档（单页 HTML）。"""
+        doc = BASE_DIR / "docs" / "guide_en.html"
+        if doc.is_file():
+            open_in_browser(doc.as_uri(), browser_path=self.cfg.browser,
+                            new_window=False)
+        else:
+            messagebox.showerror(self.t("err.launch_fail"),
+                                 f"offline doc not found: {doc}")
 
     def _make_link(self, parent, text, command):
         lbl = ttk.Label(parent, text=text, foreground="#0645AD", cursor="hand2")
