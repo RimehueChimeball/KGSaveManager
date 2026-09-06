@@ -13,10 +13,13 @@ downloader：Kittens Game 源码包下载器（纯逻辑，无 GUI 依赖）。
 import json
 import os
 import shutil
+import socket
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 
 USER_AGENT = "Mozilla/5.0 (KGSaveManager)"
 
@@ -83,6 +86,50 @@ def list_versions(owner, repo):
 
 def zip_url(owner, repo, ref):
     return f"https://github.com/{owner}/{repo}/archive/{ref}.zip"
+
+
+def test_sources(repo_key, ref, timeout=6):
+    """并发测试各下载源对当前 zip 的连通性。
+
+    :return: {source: (ok, detail)}，detail 为耗时秒串或错误信息
+    """
+    owner = REPOS[repo_key]["owner"]
+    repo = REPOS[repo_key]["repo"]
+    full = zip_url(owner, repo, ref)
+    results = {}
+
+    def probe(source):
+        prefix = MIRRORS.get(source, source)
+        url = make_url(prefix, full)
+        start = time.monotonic()
+        try:
+            req = urllib.request.Request(url, method="HEAD",
+                                         headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                code = getattr(resp, "status", 200)
+                if code >= 400:
+                    raise DownloadError(f"HTTP {code}")
+        except Exception as e:
+            results[source] = (False, _err_text(e))
+            return
+        results[source] = (True, f"{time.monotonic() - start:.1f}s")
+
+    with ThreadPoolExecutor(max_workers=len(MIRRORS)) as pool:
+        for source in MIRRORS:
+            pool.submit(probe, source)
+    return results
+
+
+def _err_text(e):
+    if isinstance(e, DownloadError):
+        return str(e)
+    if isinstance(e, urllib.error.URLError):
+        reason = getattr(e, "reason", e)
+        return f"{type(reason).__name__}: {reason}" if isinstance(
+            reason, Exception) else str(e)
+    if isinstance(e, socket.timeout):
+        return "timeout"
+    return type(e).__name__
 
 
 def make_url(mirror_prefix, full_url):

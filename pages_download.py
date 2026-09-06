@@ -97,18 +97,27 @@ class DownloadPageMixin:
 
         bar_frame = ttk.Frame(parent)
         bar_frame.grid(row=2, column=0, sticky="ew", pady=(0, 4))
+        bar_frame.columnconfigure(0, weight=1)
         self.dl_progress = ttk.Progressbar(
             bar_frame, variable=self.dl_progress_var, maximum=100)
-        self.dl_progress.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.dl_progress.grid(row=0, column=0, sticky="ew")
+        self.dl_btn_test = ttk.Button(
+            bar_frame, text=self.t("dl.btn_test"), style="Large.TButton",
+            command=self._dl_test_connectivity)
+        self.dl_btn_test.grid(row=0, column=1, padx=(10, 0))
         self.dl_btn_start = ttk.Button(
             bar_frame, text=self.t("dl.btn_download"),
             style="Large.TButton", command=self._dl_start)
-        self.dl_btn_start.pack(side=tk.LEFT, padx=(10, 0))
+        self.dl_btn_start.grid(row=0, column=2, padx=(10, 0))
         self.dl_btn_cancel = ttk.Button(
             bar_frame, text=self.t("msg.btn_close"),
             style="Large.TButton", command=self._dl_cancel,
             state=tk.DISABLED)
-        self.dl_btn_cancel.pack(side=tk.LEFT, padx=(8, 0))
+        self.dl_btn_cancel.grid(row=0, column=3, padx=(8, 0))
+        self.dl_test_label = ttk.Label(bar_frame, foreground="#0a58ca",
+                                       wraplength=760)
+        self.dl_test_label.grid(row=1, column=0, columnspan=4, sticky="w",
+                                pady=(4, 0))
 
         log_frame = ttk.LabelFrame(parent, text=self.t("dl.log"),
                                    padding="6")
@@ -198,6 +207,39 @@ class DownloadPageMixin:
 
     def _dl_cancel(self):
         self.dl["cancel"].set()
+
+    def _dl_test_connectivity(self):
+        label = self.dl_version_combo.get()
+        ref = self.dl.get("ver_map", {}).get(label)
+        if not ref:
+            messagebox.showwarning(self.t("dl.version"),
+                                   self.t("dl.version_pick"))
+            return
+        repo = self.dl["repo_map"].get(self.dl_repo_var.get(), "author")
+        self.dl_btn_test.config(state=tk.DISABLED)
+        self.dl_test_label.config(text=self.t("dl.testing"))
+        threading.Thread(
+            target=self._dl_test_worker, args=(repo, ref),
+            daemon=True).start()
+
+    def _dl_test_worker(self, repo, ref):
+        try:
+            results = downloader.test_sources(repo, ref, timeout=6)
+        except Exception as e:
+            self.event_queue.put(
+                ("dl_test_result",
+                 [f"test error: {type(e).__name__}: {e}"]))
+            return
+        lines = []
+        for source in downloader.MIRRORS:
+            ok, detail = results.get(source, (False, "not tested"))
+            mark = "OK" if ok else "FAIL"
+            lines.append(f"{source}: {mark} ({detail})")
+        self.event_queue.put(("dl_test_result", lines))
+
+    def _handle_dl_test_result(self, lines):
+        self.dl_btn_test.config(state=tk.NORMAL)
+        self.dl_test_label.config(text="\n".join(lines))
 
     def _dl_worker(self, repo, mirror, ref, target, set_service,
                    delete_temp):

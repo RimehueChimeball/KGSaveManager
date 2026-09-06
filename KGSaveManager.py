@@ -2054,6 +2054,8 @@ class KGSaveManager(DownloadPageMixin):
                                  bool(item[2]) if len(item) > 2 else False)
         elif kind == "dl_canceled":
             self._handle_dl_cancel()
+        elif kind == "dl_test_result":
+            self._handle_dl_test_result(item[1])
 
     # =========================================================
     # 退出
