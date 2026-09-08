@@ -2,6 +2,22 @@
 
 All notable changes are listed by version.
 
+## v1.2.1
+
+- Save bridge: engine discovery across window keys and `gamePage`;
+  LZString compression fallback; live reads no longer depend only on
+  `window.game`.
+- Bridge diagnostics: the launch-page server log now shows connect /
+  disconnect, the hello probe (engine capabilities and found keys), save
+  request timeouts and send results.
+- Bridge robustness: requests prefer the newest page connection; stale
+  connections are dropped on send failure and retried.
+- Reconnect wait: auto save, auto load and editor live operations wait up
+  to six seconds for the page to reconnect after a reload before reporting
+  an error.
+- HTML injection is placed before the closing body/html tags; responses are
+  marked `Cache-Control: no-store` to avoid a stale bridge script.
+
 ## v1.2.0
 
 - Save Editor: before opening a slot file, a dated backup is written to
