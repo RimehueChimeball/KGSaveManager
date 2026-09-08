@@ -593,6 +593,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         bridge = None
         try:
             bridge = WebSocketBridge()
+            bridge.set_ui_queue(self.event_queue)
             bridge.start()
             url, actual_port = self.lweb.start(str(root_dir), port,
                                                bridge=bridge)
@@ -1327,6 +1328,8 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                          self.t("tag.done"))
         elif kind == "auto_save_fail":
             self.log(self.t("msg.auto_timeout"), self.t("tag.timeout"))
+        elif kind == "bridge_log":
+            self.web_log(item[1], self.t("tag.bridge"))
         elif kind == "dl_log":
             self._dl_log(item[1])
         elif kind == "dl_versions":

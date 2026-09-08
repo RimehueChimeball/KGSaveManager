@@ -39,10 +39,18 @@ def bridge_js(ws_url):
         "    return raw||'';\n"
         "  }catch(e2){return '';}\n"
         "}\n"
+        "function bridgeInfo(){\n"
+        "  var g=window.game;\n"
+        "  return {type:'hello',\n"
+        "    hasGame: !!(g && typeof g.save==='function'),\n"
+        "    hasLZ: !!window.LZString,\n"
+        "    hasCompress: !!(g && typeof g.compressLZData==='function'),\n"
+        "    hasLC: !!((window.LCstorage||window.localStorage))};\n"
+        "}\n"
         "function connect(){\n"
         "  var ws;\n"
         "  try{ ws=new WebSocket('" + ws_url + "'); }catch(e){ return; }\n"
-        "  ws.onopen=function(){ try{ ws.send(JSON.stringify({type:'hello'})); }catch(e){} };\n"
+        "  ws.onopen=function(){ try{ ws.send(JSON.stringify(bridgeInfo())); }catch(e){} };\n"
         "  ws.onmessage=function(ev){\n"
         "    try{\n"
         "      var msg=JSON.parse(ev.data);\n"
@@ -83,7 +91,19 @@ class WebSocketBridge:
         self._lock = threading.Lock()
         self._pending = None      # {'id','event','data'}
         self._next_id = 1
+        self._ui_queue = None
         self.port = None
+
+    def set_ui_queue(self, queue):
+        """注入 UI 事件队列，用于把连接状态回显到「启动游戏」页日志。"""
+        self._ui_queue = queue
+
+    def _log(self, msg):
+        if self._ui_queue is not None:
+            try:
+                self._ui_queue.put(("bridge_log", msg))
+            except Exception:
+                pass
 
     # ---------------- 生命周期 ----------------
     def start(self):
@@ -150,7 +170,9 @@ class WebSocketBridge:
             pend = self._pending
             self._pending = None
         if pend and pend['data'] is not None:
+            self._log(f"save data received: {len(pend['data'])} chars")
             return pend['data']
+        self._log("save request timed out: page did not respond")
         return None
 
     def apply_save(self, blob, timeout=5.0):
@@ -165,8 +187,10 @@ class WebSocketBridge:
         try:
             self._send_text(client, json.dumps(
                 {"type": "apply_save", "id": self._next_id, "data": blob}))
+            self._log(f"save sent to page: {len(blob)} chars")
             return True
-        except Exception:
+        except Exception as e:
+            self._log(f"failed to send save to page: {e}")
             return False
 
     def _clear_pending(self, req_id):
@@ -196,6 +220,7 @@ class WebSocketBridge:
                 return
             with self._lock:
                 self._clients.append(_Client(conn, addr))
+            self._log(f"game page connected ({addr[0]}:{addr[1]})")
             self._read_loop(conn)
         except Exception:
             pass
@@ -203,6 +228,7 @@ class WebSocketBridge:
             with self._lock:
                 self._clients = [c for c in self._clients
                                  if c.conn is not conn]
+            self._log("game page disconnected")
 
     def _handshake(self, conn):
         data = b""
@@ -314,14 +340,24 @@ class WebSocketBridge:
             return
         if not isinstance(msg, dict):
             return
-        if msg.get("type") != "save_data":
+        mtype = msg.get("type")
+        if mtype == "hello":
+            self._log("hello from page: " + json.dumps(
+                {k: msg[k] for k in
+                 ("hasGame", "hasLZ", "hasCompress", "hasLC")
+                 if k in msg}))
+            return
+        if mtype != "save_data":
             return
         req_id = msg.get("id")
         data = msg.get("data")
         if not isinstance(data, str):
+            self._log("save_data ignored: data is not a string")
             return
         with self._lock:
             pend = self._pending
             if pend and pend['id'] == req_id:
                 pend['data'] = data
                 pend['event'].set()
+            else:
+                self._log("save_data ignored: no matching request id")

@@ -55,6 +55,7 @@ class _BridgeWebHandler(_WebHandler):
             self.send_header("Content-Type",
                              "text/javascript; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(body)
             return
@@ -71,10 +72,14 @@ class _BridgeWebHandler(_WebHandler):
                     self.send_error(403)
                     return
                 text = raw.decode("utf-8", "replace")
-                marker = text.lower().rfind("</body>")
                 script = '<script src="/kgsm-bridge.js"></script>'
-                if marker >= 0:
-                    text = text[:marker] + script + text[marker:]
+                low = text.lower()
+                for marker_txt in ("</body>", "</html>"):
+                    marker = low.rfind(marker_txt)
+                    if marker >= 0:
+                        text = (text[:marker] + script +
+                                text[marker:])
+                        break
                 else:
                     text += script
                 body = text.encode("utf-8")
@@ -82,6 +87,7 @@ class _BridgeWebHandler(_WebHandler):
                 self.send_header("Content-Type",
                                  "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(body)
                 return
