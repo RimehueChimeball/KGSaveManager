@@ -174,32 +174,59 @@ class WebSocketBridge:
         with self._lock:
             return any(not c.closed for c in self._clients)
 
+    def _pick_clients(self):
+        """取候选客户端（最新连接在前）；同时剔除已关闭的。"""
+        with self._lock:
+            self._clients = [c for c in self._clients if not c.closed]
+            return list(reversed(self._clients))
+
+    def _drop_client(self, client):
+        with self._lock:
+            try:
+                self._clients.remove(client)
+            except ValueError:
+                pass
+            try:
+                client.conn.close()
+            except Exception:
+                pass
+
     # ---------------- 请求存档 ----------------
     def request_save(self, timeout=15.0):
-        """向已连接的页面请求一次存档；返回文本或 None。"""
-        with self._lock:
-            client = next((c for c in self._clients if not c.closed), None)
-            if client is None:
-                return None
+        """向已连接的页面请求一次存档；返回文本或 None。
+
+        优先用最新连接的客户端；发送失败自动剔除并换下一个候选，
+        避免页面刷新后残留的旧连接把请求全部带超时。
+        """
+        candidates = self._pick_clients()
+        if not candidates:
+            return None
+        if self._pending is not None:
+            return None          # 已有请求在进行
+        for client in candidates:
             if self._pending is not None:
-                return None          # 已有请求在进行
+                self._pending = None
             req_id = self._next_id
             self._next_id += 1
             event = threading.Event()
-            self._pending = {"id": req_id, "event": event, "data": None}
-        try:
-            self._send_text(client, json.dumps(
-                {"type": "request_save", "id": req_id}))
-        except Exception:
-            self._clear_pending(req_id)
-            return None
-        event.wait(timeout)
-        with self._lock:
-            pend = self._pending
-            self._pending = None
-        if pend and pend['data'] is not None:
-            self._log(f"save data received: {len(pend['data'])} chars")
-            return pend['data']
+            with self._lock:
+                self._pending = {"id": req_id, "event": event,
+                                 "data": None}
+            try:
+                self._send_text(client, json.dumps(
+                    {"type": "request_save", "id": req_id}))
+            except Exception:
+                self._log("request send failed, dropping stale client")
+                self._drop_client(client)
+                continue
+            event.wait(min(timeout, 8.0))
+            with self._lock:
+                pend = self._pending
+                self._pending = None
+            if pend and pend['data'] is not None:
+                self._log(f"save data received: {len(pend['data'])} chars")
+                return pend['data']
+            self._log("save request timed out, trying next client if any")
         self._log("save request timed out: page did not respond")
         return None
 
@@ -208,18 +235,21 @@ class WebSocketBridge:
 
         :return: True 表示已发送给已连接的页面；无连接/出错返回 False
         """
-        with self._lock:
-            client = next((c for c in self._clients if not c.closed), None)
-            if client is None:
-                return False
-        try:
-            self._send_text(client, json.dumps(
-                {"type": "apply_save", "id": self._next_id, "data": blob}))
-            self._log(f"save sent to page: {len(blob)} chars")
-            return True
-        except Exception as e:
-            self._log(f"failed to send save to page: {e}")
+        candidates = self._pick_clients()
+        if not candidates:
             return False
+        for client in candidates:
+            try:
+                self._send_text(client, json.dumps(
+                    {"type": "apply_save", "id": self._next_id,
+                     "data": blob}))
+                self._log(f"save sent to page: {len(blob)} chars")
+                return True
+            except Exception:
+                self._log("apply send failed, dropping stale client")
+                self._drop_client(client)
+                continue
+        return False
 
     def _clear_pending(self, req_id):
         with self._lock:

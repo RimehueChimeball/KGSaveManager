@@ -29,7 +29,7 @@ class SaveFlowMixin:
         if not (self.lweb.running and self.bridge is not None):
             messagebox.showwarning(self.app_name, self.t("msg.auto_no_conn"))
             return
-        if not self.bridge.has_client:
+        if not self.bridge.has_client and not self._ensure_bridge_client(6.0):
             messagebox.showwarning(self.app_name, self.t("msg.auto_no_page"))
             return
 
@@ -61,7 +61,7 @@ class SaveFlowMixin:
         if not (self.lweb.running and self.bridge is not None):
             messagebox.showwarning(self.app_name, self.t("msg.auto_no_conn"))
             return
-        if not self.bridge.has_client:
+        if not self.bridge.has_client and not self._ensure_bridge_client(6.0):
             messagebox.showwarning(self.app_name, self.t("msg.auto_no_page"))
             return
 

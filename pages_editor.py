@@ -188,8 +188,10 @@ class EditorPageMixin:
             self.log(self.t("ed.loaded", name=self.slot_label(slot)),
                      self.t("tag.load"))
         else:
-            if not (self.lweb.running and self.bridge is not None
-                    and self.bridge.has_client):
+            if not (self.lweb.running and self.bridge is not None):
+                messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
+                return
+            if not self.bridge.has_client and not self._ensure_bridge_client(6.0):
                 messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
                 return
             content = self.bridge.request_save(timeout=15)
@@ -261,8 +263,10 @@ class EditorPageMixin:
                 self.log(self.t("msg.process_fail", e=e),
                          self.t("tag.error"))
         else:
-            if not (self.lweb.running and self.bridge is not None
-                    and self.bridge.has_client):
+            if not (self.lweb.running and self.bridge is not None):
+                messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
+                return
+            if not self.bridge.has_client and not self._ensure_bridge_client(6.0):
                 messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
                 return
             if self.bridge.apply_save(blob):

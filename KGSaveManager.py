@@ -1073,6 +1073,21 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         except Exception:
             return False
 
+    def _ensure_bridge_client(self, timeout=6.0):
+        """等待桥有可用的页面连接（reload 后自动重连期），期间保持 UI 响应。"""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if (self.lweb.running and self.bridge is not None
+                    and self.bridge.has_client):
+                return True
+            try:
+                self.root.update()
+            except Exception:
+                pass
+            time.sleep(0.15)
+        return bool(self.lweb.running and self.bridge is not None
+                    and self.bridge.has_client)
+
     def _on_slot_mousewheel(self, event):
         """滚轮滚动存档位列表：仅当指针位于该区域内时生效。"""
         if not hasattr(self, "slot_canvas"):
