@@ -1,25 +1,25 @@
 # -*- mode: python ; coding: utf-8 -*-
-# KGSaveManager PyInstaller 配置
-# - console=False：GUI 程序不弹出控制台
-# - hiddenimports：显式声明拆分的模块（含 core 逻辑层与 Tkinter 界面端口实现），
-#   避免“仅运行时局部导入”导致漏包（web_server.open_in_browser 在函数内
-#   import config_store）
-# - upx=False：不依赖外部 UPX 压缩工具，避免构建告警（体积差异可忽略）
+# KGSaveManager（主版本：HTML 界面）PyInstaller 配置
+# - 界面为 webapp/assets 下的 HTML/CSS/JS，由本地 HTTP 服务发给浏览器
+# - datas：docs（离线文档）与 webapp/assets（前端资源）都要带上
+# - console=True：启动时会打印页面地址，便于排错；改窗口模式时记得把地址显示到页面里
+# - upx=False：不依赖外部 UPX 压缩工具
 
 a = Analysis(
     ['KGSaveManager.py'],
     pathex=[],
     binaries=[],
-    datas=[('docs', 'docs')],
+    datas=[('docs', 'docs'),
+           ('webapp/assets', 'webapp/assets')],
     hiddenimports=['i18n', 'config_store', 'web_server', 'utils',
                    'web_bridge', 'savecodec', 'downloader', 'kgsm_logging',
-                   'pages_download', 'pages_editor', 'pages_manual',
-                   'ui_tk', 'core', 'core.ui_port', 'core.slots',
-                   'core.flows'],
+                   'core', 'core.app', 'core.ui_port', 'core.slots',
+                   'core.flows', 'core.paths', 'core.server', 'core.download',
+                   'core.editor', 'webapp', 'webapp.api', 'webapp.server'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['tkinter'],
     noarchive=False,
     optimize=0,
 )
@@ -35,7 +35,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=False,
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

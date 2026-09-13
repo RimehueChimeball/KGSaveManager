@@ -4,10 +4,12 @@ All notable changes are listed by version.
 
 ## v1.3.0
 
-- Second frontend: an HTML interface (`KGSaveManagerWeb.py` + `webapp/`) that
-  renders the whole UI in the system browser (Edge/Chrome app window) and talks
-  to the same logic layer over a local HTTP/JSON API. Both frontends share
-  `kgsm_data/` and behave identically.
+- The HTML frontend is now the main version and keeps the plain name
+  `KGSaveManager.py`; the Tkinter frontend is the Lite version
+  (`KGSaveManagerLite.py`). Both share `kgsm_data/` and behave identically.
+- HTML interface: the whole UI is rendered in the system browser (Edge/Chrome
+  app window) and talks to the same logic layer over a local HTTP/JSON API. No
+  third-party dependency.
 - Layered architecture: `core/` now holds all UI-agnostic logic (paths, config,
   logging, slots, save flows, web server and bridge lifecycle, downloader
   controller, save editor controller) and reaches the screen only through the

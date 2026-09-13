@@ -72,16 +72,17 @@
 </nav>
 <main>
 <h1>KGSaveManager — Offline Guide</h1>
-<p>KGSaveManager is a save manager for Kittens Game on Windows (Python +
-Tkinter, bilingual UI, zero third-party dependencies). Version: v1.3.0.</p>
-<p>Two frontends are available and share the same data folder and configuration
-file: the Tkinter window (<code>KGSaveManager.py</code>) and an HTML interface
-(<code>KGSaveManagerWeb.py</code>) rendered in the system browser. Everything
-described below behaves identically in both.</p>
+<p>KGSaveManager is a save manager for Kittens Game on Windows, written in Python
+with bilingual UI and no third-party dependencies. Version: v1.3.0.</p>
+<p>Two frontends share the same data folder and configuration file: the main
+version renders an HTML interface (<code>KGSaveManager.py</code>) in the system
+browser, and the Lite version is a classic Tkinter window
+(<code>KGSaveManagerLite.py</code>). Everything described below behaves
+identically in both.</p>
 
-<h2 id="html-ui">HTML Interface</h2>
-<p>Start the HTML frontend with:</p>
-<pre>python KGSaveManagerWeb.py [--port N] [--no-browser] [--serve] [--verbose]</pre>
+<h2 id="html-ui">Main Version (HTML Interface)</h2>
+<p>Start it with:</p>
+<pre>python KGSaveManager.py [--port N] [--no-browser] [--serve] [--verbose]</pre>
 <ul>
   <li>It serves the interface from <code>127.0.0.1</code> and opens it as a
       browser app window (Edge/Chrome <code>--app=</code>, no address bar or
@@ -103,6 +104,8 @@ described below behaves identically in both.</p>
 the same time: the local ports and the configuration file are shared.</p>
 
 <h2 id="quick-start">Quick Start</h2>
+<p>The Lite version is started with <code>python KGSaveManagerLite.py</code>; it
+has the same pages and behaves the same, only the window is Tkinter.</p>
 <ol>
   <li>Read this guide.</li>
   <li>Open the <em>Download Game</em> tab. Keep the default repository and

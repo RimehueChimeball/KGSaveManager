@@ -30,7 +30,7 @@ class TestGuide(unittest.TestCase):
 
     def test_mentions_both_frontends(self):
         self.assertIn("KGSaveManager.py", self.html)
-        self.assertIn("KGSaveManagerWeb.py", self.html)
+        self.assertIn("KGSaveManagerLite.py", self.html)
 
 
 class TestReadme(unittest.TestCase):
@@ -42,7 +42,7 @@ class TestReadme(unittest.TestCase):
         for name in ("README.md", "README_zh.md"):
             text = (ROOT / name).read_text(encoding="utf-8")
             self.assertIn("KGSaveManager.py", text)
-            self.assertIn("KGSaveManagerWeb.py", text)
+            self.assertIn("KGSaveManagerLite.py", text)
 
     def test_readme_lists_current_modules(self):
         text = (ROOT / "README.md").read_text(encoding="utf-8")

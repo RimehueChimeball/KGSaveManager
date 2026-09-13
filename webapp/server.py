@@ -46,7 +46,7 @@ class EventBuffer:
 
 
 class _Handler(BaseHTTPRequestHandler):
-    server_version = "KGSaveManagerWeb/1.0"
+    server_version = "KGSaveManager/1.0"
 
     # 访问日志不写控制台
     def log_message(self, fmt, *args):

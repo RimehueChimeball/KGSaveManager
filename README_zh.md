@@ -1,13 +1,12 @@
 # KGSaveManager（中文版）
 
-Kittens Game 存档管理器（Windows，Python + Tkinter，零第三方依赖）。
+Kittens Game 存档管理器（Windows，Python 编写，零第三方依赖）。
 
-两套前端共用同一套逻辑层：
-- **Tkinter 界面**（`KGSaveManager.py`）——经典窗口，只用标准库。
-- **HTML 界面**（`KGSaveManagerWeb.py` + `webapp/`）——同样功能，渲染成本地网页，
-  以浏览器应用窗口打开，同样零第三方依赖。
-
-两者共用同一份 `kgsm_data/` 与配置文件。
+两套前端共用同一套逻辑层与同一份 `kgsm_data/`：
+- **主版本 · HTML 界面**（`KGSaveManager.py` + `webapp/`）——界面是本地网页，
+  以浏览器应用窗口打开。
+- **Lite 版 · Tkinter 界面**（`KGSaveManagerLite.py`）——经典桌面窗口，适合偏好
+  传统窗口或机器上没有 Edge/Chrome 的情况。
 
 ## 功能
 
@@ -25,11 +24,11 @@ Kittens Game 存档管理器（Windows，Python + Tkinter，零第三方依赖�
 ## 运行
 
 ```powershell
-python KGSaveManager.py        # Tkinter 界面
-python KGSaveManagerWeb.py     # HTML 界面（自动打开浏览器应用窗口）
+python KGSaveManager.py        # 主版本（HTML 界面，自动打开浏览器应用窗口）
+python KGSaveManagerLite.py   # Lite 版（Tkinter 界面）
 ```
 
-HTML 版支持 `--port N`、`--no-browser`、`--serve`（窗口关闭后继续常驻）、
+主版本支持 `--port N`、`--no-browser`、`--serve`（窗口关闭后继续常驻）、
 `--verbose`；启动时会打印页面地址，地址后加 `?selftest=1` 可跑它的自检。
 
 ## 快速开始
@@ -53,8 +52,8 @@ HTML 版支持 `--port N`、`--no-browser`、`--serve`（窗口关闭后继续�
 
 ```
 程序目录/
-├─ KGSaveManager.py              Tkinter 入口
-├─ KGSaveManagerWeb.py           HTML 入口
+├─ KGSaveManager.py              主版本入口（HTML 界面）
+├─ KGSaveManagerLite.py          Lite 版入口（Tkinter 界面）
 ├─ i18n.py / config_store.py / web_server.py / web_bridge.py
 ├─ savecodec.py / downloader.py
 ├─ pages_download.py / pages_editor.py / pages_manual.py  (Tkinter 视图)
@@ -85,12 +84,12 @@ python -m unittest discover -s tests -t .
 
 ```powershell
 pip install pyinstaller
-pyinstaller KGSaveManager.spec        # dist/KGSaveManager/KGSaveManager.exe
-pyinstaller KGSaveManagerWeb.spec     # dist/KGSaveManagerWeb/KGSaveManagerWeb.exe
+pyinstaller KGSaveManager.spec        # dist/KGSaveManager/KGSaveManager.exe（主版本）
+pyinstaller KGSaveManagerLite.spec    # dist/KGSaveManagerLite/KGSaveManagerLite.exe（Lite）
 ```
 
-产物：Tkinter 版 `dist/KGSaveManager/KGSaveManager.exe`；HTML 版
-`dist/KGSaveManagerWeb/KGSaveManagerWeb.exe`（已把 `webapp/assets` 打进包）。
+产物：主版本 `dist/KGSaveManager/KGSaveManager.exe`（已把 `webapp/assets` 打进包）；
+Lite 版 `dist/KGSaveManagerLite/KGSaveManagerLite.exe`。
 
 ## 许可
 

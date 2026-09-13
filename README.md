@@ -1,13 +1,13 @@
 # KGSaveManager
 
-A save manager for Kittens Game on Windows (Python + Tkinter, no third-party dependencies).
+A save manager for Kittens Game on Windows, written in Python with no
+third-party dependencies.
 
-Two frontends share one logic layer:
-- **Tkinter UI** (`KGSaveManager.py`) — the classic window, standard library only.
-- **HTML UI** (`KGSaveManagerWeb.py` + `webapp/`) — the same features rendered as a
-  local web page, opened as a browser app window (no third-party dependency either).
-
-Both use the same `kgsm_data/` folder and the same configuration file.
+Two frontends share one logic layer and the same `kgsm_data/` folder:
+- **Main version — HTML UI** (`KGSaveManager.py` + `webapp/`) — the interface is a
+  local web page opened as a browser app window.
+- **Lite version — Tkinter UI** (`KGSaveManagerLite.py`) — the classic desktop
+  window, for users who prefer it or have no Edge/Chrome available.
 
 ## Features
 
@@ -25,11 +25,11 @@ Both use the same `kgsm_data/` folder and the same configuration file.
 ## Run
 
 ```powershell
-python KGSaveManager.py        # Tkinter UI
-python KGSaveManagerWeb.py     # HTML UI (opens a browser app window)
+python KGSaveManager.py        # main version (HTML UI; opens a browser app window)
+python KGSaveManagerLite.py   # lite version (Tkinter UI)
 ```
 
-The HTML UI accepts `--port N`, `--no-browser`, `--serve` (keep running after the
+The main (HTML UI) version accepts `--port N`, `--no-browser`, `--serve` (keep running after the
 window closes) and `--verbose`. The page address is printed on startup; append
 `?selftest=1` to run its built-in self-test.
 
@@ -54,8 +54,8 @@ window closes) and `--verbose`. The page address is printed on startup; append
 
 ```
 program/
-├─ KGSaveManager.py              Tkinter entry
-├─ KGSaveManagerWeb.py           HTML entry
+├─ KGSaveManager.py              main entry (HTML UI)
+├─ KGSaveManagerLite.py          lite entry (Tkinter UI)
 ├─ i18n.py / config_store.py / web_server.py / web_bridge.py
 ├─ savecodec.py / downloader.py
 ├─ pages_download.py / pages_editor.py / pages_manual.py  (Tkinter views)
@@ -93,12 +93,12 @@ in the code.
 
 ```powershell
 pip install pyinstaller
-pyinstaller KGSaveManager.spec        # dist/KGSaveManager/KGSaveManager.exe
-pyinstaller KGSaveManagerWeb.spec     # dist/KGSaveManagerWeb/KGSaveManagerWeb.exe
+pyinstaller KGSaveManager.spec        # dist/KGSaveManager/KGSaveManager.exe (main)
+pyinstaller KGSaveManagerLite.spec    # dist/KGSaveManagerLite/KGSaveManagerLite.exe
 ```
 
-Output: `dist/KGSaveManager/KGSaveManager.exe` (Tkinter) and
-`dist/KGSaveManagerWeb/KGSaveManagerWeb.exe` (HTML; bundles `webapp/assets`).
+Output: `dist/KGSaveManager/KGSaveManager.exe` (main, HTML UI; bundles
+`webapp/assets`) and `dist/KGSaveManagerLite/KGSaveManagerLite.exe` (lite, Tkinter).
 
 ## License
 
