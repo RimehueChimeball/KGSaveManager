@@ -18,6 +18,7 @@ from tempfile import TemporaryDirectory
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import downloader  # noqa: E402
+import web_server  # noqa: E402
 from webapp.api import EventPump, WebApi, WebUiPort  # noqa: E402
 from webapp.server import AppServer, EventBuffer  # noqa: E402
 
@@ -286,6 +287,53 @@ class TestWebApp(unittest.TestCase):
         status, _body = self.h.get_json("/api/ping")
         self.assertEqual(status, 200)
         self.assertTrue(self.h.api.ever_seen)
+
+
+class TestAppWindow(unittest.TestCase):
+    """HTML 版是用浏览器应用窗口打开的：这里只验证命令行构造，不真的启动浏览器。"""
+
+    def test_app_window_args(self):
+        args = web_server.app_window_args("C:/x/msedge.exe",
+                                          "http://127.0.0.1:1234/",
+                                          1200, 800)
+        self.assertEqual(args[0], "C:/x/msedge.exe")
+        self.assertIn("--app=http://127.0.0.1:1234/", args)
+        self.assertIn("--window-size=1200,800", args)
+
+    def test_open_app_window_uses_app_mode(self):
+        calls = []
+        orig_popen = web_server.subprocess.Popen
+        web_server.subprocess.Popen = lambda args: calls.append(args)
+        try:
+            with TemporaryDirectory() as tmp:
+                exe = Path(tmp) / "msedge.exe"
+                exe.write_bytes(b"")          # 只要存在即可，不会真的执行
+                how = web_server.open_app_window("http://127.0.0.1:9/",
+                                                 str(exe))
+        finally:
+            web_server.subprocess.Popen = orig_popen
+        self.assertEqual(how, "app")
+        self.assertEqual(len(calls), 1)
+        self.assertIn("--app=http://127.0.0.1:9/", calls[0])
+
+    def test_open_app_window_falls_back_without_browser(self):
+        """配置的浏览器无效且系统默认浏览器也探测不到时，退回普通打开。"""
+        import config_store
+        calls = []
+        orig_open = web_server.open_in_browser
+        orig_detect = config_store.detect_browser_path
+        web_server.open_in_browser = (
+            lambda url, browser_path="", new_window=True:
+            calls.append((url, new_window)) or "system default")
+        config_store.detect_browser_path = lambda: ""
+        try:
+            how = web_server.open_app_window("http://127.0.0.1:9/",
+                                             "D:/not/a/browser.txt")
+        finally:
+            web_server.open_in_browser = orig_open
+            config_store.detect_browser_path = orig_detect
+        self.assertEqual(how, "system default")
+        self.assertEqual(calls, [("http://127.0.0.1:9/", True)])
 
 
 class TestFrontendAssets(unittest.TestCase):

@@ -169,6 +169,11 @@ def _launch(exe, url, new_window):
     subprocess.Popen(args)
 
 
+def app_window_args(exe, url, width=1180, height=760):
+    """应用窗口模式（无地址栏/标签页）的启动参数。"""
+    return [exe, f"--app={url}", f"--window-size={int(width)},{int(height)}"]
+
+
 def open_app_window(url, browser_path="", width=1180, height=760):
     """以「应用窗口」方式打开地址（Edge/Chrome 的 --app=，无地址栏与标签页）。
 
@@ -183,8 +188,7 @@ def open_app_window(url, browser_path="", width=1180, height=760):
             exe = ""
     if exe and os.path.isfile(exe) and _is_known_engine(exe):
         try:
-            subprocess.Popen([exe, f"--app={url}",
-                              f"--window-size={int(width)},{int(height)}"])
+            subprocess.Popen(app_window_args(exe, url, width, height))
             return "app"
         except OSError:
             pass
