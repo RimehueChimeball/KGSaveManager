@@ -42,13 +42,13 @@ def build_app(base_dir=None, port=0, verbose=False):
     api = WebApi(core, ui, on_shutdown=request_shutdown)
     pump = EventPump(core, outbox)
     server = AppServer(api, ui, outbox, core.paths.assets, port=port,
-                       on_shutdown=request_shutdown)
+                       on_shutdown=request_shutdown, verbose=verbose)
     return {"core": core, "ui": ui, "api": api, "pump": pump,
             "server": server, "outbox": outbox, "state": state}
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=f"{APP_NAME} (HTML UI)")
+    parser = argparse.ArgumentParser(description=f"{APP_NAME} (main version)")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--serve", action="store_true")

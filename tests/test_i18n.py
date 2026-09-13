@@ -30,9 +30,14 @@ def py_files():
 
 
 def web_files():
-    """HTML 前端资源（页面与脚本也会引用翻译键）。"""
-    return sorted(list(ROOT.glob("webapp/*.py")) +
-                  list(ROOT.glob("webapp/assets/*")))
+    """HTML 前端里可读的文本资源（页面与脚本也会引用翻译键）。
+
+    只取文本类型：assets 下还有 favicon.ico / icon-192.png 等二进制文件。
+    """
+    text_suffixes = {".html", ".js", ".css", ".webmanifest", ".json"}
+    assets = [p for p in (ROOT / "webapp" / "assets").iterdir()
+              if p.is_file() and p.suffix.lower() in text_suffixes]
+    return sorted(list(ROOT.glob("webapp/*.py")) + assets)
 
 
 def repo_text():

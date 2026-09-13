@@ -88,11 +88,21 @@ identically in both.</p>
       browser app window (Edge/Chrome <code>--app=</code>, no address bar or
       tabs). The address is printed at startup and can be opened manually on
       the same machine.</li>
+  <li>The window title and icon come from the page:
+      <code>&lt;title&gt;</code> (updated by the page at runtime) and
+      <code>webapp/assets/favicon.ico</code> plus
+      <code>manifest.webmanifest</code>. The process is still the browser, so
+      Explorer and the taskbar group it under Edge/Chrome.</li>
   <li>All data comes from a local JSON API (<code>/api/state</code>,
       <code>/api/call</code>, <code>/api/events</code>). The whole frontend uses
       the standard library only; no third-party package is required.</li>
   <li>Because the interface is a page, “select a folder” is a text prompt: paste
       the path and confirm.</li>
+  <li>Window identity: the title bar shows the page title (“KittensGame Save
+      Manager v1.3.0”) and the window/taskbar icon is the one declared by the
+      page (<code>favicon.ico</code> / <code>icon-192.png</code>); Edge also
+      fetches <code>manifest.webmanifest</code>, so the app can additionally be
+      installed as a standalone app from the browser menu.</li>
   <li><code>--serve</code> keeps the program running after the window is closed
       (useful when the page is reopened later). By default the program exits a
       few seconds after the page stops responding.</li>

@@ -5,7 +5,9 @@ third-party dependencies.
 
 Two frontends share one logic layer and the same `kgsm_data/` folder:
 - **Main version — HTML UI** (`KGSaveManager.py` + `webapp/`) — the interface is a
-  local web page opened as a browser app window.
+  local web page opened as a browser app window; the window title and icon come
+  from the page (`<title>`, `favicon.ico`, `manifest.webmanifest`), and the page
+  can be installed as a standalone app from the browser menu.
 - **Lite version — Tkinter UI** (`KGSaveManagerLite.py`) — the classic desktop
   window, for users who prefer it or have no Edge/Chrome available.
 

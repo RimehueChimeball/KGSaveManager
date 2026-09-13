@@ -19,7 +19,9 @@ CONTENT_TYPES = {
     ".css": "text/css; charset=utf-8",
     ".svg": "image/svg+xml",
     ".json": "application/json; charset=utf-8",
+    ".webmanifest": "application/manifest+json; charset=utf-8",
     ".ico": "image/x-icon",
+    ".png": "image/png",
 }
 
 
@@ -48,10 +50,10 @@ class EventBuffer:
 class _Handler(BaseHTTPRequestHandler):
     server_version = "KGSaveManager/1.0"
 
-    # 访问日志不写控制台
+    # 访问日志不写控制台（--verbose 时才打印，且立刻刷新，便于重定向到文件观察）
     def log_message(self, fmt, *args):
         if getattr(self.server, "kgsm_verbose", False):
-            print("%s - %s" % (self.address_string(), fmt % args))
+            print("%s - %s" % (self.address_string(), fmt % args), flush=True)
 
     # ---------------- 工具 ----------------
     def _json(self, payload, status=200):
@@ -170,13 +172,14 @@ class AppServer:
     """页面与 API 的宿主机（生命周期管理）。"""
 
     def __init__(self, api, ui_port, outbox, assets, port=0,
-                 on_shutdown=None):
+                 on_shutdown=None, verbose=False):
         self.api = api
         self.ui = ui_port
         self.outbox = outbox
         self.assets = assets
         self.port = port
         self.on_shutdown = on_shutdown
+        self.verbose = verbose
         self._server = None
         self._thread = None
         self.url = ""
@@ -193,6 +196,7 @@ class AppServer:
         self._server.outbox = self.outbox
         self._server.assets = self.assets
         self._server.on_shutdown = self.on_shutdown
+        self._server.kgsm_verbose = self.verbose
         self.port = self._server.server_address[1]
         self._thread = threading.Thread(target=self._server.serve_forever,
                                         name="webapp-http", daemon=True)

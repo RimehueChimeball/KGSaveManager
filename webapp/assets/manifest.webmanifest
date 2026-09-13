@@ -1,0 +1,23 @@
+{
+  "name": "KittensGame Save Manager",
+  "short_name": "KGSaveManager",
+  "description": "Save manager for Kittens Game: slots, auto/manual save, save editor, local game server and downloader.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f6f9",
+  "theme_color": "#2f6fdd",
+  "icons": [
+    {
+      "src": "/assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/favicon.ico",
+      "sizes": "16x16 32x32 48x48 64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

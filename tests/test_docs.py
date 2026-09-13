@@ -52,14 +52,38 @@ class TestReadme(unittest.TestCase):
 
 class TestFrontendAssets(unittest.TestCase):
     def test_assets_exist(self):
-        for name in ("index.html", "app.js", "style.css", "selftest.js"):
+        for name in ("index.html", "app.js", "style.css", "selftest.js",
+                     "favicon.ico", "icon-192.png", "manifest.webmanifest"):
             self.assertTrue((ASSETS / name).is_file(), f"缺少前端资源 {name}")
+
+    def test_favicon_is_valid_ico(self):
+        raw = (ASSETS / "favicon.ico").read_bytes()
+        self.assertTrue(raw.startswith(b"\x00\x00\x01\x00"), "不是合法 ICO")
+        count = int.from_bytes(raw[4:6], "little")
+        self.assertGreaterEqual(count, 2, "ICO 至少应含两个尺寸")
+
+    def test_icon_generator_exists(self):
+        """图标可复现：生成脚本留在仓库里，且只用标准库。"""
+        script = ROOT / "tools" / "make_favicon.py"
+        self.assertTrue(script.is_file())
+        text = script.read_text(encoding="utf-8")
+        self.assertIn("zlib", text)
+        self.assertNotIn("PIL", text)
+
+    def test_manifest_matches_app_name(self):
+        import json
+        manifest = json.loads((ASSETS / "manifest.webmanifest").read_text(
+            encoding="utf-8"))
+        self.assertEqual(manifest["short_name"], "KGSaveManager")
+        self.assertEqual(manifest["display"], "standalone")
+        self.assertTrue(manifest["icons"])
 
     def test_index_references_assets(self):
         html = (ASSETS / "index.html").read_text(encoding="utf-8")
-        self.assertIn("/assets/app.js", html)
-        self.assertIn("/assets/style.css", html)
-        self.assertIn("selftest.js", html)
+        for marker in ("/assets/app.js", "/assets/style.css",
+                       "/assets/favicon.ico", "/assets/manifest.webmanifest",
+                       "selftest.js"):
+            self.assertIn(marker, html)
 
     def test_no_absolute_local_paths_in_assets(self):
         """前端资源里不应写死盘符路径（换机器就失效）。"""

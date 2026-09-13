@@ -126,6 +126,37 @@ class TestWebApp(unittest.TestCase):
             status = e.code
         self.assertIn(status, (403, 404))
 
+    def test_icon_and_manifest_served(self):
+        """应用窗口的图标与清单：浏览器会来取这几个资源。"""
+        with urllib.request.urlopen(self.h.url.rstrip("/") +
+                                    "/assets/favicon.ico", timeout=10) as r:
+            self.assertEqual(r.headers.get("Content-Type"), "image/x-icon")
+            body = r.read()
+        self.assertTrue(body.startswith(b"\x00\x00\x01\x00"), "不是合法 ICO")
+        with urllib.request.urlopen(self.h.url.rstrip("/") +
+                                    "/assets/icon-192.png", timeout=10) as r:
+            self.assertEqual(r.headers.get("Content-Type"), "image/png")
+            png = r.read()
+        self.assertTrue(png.startswith(b"\x89PNG\r\n\x1a\n"), "不是合法 PNG")
+        with urllib.request.urlopen(
+                self.h.url.rstrip("/") + "/assets/manifest.webmanifest",
+                timeout=10) as r:
+            self.assertIn("application/manifest+json",
+                          r.headers.get("Content-Type"))
+            manifest = json.loads(r.read().decode("utf-8"))
+        self.assertEqual(manifest["short_name"], "KGSaveManager")
+        self.assertTrue(manifest["icons"])
+
+    def test_page_declares_title_and_icons(self):
+        """标题与图标都由页面决定：检查声明齐全（应用窗口据此显示）。"""
+        _status, html = self.h.get("/")
+        for marker in ('<link rel="icon" href="/assets/favicon.ico"',
+                       'type="image/png" href="/assets/icon-192.png"',
+                       '<link rel="manifest" href="/assets/manifest.webmanifest"',
+                       '<meta name="application-name"',
+                       "<title>"):
+            self.assertIn(marker, html, f"页面缺少 {marker}")
+
     def test_state_contains_strings_and_slots(self):
         status, body = self.h.get_json("/api/state")
         self.assertEqual(status, 200)
