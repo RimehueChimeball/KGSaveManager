@@ -64,6 +64,8 @@ _ZH = {
     # ---- 存档管理页 ----
     "sv.title_slots": "存档位",
     "sv.title_log": "输出日志",
+    "sv.col_time": "时间",
+    "sv.col_note": "备注",
     "sv.slot_prefix": "存档",
     "sv.btn_load": "复制存档",
     "sv.btn_rename": "改名",
@@ -281,6 +283,8 @@ _EN = {
     # ---- Save Management page ----
     "sv.title_slots": "Save Slots",
     "sv.title_log": "Output Log",
+    "sv.col_time": "Time",
+    "sv.col_note": "Note",
     "sv.slot_prefix": "Save",
     "sv.btn_load": "Copy Save",
     "sv.btn_rename": "Rename",
@@ -508,6 +512,10 @@ class Translator:
             except (KeyError, IndexError):
                 return text
         return text
+
+    def table(self):
+        """当前语言的整张表（含外部翻译覆盖）。HTML 前端一次取走自行查表。"""
+        return dict(STRINGS.get(self.lang, _ZH))
 
 
 # ---------------- 外部翻译加载（程序目录 i18n/ 下的 json / po） ----------------

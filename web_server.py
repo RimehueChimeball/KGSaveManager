@@ -169,6 +169,28 @@ def _launch(exe, url, new_window):
     subprocess.Popen(args)
 
 
+def open_app_window(url, browser_path="", width=1180, height=760):
+    """以「应用窗口」方式打开地址（Edge/Chrome 的 --app=，无地址栏与标签页）。
+
+    :return: 'app'（应用窗口）/ 其他打开方式字符串 / None（失败）
+    """
+    exe = (browser_path or "").strip()
+    if not exe or not os.path.isfile(exe):
+        try:
+            from config_store import detect_browser_path
+            exe = detect_browser_path() or ""
+        except Exception:
+            exe = ""
+    if exe and os.path.isfile(exe) and _is_known_engine(exe):
+        try:
+            subprocess.Popen([exe, f"--app={url}",
+                              f"--window-size={int(width)},{int(height)}"])
+            return "app"
+        except OSError:
+            pass
+    return open_in_browser(url, browser_path=browser_path, new_window=True)
+
+
 def open_in_browser(url, browser_path="", new_window=True):
     """打开地址（逐级兜底，任何异常都不外抛）。
 

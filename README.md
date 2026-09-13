@@ -2,6 +2,13 @@
 
 A save manager for Kittens Game on Windows (Python + Tkinter, no third-party dependencies).
 
+Two frontends share one logic layer:
+- **Tkinter UI** (`KGSaveManager.py`) — the classic window, standard library only.
+- **HTML UI** (`KGSaveManagerWeb.py` + `webapp/`) — the same features rendered as a
+  local web page, opened as a browser app window (no third-party dependency either).
+
+Both use the same `kgsm_data/` folder and the same configuration file.
+
 ## Features
 
 - Bilingual interface (Chinese / English); language is detected from the system on first run
@@ -18,8 +25,13 @@ A save manager for Kittens Game on Windows (Python + Tkinter, no third-party dep
 ## Run
 
 ```powershell
-python KGSaveManager.py
+python KGSaveManager.py        # Tkinter UI
+python KGSaveManagerWeb.py     # HTML UI (opens a browser app window)
 ```
+
+The HTML UI accepts `--port N`, `--no-browser`, `--serve` (keep running after the
+window closes) and `--verbose`. The page address is printed on startup; append
+`?selftest=1` to run its built-in self-test.
 
 ## Quick Start
 
@@ -42,12 +54,16 @@ python KGSaveManager.py
 
 ```
 program/
-├─ KGSaveManager.py
+├─ KGSaveManager.py              Tkinter entry
+├─ KGSaveManagerWeb.py           HTML entry
 ├─ i18n.py / config_store.py / web_server.py / web_bridge.py
 ├─ savecodec.py / downloader.py
-├─ pages_download.py / pages_editor.py / pages_manual.py  (views)
-├─ ui_tk.py                     (Tkinter UI port)
-├─ core/                        (UI-agnostic logic: ui_port / slots / flows)
+├─ pages_download.py / pages_editor.py / pages_manual.py  (Tkinter views)
+├─ ui_tk.py                      Tkinter UI port
+├─ core/                         UI-agnostic logic (paths / slots / flows /
+│                                server / download / editor / ui_port / app)
+├─ webapp/                       HTML backend (api.py, server.py)
+│   └─ assets/                   index.html / app.js / style.css / selftest.js
 ├─ kgsm_logging.py / utils.py
 ├─ docs/guide_en.html
 ├─ tests/                unit tests (standard library only)
@@ -66,18 +82,23 @@ python -m unittest discover -s tests -t .
 
 The suite covers the save codec (with an optional parity check against the
 game's own `lib/lz-string.js` via Node.js), downloader extraction, the
-WebSocket bridge protocol, the injected page script, slot writing and the
-translation tables. It also fails when an unused import, an unreferenced
-function or an unused translation key is left in the code.
+WebSocket bridge protocol and keepalive, the injected page script, the core
+logic layer (slots, flows, editor, download, server), the HTML backend over
+real HTTP, the translation tables — and, when Edge or Chrome is installed, it
+runs the HTML UI's self-test in a headless browser. It also fails when an
+unused import, an unreferenced function or an unused translation key is left
+in the code.
 
 ## Build
 
 ```powershell
 pip install pyinstaller
-pyinstaller KGSaveManager.spec
+pyinstaller KGSaveManager.spec        # dist/KGSaveManager/KGSaveManager.exe
+pyinstaller KGSaveManagerWeb.spec     # dist/KGSaveManagerWeb/KGSaveManagerWeb.exe
 ```
 
-Output: `dist/KGSaveManager/KGSaveManager.exe`.
+Output: `dist/KGSaveManager/KGSaveManager.exe` (Tkinter) and
+`dist/KGSaveManagerWeb/KGSaveManagerWeb.exe` (HTML; bundles `webapp/assets`).
 
 ## License
 

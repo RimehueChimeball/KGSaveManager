@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KGSaveManager</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div id="brand">
+      <div class="brand-name">KGSaveManager</div>
+      <div class="brand-version" id="version"></div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="sidebar-foot">
+      <button class="link" id="btn-doc" data-i18n="kgsm.step_doc"></button>
+      <button class="link" id="btn-exit" data-i18n="msg.btn_close"></button>
+    </div>
+  </aside>
+
+  <main id="main">
+    <section class="page" id="page-kgsm">
+      <h1 data-i18n="kgsm.heading"></h1>
+      <div class="card">
+        <h2 data-i18n="kgsm.guide_title"></h2>
+        <ol class="guide">
+          <li><button class="link" data-action="goto" data-page="download"
+                      data-i18n="kgsm.step_dl"></button></li>
+          <li><button class="link" data-action="goto" data-page="settings"
+                      data-i18n="kgsm.step_cfg"></button></li>
+          <li><button class="link" data-action="goto" data-page="game"
+                      data-i18n="kgsm.step_run"></button></li>
+          <li><button class="link" data-action="doc"
+                      data-i18n="kgsm.step_doc"></button></li>
+        </ol>
+        <p class="hint" data-i18n="kgsm.guide_hint"></p>
+      </div>
+      <div class="card">
+        <h2 data-i18n="st.about"></h2>
+        <p>
+          <button class="link" data-action="extlink"
+                  data-url="https://github.com/RimehueChimeball/KGSaveManager">KGSaveManager - Github</button>
+          ·
+          <button class="link" data-action="extlink"
+                  data-url="https://github.com/RimehueChimeball">RimehueChimeball - Github</button>
+        </p>
+      </div>
+    </section>
+
+    <section class="page" id="page-game">
+      <h1 data-i18n="tab.game"></h1>
+      <div class="card form">
+        <label data-i18n="la.dir"></label>
+        <div class="row">
+          <input type="text" id="game-dir">
+          <button data-action="pick-dir" data-target="game-dir"
+                  data-i18n="ui.browse"></button>
+        </div>
+        <label data-i18n="la.port"></label>
+        <div class="row">
+          <input type="text" id="game-port" class="narrow">
+          <span class="hint" data-i18n="ui.auto_port"></span>
+        </div>
+        <div class="row buttons">
+          <button class="primary" data-action="start-server"
+                  data-i18n="la.btn_start"></button>
+          <button data-action="stop-server" data-i18n="la.btn_stop"></button>
+        </div>
+        <p class="hint" id="server-status"></p>
+        <p class="hint" data-i18n="la.hint"></p>
+      </div>
+      <div class="card">
+        <h2 data-i18n="la.log_title"></h2>
+        <pre class="log" id="log-game"></pre>
+      </div>
+    </section>
+
+    <section class="page" id="page-saves">
+      <h1 data-i18n="tab.saves"></h1>
+      <div class="split">
+        <div class="side">
+          <button class="primary wide" data-action="auto-save"
+                  data-i18n="sv.btn_auto_save"></button>
+          <button class="wide" data-action="manual-save"
+                  data-i18n="sv.btn_manual_save"></button>
+          <button class="wide" data-action="auto-load"
+                  data-i18n="sv.btn_auto_load"></button>
+          <button class="wide" data-action="copy-save"
+                  data-i18n="sv.btn_load"></button>
+          <button class="wide" data-action="rename-slot"
+                  data-i18n="sv.btn_rename"></button>
+          <button class="wide" data-action="refresh"
+                  data-i18n="sv.btn_refresh"></button>
+          <hr>
+          <button class="wide" data-action="check-library"
+                  data-i18n="sv.btn_check"></button>
+          <p class="hint" data-i18n="sv.help"></p>
+        </div>
+        <div class="content">
+          <div class="card">
+            <h2 data-i18n="sv.title_slots"></h2>
+            <table class="slots">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th data-i18n="ed.slot"></th>
+                  <th data-i18n="sv.col_time"></th>
+                  <th data-i18n="sv.col_note"></th>
+                </tr>
+              </thead>
+              <tbody id="slot-rows"></tbody>
+            </table>
+          </div>
+          <div class="card">
+            <h2 data-i18n="sv.title_log"></h2>
+            <pre class="log" id="log-saves"></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-editor">
+      <h1 data-i18n="tab.editor"></h1>
+      <div class="card form">
+        <label data-i18n="ed.source"></label>
+        <div class="row">
+          <select id="ed-mode">
+            <option value="file" data-i18n="ed.mode_file"></option>
+            <option value="live" data-i18n="ed.mode_live"></option>
+          </select>
+          <select id="ed-slot"></select>
+          <button class="primary" data-action="editor-open"
+                  data-i18n="ed.btn_open"></button>
+          <button class="primary" data-action="editor-write"
+                  data-i18n="ed.btn_write"></button>
+          <button data-action="editor-view-tree" data-i18n="ed.view_tree"></button>
+          <button data-action="editor-view-source" data-i18n="ed.view_source"></button>
+        </div>
+      </div>
+      <div class="card">
+        <div id="ed-tree-wrap" class="tree-wrap"></div>
+        <textarea id="ed-source" spellcheck="false" hidden></textarea>
+      </div>
+    </section>
+
+    <section class="page" id="page-download">
+      <h1 data-i18n="tab.download"></h1>
+      <div class="card form">
+        <label data-i18n="dl.repo"></label>
+        <div class="row">
+          <select id="dl-repo"></select>
+          <select id="dl-version"></select>
+          <button data-action="dl-versions" data-i18n="dl.refresh_versions"></button>
+        </div>
+        <label data-i18n="dl.mirror"></label>
+        <div class="row"><select id="dl-mirror"></select></div>
+        <label data-i18n="dl.dir"></label>
+        <div class="row">
+          <input type="text" id="dl-dir">
+          <button data-action="pick-dir" data-target="dl-dir"
+                  data-i18n="ui.browse"></button>
+        </div>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="dl-set-dir" checked>
+            <span data-i18n="dl.set_service_dir"></span></label>
+          <label class="check"><input type="checkbox" id="dl-keep-temp" checked>
+            <span data-i18n="dl.keep_temp"></span></label>
+        </div>
+        <div class="row buttons">
+          <button class="primary" data-action="dl-start"
+                  data-i18n="dl.btn_download"></button>
+          <button data-action="dl-test" data-i18n="dl.btn_test"></button>
+          <button data-action="dl-cancel" data-i18n="msg.btn_close"></button>
+        </div>
+        <progress id="dl-progress" max="100" value="0"></progress>
+        <pre class="hint" id="dl-test-result"></pre>
+      </div>
+      <div class="card">
+        <h2 data-i18n="dl.log"></h2>
+        <pre class="log" id="log-download"></pre>
+      </div>
+    </section>
+
+    <section class="page" id="page-settings">
+      <h1 data-i18n="tab.settings"></h1>
+      <div class="card form">
+        <label>Language</label>
+        <div class="row">
+          <select id="set-language"></select>
+        </div>
+        <label data-i18n="st.game_dir"></label>
+        <div class="row">
+          <input type="text" id="set-game-dir">
+          <button data-action="pick-dir" data-target="set-game-dir"
+                  data-i18n="ui.browse"></button>
+        </div>
+        <label data-i18n="st.port"></label>
+        <div class="row"><input type="text" id="set-port" class="narrow"></div>
+        <label data-i18n="st.home_slot"></label>
+        <div class="row"><select id="set-home-slot"></select></div>
+        <label data-i18n="st.browser"></label>
+        <div class="row">
+          <input type="text" id="set-browser">
+          <button data-action="pick-file" data-target="set-browser"
+                  data-i18n="ui.browse"></button>
+          <button data-action="browser-default"
+                  data-i18n="st.browser_default"></button>
+        </div>
+        <p class="hint" id="set-hint"></p>
+        <div class="row buttons">
+          <button class="primary" data-action="save-settings"
+                  data-i18n="ed.btn_write"></button>
+        </div>
+      </div>
+      <div class="card">
+        <h2 data-i18n="st.about"></h2>
+        <p id="about-paths" class="hint"></p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toasts"></div>
+
+<div id="modal" hidden>
+  <div class="modal-box">
+    <h3 id="modal-title"></h3>
+    <p id="modal-message"></p>
+    <input type="text" id="modal-input" hidden>
+    <textarea id="modal-text" rows="8" spellcheck="false" hidden></textarea>
+    <div class="row buttons">
+      <button class="primary" id="modal-ok" data-i18n="msg.btn_ok"></button>
+      <button id="modal-cancel" data-i18n="msg.btn_close"></button>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/app.js"></script>
+<script>
+  // 自检脚本只在地址带 ?selftest=1 时加载（用于自动化验证与排错）
+  if (location.search.indexOf("selftest=1") >= 0) {
+    var s = document.createElement("script");
+    s.src = "/assets/selftest.js";
+    document.body.appendChild(s);
+  }
+</script>
+</body>
+</html>

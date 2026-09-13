@@ -32,7 +32,7 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import scrolledtext, ttk
 
-from core.app import AppCore
+from core.app import APP_NAME, APP_VERSION, AppCore
 from i18n import LANG_EN, LANG_ZH
 from pages_download import DownloadPageMixin
 from pages_editor import EditorPageMixin
@@ -42,8 +42,6 @@ from utils import setup_dpi_and_scaling
 from web_server import open_in_browser
 
 # ==================== 配置 ====================
-APP_NAME = "KittensGame Save Manager"
-APP_VERSION = "v1.2.2"
 SLOT_COUNT = 10                                  # 存档位数量
 MAX_NOTE_LEN = 200                               # 单条备注最大长度
 MAX_SAVE_SIZE = 64 * 1024 * 1024                 # 单个存档最大体积（字节）

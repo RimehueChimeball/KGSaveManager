@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -31,6 +31,7 @@
 </head>
 <body>
 <nav>
+  <a class="l1" href="#html-ui">HTML Interface</a>
   <a class="l1" href="#quick-start">Quick Start</a>
   <a class="l1" href="#interface">Interface</a>
   <a class="l2" href="#home">Home (KGSM)</a>
@@ -72,7 +73,34 @@
 <main>
 <h1>KGSaveManager — Offline Guide</h1>
 <p>KGSaveManager is a save manager for Kittens Game on Windows (Python +
-Tkinter, bilingual UI, zero third-party dependencies). Version: v1.2.2.</p>
+Tkinter, bilingual UI, zero third-party dependencies). Version: v1.3.0.</p>
+<p>Two frontends are available and share the same data folder and configuration
+file: the Tkinter window (<code>KGSaveManager.py</code>) and an HTML interface
+(<code>KGSaveManagerWeb.py</code>) rendered in the system browser. Everything
+described below behaves identically in both.</p>
+
+<h2 id="html-ui">HTML Interface</h2>
+<p>Start the HTML frontend with:</p>
+<pre>python KGSaveManagerWeb.py [--port N] [--no-browser] [--serve] [--verbose]</pre>
+<ul>
+  <li>It serves the interface from <code>127.0.0.1</code> and opens it as a
+      browser app window (Edge/Chrome <code>--app=</code>, no address bar or
+      tabs). The address is printed at startup and can be opened manually on
+      the same machine.</li>
+  <li>All data comes from a local JSON API (<code>/api/state</code>,
+      <code>/api/call</code>, <code>/api/events</code>). The whole frontend uses
+      the standard library only; no third-party package is required.</li>
+  <li>Because the interface is a page, “select a folder” is a text prompt: paste
+      the path and confirm.</li>
+  <li><code>--serve</code> keeps the program running after the window is closed
+      (useful when the page is reopened later). By default the program exits a
+      few seconds after the page stops responding.</li>
+  <li>Append <code>?selftest=1</code> to the address to run the built-in
+      self-test: navigation, slot table, notes, download options, editor tree
+      and the event channel.</li>
+</ul>
+<p>Both frontends use the same <code>kgsm_data/</code>, so avoid running them at
+the same time: the local ports and the configuration file are shared.</p>
 
 <h2 id="quick-start">Quick Start</h2>
 <ol>

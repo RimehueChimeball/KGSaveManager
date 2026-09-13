@@ -2,6 +2,13 @@
 
 Kittens Game 存档管理器（Windows，Python + Tkinter，零第三方依赖）。
 
+两套前端共用同一套逻辑层：
+- **Tkinter 界面**（`KGSaveManager.py`）——经典窗口，只用标准库。
+- **HTML 界面**（`KGSaveManagerWeb.py` + `webapp/`）——同样功能，渲染成本地网页，
+  以浏览器应用窗口打开，同样零第三方依赖。
+
+两者共用同一份 `kgsm_data/` 与配置文件。
+
 ## 功能
 
 - 中英双语界面；首次运行时按系统语言自动选择
@@ -18,8 +25,12 @@ Kittens Game 存档管理器（Windows，Python + Tkinter，零第三方依赖�
 ## 运行
 
 ```powershell
-python KGSaveManager.py
+python KGSaveManager.py        # Tkinter 界面
+python KGSaveManagerWeb.py     # HTML 界面（自动打开浏览器应用窗口）
 ```
+
+HTML 版支持 `--port N`、`--no-browser`、`--serve`（窗口关闭后继续常驻）、
+`--verbose`；启动时会打印页面地址，地址后加 `?selftest=1` 可跑它的自检。
 
 ## 快速开始
 
@@ -42,12 +53,16 @@ python KGSaveManager.py
 
 ```
 程序目录/
-├─ KGSaveManager.py
+├─ KGSaveManager.py              Tkinter 入口
+├─ KGSaveManagerWeb.py           HTML 入口
 ├─ i18n.py / config_store.py / web_server.py / web_bridge.py
 ├─ savecodec.py / downloader.py
-├─ pages_download.py / pages_editor.py / pages_manual.py  (views)
-├─ ui_tk.py                     (Tkinter UI port)
-├─ core/                        (UI-agnostic logic: ui_port / slots / flows)
+├─ pages_download.py / pages_editor.py / pages_manual.py  (Tkinter 视图)
+├─ ui_tk.py                      Tkinter 界面端口实现
+├─ core/                         与界面无关的逻辑（paths / slots / flows /
+│                                server / download / editor / ui_port / app）
+├─ webapp/                       HTML 版后端（api.py、server.py）
+│   └─ assets/                   index.html / app.js / style.css / selftest.js
 ├─ kgsm_logging.py / utils.py
 ├─ docs/guide_en.html
 ├─ tests/                单元测试（仅标准库）
@@ -64,16 +79,18 @@ python KGSaveManager.py
 python -m unittest discover -s tests -t .
 ```
 
-覆盖存档编解码（有 Node.js 与游戏源码时还会与游戏自带 `lib/lz-string.js` 做一致性对照）、下载解压与镜像配置、WebSocket 桥协议与保活、注入脚本（DOM 元素误判、引擎晚到、存档来源标注）、槽位写入与翻译表；同时会在出现未使用的导入、没有被调用的函数或没有引用的翻译键时让测试失败。
+覆盖存档编解码（有 Node.js 与游戏源码时还会与游戏自带 `lib/lz-string.js` 做一致性对照）、下载解压与镜像配置、WebSocket 桥协议与保活、注入脚本（DOM 元素误判、引擎晚到、存档来源标注）、core 逻辑层（槽位、存档流程、编辑器、下载、服务/桥）、HTML 后端（真起 HTTP 服务跑一遍 API 与对话框往返）、翻译表（同时扫描 Python 与前端资源）；装了 Edge/Chrome 时还会用无头浏览器跑一遍 HTML 界面的自检。出现未使用的导入、没有被调用的函数或没有引用的翻译键时测试同样失败。
 
 ## 打包
 
 ```powershell
 pip install pyinstaller
-pyinstaller KGSaveManager.spec
+pyinstaller KGSaveManager.spec        # dist/KGSaveManager/KGSaveManager.exe
+pyinstaller KGSaveManagerWeb.spec     # dist/KGSaveManagerWeb/KGSaveManagerWeb.exe
 ```
 
-产物：`dist/KGSaveManager/KGSaveManager.exe`。
+产物：Tkinter 版 `dist/KGSaveManager/KGSaveManager.exe`；HTML 版
+`dist/KGSaveManagerWeb/KGSaveManagerWeb.exe`（已把 `webapp/assets` 打进包）。
 
 ## 许可
 

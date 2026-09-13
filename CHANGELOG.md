@@ -1,6 +1,35 @@
-﻿# Changelog
+# Changelog
 
 All notable changes are listed by version.
+
+## v1.3.0
+
+- Second frontend: an HTML interface (`KGSaveManagerWeb.py` + `webapp/`) that
+  renders the whole UI in the system browser (Edge/Chrome app window) and talks
+  to the same logic layer over a local HTTP/JSON API. Both frontends share
+  `kgsm_data/` and behave identically.
+- Layered architecture: `core/` now holds all UI-agnostic logic (paths, config,
+  logging, slots, save flows, web server and bridge lifecycle, downloader
+  controller, save editor controller) and reaches the screen only through the
+  `core.ui_port.UiPort` port. `ui_tk.py` implements that port for Tkinter;
+  `webapp/` implements it for the browser.
+- The Tkinter pages (`pages_manual.py`, `pages_editor.py`,
+  `pages_download.py`) are views only: they build widgets, call `core`, and
+  render events. `save_flows.py` was replaced by `core/flows.py` plus
+  `pages_manual.py`.
+- Web UI: page navigation, launch page with live log, save management with
+  per-slot notes, manual save (drop a file into the temp folder or paste text),
+  save editor (tree and JSON source), game downloader with progress and
+  connectivity test, settings, bilingual strings pushed from the backend.
+- The HTML frontend has its own self-test (`?selftest=1`) and the test suite
+  drives it with headless Edge, so the browser UI is verified end to end.
+- Tests: 152 cases covering core (slots, flows, editor, download, server),
+  bridge protocol and keepalive, injected script, downloader, i18n across
+  Python and web assets, dead-code checks, and the browser self-test run.
+- Note: pywebview was evaluated for an embedded-window variant and rejected —
+  pywebview 6.2.1 with pythonnet 3.1.0 on Python 3.14 fails with an
+  `AccessibilityObject.Bounds` recursion error and hangs. The browser-based
+  frontend needs no third-party dependency at all.
 
 ## v1.2.2
 

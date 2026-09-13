@@ -1,0 +1,625 @@
+/* KGSaveManager HTML 前端：单页应用，全部数据来自本地 /api/* 接口。 */
+(function () {
+  "use strict";
+
+  const state = {
+    strings: {},
+    lang: "zh",
+    tabOrder: ["kgsm", "game", "saves", "editor", "download", "settings"],
+    slots: [],
+    server: {},
+    repos: [],
+    mirrors: [],
+    versionItems: {},
+    editorRows: [],
+    editorView: "tree",
+    paths: {},
+    config: {},
+    selectedSlot: 0,
+    eventSeq: 0,
+    manualSession: null,
+  };
+
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
+
+  function t(key, params) {
+    let text = state.strings[key] !== undefined ? state.strings[key] : key;
+    if (params) {
+      Object.keys(params).forEach((k) => {
+        text = text.split("{" + k + "}").join(params[k]);
+      });
+    }
+    return text;
+  }
+
+  async function call(method, params) {
+    let data;
+    try {
+      const resp = await fetch("/api/call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method: method, params: params || {} }),
+      });
+      data = await resp.json();
+    } catch (e) {
+      data = { ok: false, error: String(e) };
+    }
+    if (!data.ok) {
+      pushLog("saves", "ERROR " + (data.error || "call failed"));
+      return null;
+    }
+    return data.result;
+  }
+
+  // ---------------- 日志与提示 ----------------
+  function pushLog(channel, line) {
+    const el = document.getElementById("log-" + channel);
+    if (!el) { return; }
+    const now = new Date().toLocaleTimeString();
+    el.textContent += "[" + now + "] " + line + "\n";
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function toast(level, message, title) {
+    const box = document.createElement("div");
+    box.className = "toast " + (level || "info");
+    if (title) {
+      const head = document.createElement("div");
+      head.className = "toast-title";
+      head.textContent = title;
+      box.appendChild(head);
+    }
+    const body = document.createElement("div");
+    body.textContent = message;
+    box.appendChild(body);
+    $("#toasts").appendChild(box);
+    setTimeout(() => box.remove(), level === "error" ? 9000 : 5000);
+  }
+
+  // ---------------- 模态对话框 ----------------
+  let modalResolve = null;
+
+  function closeModal(result) {
+    $("#modal").hidden = true;
+    $("#modal-ok").onclick = null;
+    $("#modal-cancel").onclick = null;
+    if (modalResolve) {
+      const fn = modalResolve;
+      modalResolve = null;
+      fn(result || { ok: false, text: "" });
+    }
+  }
+
+  function askDialog(kind, message, title, initial) {
+    return new Promise((resolve) => {
+      modalResolve = resolve;
+      $("#modal-title").textContent = title || "";
+      $("#modal-message").textContent = message || "";
+      const input = $("#modal-input");
+      const area = $("#modal-text");
+      input.hidden = kind !== "text";
+      area.hidden = kind !== "manual";
+      if (kind === "text") { input.value = initial || ""; input.focus(); }
+      if (kind === "manual") { area.value = ""; area.focus(); }
+      $("#modal").hidden = false;
+      $("#modal-ok").onclick = () => closeModal({
+        ok: true,
+        text: kind === "manual" ? area.value : input.value,
+      });
+      $("#modal-cancel").onclick = () => closeModal({ ok: false, text: "" });
+    });
+  }
+
+  async function answerDialog(id, ok, text) {
+    try {
+      await fetch("/api/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id, ok: ok, text: text }),
+      });
+    } catch (e) { /* 服务可能已退出 */ }
+  }
+
+  // ---------------- 渲染 ----------------
+  function renderStaticStrings() {
+    $$("[data-i18n]").forEach((el) => {
+      el.textContent = t(el.getAttribute("data-i18n"));
+    });
+    document.title = (state.appName || "KGSaveManager") +
+      (state.version ? " " + state.version : "");
+    const badge = $("#version");
+    if (badge) { badge.textContent = state.version || ""; }
+  }
+
+  function renderNav() {
+    const nav = $("#nav");
+    nav.innerHTML = "";
+    state.tabOrder.forEach((key) => {
+      const btn = document.createElement("button");
+      btn.textContent = t("tab." + key);
+      btn.dataset.page = key;
+      btn.onclick = () => showPage(key);
+      nav.appendChild(btn);
+    });
+  }
+
+  function showPage(key) {
+    $$(".page").forEach((p) => p.classList.toggle("active", p.id === "page-" + key));
+    $$("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.page === key));
+    if (key === "editor") { loadEditorTree(); }
+  }
+
+  function renderSlots() {
+    const body = $("#slot-rows");
+    body.innerHTML = "";
+    state.slots.forEach((slot) => {
+      const tr = document.createElement("tr");
+      if (!slot.exists) { tr.className = "empty"; }
+
+      const radioTd = document.createElement("td");
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "slot";
+      radio.checked = slot.index === state.selectedSlot;
+      radio.onchange = () => { state.selectedSlot = slot.index; };
+      radioTd.appendChild(radio);
+      tr.appendChild(radioTd);
+
+      const nameTd = document.createElement("td");
+      nameTd.textContent = slot.label + (slot.exists ? " · " + slot.filename : "");
+      tr.appendChild(nameTd);
+
+      const timeTd = document.createElement("td");
+      timeTd.textContent = slot.time || "";
+      tr.appendChild(timeTd);
+
+      const noteTd = document.createElement("td");
+      const note = document.createElement("input");
+      note.type = "text";
+      note.value = slot.note || "";
+      note.onchange = async () => {
+        await call("save_note", { index: slot.index, text: note.value });
+      };
+      noteTd.appendChild(note);
+      tr.appendChild(noteTd);
+
+      body.appendChild(tr);
+    });
+  }
+
+  function renderEditorChoices() {
+    const sel = $("#ed-slot");
+    sel.innerHTML = "";
+    (state.editorChoices || []).forEach((item) => {
+      const opt = document.createElement("option");
+      opt.value = item.index;
+      opt.textContent = item.label;
+      sel.appendChild(opt);
+    });
+  }
+
+  function leafNode(row) {
+    const li = document.createElement("li");
+    const key = document.createElement("span");
+    key.className = "key";
+    key.textContent = row.label === "" ? "/" : row.label;
+    li.appendChild(key);
+    const val = document.createElement("span");
+    val.className = "val";
+    val.textContent = ": " + (row.value === null ? "null" : row.value);
+    val.onclick = async () => {
+      const raw = await askDialog("text", t("ed.value_prompt"),
+                                  t("ed.value_title"), row.value);
+      if (!raw.ok) { return; }
+      const res = await call("editor_set_value", { path: row.path, raw: raw.text });
+      if (res && res.ok) {
+        state.editorRows = res.rows;
+        loadEditorTree();
+      }
+    };
+    li.appendChild(val);
+    return li;
+  }
+
+  function renderEditorTree() {
+    const wrap = $("#ed-tree-wrap");
+    wrap.innerHTML = "";
+    const rows = state.editorRows || [];
+    if (!rows.length) {
+      const p = document.createElement("p");
+      p.className = "hint";
+      p.textContent = t("ed.no_slot");
+      wrap.appendChild(p);
+      return;
+    }
+    const built = {};
+    rows.forEach((row) => {
+      const li = row.kind === "leaf" ? leafNode(row) : document.createElement("li");
+      if (row.kind !== "leaf") {
+        const key = document.createElement("span");
+        key.className = "key";
+        key.textContent = row.label === "" ? "/" : row.label;
+        li.appendChild(key);
+        const list = document.createElement("ul");
+        li.appendChild(list);
+        li._list = list;
+      }
+      built[row.id] = li;
+    });
+    const root = document.createElement("ul");
+    root.className = "tree";
+    rows.forEach((row) => {
+      const li = built[row.id];
+      if (row.parent === null) { root.appendChild(li); return; }
+      const parent = built[row.parent];
+      if (parent && parent._list) { parent._list.appendChild(li); }
+    });
+    wrap.appendChild(root);
+  }
+
+  async function loadEditorTree() {
+    const res = await call("editor_tree");
+    if (res) { state.editorRows = res.rows; }
+    renderEditorTree();
+  }
+
+  function renderDownloadOptions() {
+    const repo = $("#dl-repo");
+    const keep = repo.value;
+    repo.innerHTML = "";
+    state.repos.forEach((r) => {
+      const opt = document.createElement("option");
+      opt.value = r.key;
+      opt.textContent = r.label;
+      repo.appendChild(opt);
+    });
+    if (keep) { repo.value = keep; }
+    const mirror = $("#dl-mirror");
+    mirror.innerHTML = "";
+    state.mirrors.forEach((m) => {
+      const opt = document.createElement("option");
+      opt.value = m;
+      opt.textContent = m || "github.com";
+      mirror.appendChild(opt);
+    });
+    if (!$("#dl-dir").value && state.defaultTarget) {
+      $("#dl-dir").value = state.defaultTarget;
+    }
+  }
+
+  function renderDownloadVersions() {
+    const sel = $("#dl-version");
+    const repo = $("#dl-repo").value || "author";
+    const items = state.versionItems[repo] || [];
+    sel.innerHTML = "";
+    items.forEach((item) => {
+      const opt = document.createElement("option");
+      opt.value = item[2];
+      opt.textContent = item[0] === "branch" ? item[1] : item[1] + " (tag)";
+      sel.appendChild(opt);
+    });
+  }
+
+  function renderServerStatus() {
+    const s = state.server || {};
+    $("#server-status").textContent = s.running
+      ? t("msg.server_started", { url: s.url }) + "\n" + t("msg.server_local")
+      : t("la.ready");
+  }
+
+  function renderSettings() {
+    const cfg = state.config || {};
+    $("#set-game-dir").value = cfg.game_dir || "";
+    $("#set-port").value = cfg.port || "";
+    $("#set-browser").value = cfg.browser || "";
+    $("#game-dir").value = cfg.game_dir || "";
+    $("#game-port").value = cfg.port || "";
+
+    const lang = $("#set-language");
+    lang.innerHTML = "";
+    [["zh", t("st.lang_zh")], ["en", t("st.lang_en")]].forEach((pair) => {
+      const opt = document.createElement("option");
+      opt.value = pair[0];
+      opt.textContent = pair[1];
+      if (pair[0] === state.lang) { opt.selected = true; }
+      lang.appendChild(opt);
+    });
+
+    const home = $("#set-home-slot");
+    home.innerHTML = "";
+    state.slots.forEach((slot) => {
+      const opt = document.createElement("option");
+      opt.value = slot.index;
+      opt.textContent = slot.label;
+      if (slot.index === (cfg.home_slot || 0)) { opt.selected = true; }
+      home.appendChild(opt);
+    });
+
+    $("#set-hint").textContent = t("st.hint", { path: (state.paths || {}).config || "" });
+    const p = state.paths || {};
+    $("#about-paths").textContent = "data: " + (p.data || "") + "\nlogs: " +
+      (p.logs || "") + "\nsaves: " + (p.saves || "");
+  }
+
+  function renderAll() {
+    renderStaticStrings();
+    renderNav();
+    renderSlots();
+    renderEditorChoices();
+    renderDownloadOptions();
+    renderDownloadVersions();
+    renderServerStatus();
+    renderSettings();
+    $("#ed-source").hidden = state.editorView !== "source";
+    $("#ed-tree-wrap").hidden = state.editorView === "source";
+  }
+
+  function applyState(data) {
+    state.strings = data.strings || {};
+    state.lang = data.language || "zh";
+    state.appName = data.name || "KGSaveManager";
+    state.version = data.version || "";
+    state.slots = data.slots || [];
+    state.server = data.server || {};
+    state.repos = data.repos || [];
+    state.mirrors = data.mirrors || [];
+    state.defaultTarget = data.default_target || "";
+    state.paths = data.paths || {};
+    state.config = data.config || {};
+    state.editorChoices = (data.editor && data.editor.choices) || [];
+    renderAll();
+  }
+
+  async function refresh() {
+    const data = await call("refresh");
+    if (data) { applyState(data); }
+  }
+
+  // ---------------- 事件轮询 ----------------
+  async function pollEvents() {
+    try {
+      const resp = await fetch("/api/events?since=" + state.eventSeq);
+      const data = await resp.json();
+      if (data.ok) {
+        state.eventSeq = data.next;
+        for (const ev of data.events) { await handleEvent(ev); }
+      }
+    } catch (e) { /* 服务可能正在关闭 */ }
+    setTimeout(pollEvents, 700);
+  }
+
+  async function handleEvent(ev) {
+    switch (ev.type) {
+      case "log":
+        pushLog(ev.channel, (ev.tag ? ev.tag + " " : "") + ev.message);
+        break;
+      case "toast":
+        toast(ev.level, ev.message, ev.title);
+        break;
+      case "slots_changed":
+        await refresh();
+        break;
+      case "clipboard":
+        try {
+          await navigator.clipboard.writeText(ev.text);
+          toast("info", t("msg.path_copied", { path: ev.text }));
+        } catch (e) {
+          toast("warn", t("msg.clipboard_fail", { e: String(e) }));
+        }
+        break;
+      case "dialog":
+        askDialog(ev.dialog, ev.message, ev.title, ev.initial).then((r) => {
+          answerDialog(ev.id, r.ok, r.text);
+        });
+        break;
+      case "download":
+        if (ev.progress !== undefined) { $("#dl-progress").value = ev.progress; }
+        break;
+      case "download_versions":
+        state.versionItems[ev.repo] = ev.items;
+        renderDownloadVersions();
+        break;
+      case "download_done":
+        $("#dl-progress").value = 100;
+        pushLog("download", t("dl.done", { dir: ev.target }));
+        if (ev.set_service) { pushLog("download", t("dl.service_set")); }
+        await refresh();
+        break;
+      case "download_fail":
+        pushLog("download", ev.message);
+        if (!ev.silent) { toast("error", ev.message); }
+        break;
+      case "download_canceled":
+        pushLog("download", t("dl.cancel"));
+        break;
+      case "download_test_start":
+        $("#dl-test-result").textContent = t("dl.testing");
+        break;
+      case "download_test_result":
+        $("#dl-test-result").textContent = (ev.lines || []).join("\n");
+        break;
+      default:
+        break;
+    }
+  }
+
+  async function heartbeat() {
+    try { await fetch("/api/ping"); } catch (e) { /* ignore */ }
+    setTimeout(heartbeat, 2000);
+  }
+
+  // ---------------- 动作 ----------------
+  const actions = {
+    goto: (btn) => showPage(btn.dataset.page),
+    doc: async () => { await call("open_doc"); },
+    extlink: async (btn) => { await call("open_url", { url: btn.dataset.url }); },
+    "pick-dir": async (btn) => {
+      const target = document.getElementById(btn.dataset.target);
+      const res = await askDialog("text", t("dl.dir"), t("ui.browse"), target.value);
+      if (res.ok && res.text.trim()) { target.value = res.text.trim(); }
+    },
+    "pick-file": async (btn) => {
+      const target = document.getElementById(btn.dataset.target);
+      const res = await askDialog("text", t("st.browser"), t("ui.browse"), target.value);
+      if (res.ok && res.text.trim()) { target.value = res.text.trim(); }
+    },
+    "browser-default": () => { $("#set-browser").value = ""; },
+    "save-settings": async () => {
+      await call("set_config", {
+        game_dir: $("#set-game-dir").value.trim(),
+        port: $("#set-port").value.trim(),
+        browser: $("#set-browser").value.trim(),
+        home_slot: parseInt($("#set-home-slot").value || "0", 10),
+      });
+      await refresh();
+    },
+    "start-server": async () => {
+      await call("set_config", {
+        game_dir: $("#game-dir").value.trim(),
+        port: $("#game-port").value.trim(),
+      });
+      const res = await call("start_server", { open_browser: true });
+      if (res) { state.server = res.server; renderServerStatus(); }
+      await refresh();
+    },
+    "stop-server": async () => {
+      const res = await call("stop_server");
+      if (res) { state.server = res; renderServerStatus(); }
+      pushLog("game", t("msg.server_stopped"));
+    },
+    "auto-save": async () => { await call("auto_save", { slot: state.selectedSlot }); },
+    "auto-load": async () => { await call("auto_load", { slot: state.selectedSlot }); },
+    "copy-save": async () => { await call("copy_save", { slot: state.selectedSlot }); },
+    "check-library": async () => { await call("check_library"); },
+    refresh: async () => { await refresh(); pushLog("saves", t("msg.refreshed")); },
+    "rename-slot": async () => {
+      const slot = state.slots.find((s) => s.index === state.selectedSlot);
+      if (!slot || !slot.exists) { toast("warn", t("err.rename_need_file")); return; }
+      const res = await askDialog("text", t("dlg.rename_prompt"),
+                                  t("dlg.rename_title"), slot.name);
+      if (!res.ok || !res.text.trim()) { return; }
+      const out = await call("rename_slot", {
+        slot: state.selectedSlot, name: res.text.trim(),
+      });
+      if (out && out.ok) {
+        pushLog("saves", t("msg.file_renamed", { old: slot.name, new: out.name }));
+      }
+      await refresh();
+    },
+    "manual-save": async () => {
+      const res = await call("manual_save_start", { slot: state.selectedSlot });
+      if (!res) { return; }
+      const session = res.session;
+      state.manualSession = session;
+      const polling = (async () => {
+        for (;;) {
+          const out = await call("manual_save_poll", { session: session });
+          if (!out) { return; }
+          if (out.state === "waiting") { await sleep(800); continue; }
+          if (out.state === "detected") {
+            closeModal({ ok: false, text: "" });
+            pushLog("saves", t("msg.manual_detected_saved",
+                               { slot: state.slots[state.selectedSlot].label }));
+            await refresh();
+          }
+          return;
+        }
+      })();
+      const answer = await askDialog(
+        "manual", t("msg.manual_hint") + "\n\n" + res.temp_folder,
+        t("msg.manual_title"), res.temp_folder);
+      if (answer.ok && answer.text.trim()) {
+        await call("manual_save_submit", { session: session, text: answer.text });
+        await refresh();
+      } else {
+        await call("manual_save_cancel", { session: session });
+      }
+      await polling;
+      state.manualSession = null;
+    },
+    "editor-open": async () => {
+      const mode = $("#ed-mode").value;
+      const res = mode === "file"
+        ? await call("editor_open_file",
+                     { slot: parseInt($("#ed-slot").value || "0", 10) })
+        : await call("editor_open_live");
+      if (res && res.ok) {
+        state.editorChoices = res.state.choices;
+        renderEditorChoices();
+        await loadEditorTree();
+        const src = await call("editor_source");
+        if (src) { $("#ed-source").value = src.text; }
+      }
+    },
+    "editor-write": async () => {
+      const sourceText = state.editorView === "source" ? $("#ed-source").value : null;
+      const res = await call("editor_write", { source_text: sourceText });
+      if (res && res.ok) {
+        await loadEditorTree();
+        const src = await call("editor_source");
+        if (src) { $("#ed-source").value = src.text; }
+      }
+    },
+    "editor-view-tree": () => { state.editorView = "tree"; renderAll(); },
+    "editor-view-source": async () => {
+      const src = await call("editor_source");
+      if (src) { $("#ed-source").value = src.text; }
+      state.editorView = "source";
+      renderAll();
+    },
+    "dl-versions": async () => {
+      await call("download_versions", { repo: $("#dl-repo").value });
+    },
+    "dl-test": async () => {
+      await call("download_test", {
+        repo: $("#dl-repo").value, ref: $("#dl-version").value,
+      });
+    },
+    "dl-start": async () => {
+      await call("download_start", {
+        repo: $("#dl-repo").value,
+        mirror: $("#dl-mirror").value,
+        ref: $("#dl-version").value,
+        target: $("#dl-dir").value.trim(),
+        set_dir: $("#dl-set-dir").checked,
+        keep_temp: $("#dl-keep-temp").checked,
+      });
+    },
+    "dl-cancel": async () => { await call("download_cancel"); },
+  };
+
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) { return; }
+    const fn = actions[btn.dataset.action];
+    if (fn) { e.preventDefault(); await fn(btn); }
+  });
+
+  $("#btn-doc").onclick = () => actions.doc();
+  $("#btn-exit").onclick = async () => {
+    const res = await askDialog("confirm", t("msg.btn_close"), t("kgsm.heading"), "");
+    if (res.ok) { await call("shutdown"); }
+  };
+  $("#dl-repo").addEventListener("change", () => actions["dl-versions"]());
+  $("#set-language").addEventListener("change", async (e) => {
+    const data = await call("set_language", { code: e.target.value });
+    if (data) { applyState(data); showPage("settings"); }
+  });
+
+  (async function boot() {
+    let init = null;
+    try {
+      init = await fetch("/api/state").then((r) => r.json());
+    } catch (e) { /* 首次加载失败时下面的轮询会重试 */ }
+    if (init && init.ok) { applyState(init.result); }
+    showPage("kgsm");
+    await call("download_versions", { repo: "author" });
+    pollEvents();
+    heartbeat();
+  })();
+})();

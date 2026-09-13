@@ -29,8 +29,27 @@ def py_files():
     return sorted(list(ROOT.glob("*.py")) + list(ROOT.glob("core/*.py")))
 
 
+def web_files():
+    """HTML 前端资源（页面与脚本也会引用翻译键）。"""
+    return sorted(list(ROOT.glob("webapp/*.py")) +
+                  list(ROOT.glob("webapp/assets/*")))
+
+
 def repo_text():
-    return "\n".join(p.read_text(encoding="utf-8") for p in py_files())
+    files = py_files() + web_files()
+    return "\n".join(p.read_text(encoding="utf-8") for p in files
+                     if p.is_file())
+
+
+def used_keys(text):
+    """从 Python 与前端资源里提取被引用的翻译键。"""
+    used = set(re.findall(r'\.t\(\s*["\']([^"\']+)["\']', text))
+    used |= set(re.findall(r'\bt\(\s*["\']([^"\']+)["\']', text))
+    used |= set(re.findall(r'data-i18n="([^"]+)"', text))
+    used |= set(re.findall(r'strings\[\s*["\']([^"\']+)["\']\s*\]', text))
+    used |= DYNAMIC_KEYS
+    # 前端里有 t("tab." + key) 这类拼接，取其前缀时会得到 "tab."，忽略之
+    return {k for k in used if re.fullmatch(r"[a-z]+\.[a-z0-9_]+", k)}
 
 
 class TestI18nTables(unittest.TestCase):
@@ -46,16 +65,12 @@ class TestI18nTables(unittest.TestCase):
                              f"{key} 的中英占位符不一致")
 
     def test_no_unused_keys(self):
-        text = repo_text()
-        used = set(re.findall(r'\.t\(\s*["\']([^"\']+)["\']', text))
-        used |= DYNAMIC_KEYS
+        used = used_keys(repo_text())
         unused = sorted(set(i18n._ZH) - used - ALLOWED_UNUSED)
         self.assertEqual(unused, [], f"存在无引用的翻译键: {unused}")
 
     def test_all_referenced_keys_defined(self):
-        text = repo_text()
-        used = set(re.findall(r'\.t\(\s*["\']([^"\']+)["\']', text))
-        used |= DYNAMIC_KEYS
+        used = used_keys(repo_text())
         missing = sorted(used - set(i18n._ZH))
         self.assertEqual(missing, [], f"代码引用了缺失的翻译键: {missing}")
 

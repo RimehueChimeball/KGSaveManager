@@ -19,7 +19,7 @@ from .server import ServerController
 from .slots import SlotStore
 
 APP_NAME = "KittensGame Save Manager"
-APP_VERSION = "v1.2.2"
+APP_VERSION = "v1.3.0"
 SLOT_COUNT = 10
 MAX_NOTE_LEN = 200
 MAX_SAVE_SIZE = 64 * 1024 * 1024          # 单个存档最大体积（字节）
