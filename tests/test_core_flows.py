@@ -1,4 +1,4 @@
-﻿"""core.flows 测试：自动存档/读档、手动存档、事件处理（零 GUI、零真实桥）。"""
+"""core.flows 测试：自动存档/读档、手动存档、事件处理（零 GUI、零真实桥）。"""
 
 import json
 import queue

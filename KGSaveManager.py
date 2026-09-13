@@ -32,19 +32,14 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import scrolledtext, ttk
 
-from config_store import AppConfig
-from core.flows import SaveFlows, clean_temp_folder
-from core.slots import SlotStore
-from i18n import (LANG_EN, LANG_ZH, Translator,
-                  load_external_translations)
-from kgsm_logging import AppLogger
+from core.app import AppCore
+from i18n import LANG_EN, LANG_ZH
 from pages_download import DownloadPageMixin
 from pages_editor import EditorPageMixin
 from pages_manual import ManualSaveMixin
 from ui_tk import TkUiPort
 from utils import setup_dpi_and_scaling
-from web_bridge import WebSocketBridge
-from web_server import LocalWebServer, open_in_browser
+from web_server import open_in_browser
 
 # ==================== 配置 ====================
 APP_NAME = "KittensGame Save Manager"
@@ -82,23 +77,35 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         self.root.minsize(800, 480)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        # 数据目录与配置（配置读取/首启自动创建）
-        self._ensure_dirs()
-        self.cfg = AppConfig(CONFIG_FILE)
-        # 外部翻译（程序目录 i18n/ 下的 json/po）先于界面加载
-        load_external_translations(BASE_DIR / "i18n")
-        self.tr = Translator(self.cfg.language)
+        # 逻辑层（core）：配置、日志、槽位、存档流程、服务/桥、下载、编辑器
+        # 界面只通过 TkUiPort 与 core 交互，core 不含任何 GUI 代码。
+        self.ui = TkUiPort(self)
+        self.core = AppCore(self.ui, base_dir=BASE_DIR,
+                            app_name=APP_NAME, app_version=APP_VERSION,
+                            slot_count=SLOT_COUNT,
+                            max_save_size=MAX_SAVE_SIZE,
+                            temp_keep_seconds=TEMP_KEEP_SECONDS)
 
-        # 运行日志（每次启动一个文件，记录启动信息与关键操作）
-        self.logger = AppLogger(
-            DATA_FOLDER / "kgsm_log", APP_VERSION,
-            extra_header=[f"游戏目录: {self.cfg.game_dir or '(未设置)'}",
-                          f"语言: {self.cfg.language}",
-                          f"配置: {CONFIG_FILE}",
-                          f"日志目录: {DATA_FOLDER / 'kgsm_log'}"])
+        # 前端直接使用的引用（视图只读这些、不越过它们做事）
+        self.cfg = self.core.cfg
+        self.tr = self.core.tr
+        self.logger = self.core.logger
+        self.slots = self.core.slots
+        self.flows = self.core.flows
+        self.server = self.core.server
+        self.download = self.core.download
+        self.editor = self.core.editor
+        self.event_queue = self.core.events
+        self.paths = self.core.paths
 
-        # 清理临时文件夹中的过期导出文件
-        clean_temp_folder(TEMP_FOLDER, TEMP_KEEP_SECONDS, self.logger)
+        # 页面需要的基础常量
+        self.base_dir = BASE_DIR
+        self.tab_order = TAB_ORDER
+        self.app_name = APP_NAME
+        self.save_library = SAVE_LIBRARY
+        self.max_save_size = MAX_SAVE_SIZE
+        self.temp_folder = TEMP_FOLDER
+        self.backup_dir = BACKUP_DIR
 
         # 当前选中的存档位索引（0-based）：默认取配置页指定的存档位
         home = self.cfg.home_slot
@@ -109,36 +116,10 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         # 每个存档位的备注（来自配置，修改自动保存）
         self.notes = [self.cfg.get_note(i) for i in range(SLOT_COUNT)]
 
-        # 后台线程与 UI 通信的事件队列
-        self.event_queue = queue.Queue()
-
-        # 本地 Web 服务与存档桥（多页共用同一个服务）
-        self.lweb = LocalWebServer(self.event_queue)
-        self.bridge = None
-        # Mixin 页需要的基础常量
-        self.base_dir = BASE_DIR
-        self.tab_order = TAB_ORDER
-        self.app_name = APP_NAME
-        self.save_library = SAVE_LIBRARY
-        self.max_save_size = MAX_SAVE_SIZE
-        self.temp_folder = TEMP_FOLDER
-        self.backup_dir = BACKUP_DIR
-
-        # 逻辑层：界面端口 → 槽位存储 → 存档流程（core 不含任何 GUI 代码）
-        self.ui = TkUiPort(self)
-        self.slots = SlotStore(SAVE_LIBRARY, self.t, SLOT_COUNT)
-        self.flows = SaveFlows(
-            ui=self.ui, slots=self.slots, cfg=self.cfg, t=self.t,
-            events=self.event_queue, app_name=APP_NAME,
-            temp_folder=TEMP_FOLDER, max_save_size=MAX_SAVE_SIZE,
-            get_bridge=lambda: self.bridge,
-            is_server_running=lambda: self.lweb.running,
-            logger=self.logger)
-
         # 首次构建标志（重建界面时不重复输出“程序启动”日志）
         self._first_build = True
 
-        # 构建界面（KGSM / 启动游戏 / 存档管理 / 配置）
+        # 构建界面（KGSM / 启动游戏 / 存档管理 / 修改存档 / 下载游戏 / 配置）
         self.build_ui()
         self._first_build = False
 
@@ -148,10 +129,6 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
     # =========================================================
     # 基础工具
     # =========================================================
-    def _ensure_dirs(self):
-        for folder in (DATA_FOLDER, SAVE_LIBRARY, TEMP_FOLDER, BACKUP_DIR):
-            folder.mkdir(parents=True, exist_ok=True)
-
     def t(self, key, **kw):
         return self.tr.t(key, **kw)
 
@@ -374,7 +351,7 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         self.web_log_text.config(state=tk.DISABLED)
 
         # 与运行状态同步按钮
-        self._update_server_buttons(self.lweb.running)
+        self._update_server_buttons(self.server.running)
         self.web_log(self.t("la.ready"), self.t("tag.start"))
 
     def _update_server_buttons(self, running):
@@ -387,107 +364,20 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         self._start_server_from_cfg(open_browser=True)
 
     def web_stop_action(self):
-        self._stop_web_all()
+        self.server.stop()
         self._update_server_buttons(False)
         self.web_log(self.t("msg.server_stopped"), self.t("tag.stop"))
-        if getattr(self, "logger", None) is not None:
-            self.logger.action("WEB_STOP", "服务与存档桥已停止")
-
-    def _stop_web_all(self):
-        """停止 Web 服务与存档桥（含重启与退出时）。"""
-        self.lweb.stop()
-        bridge, self.bridge = self.bridge, None
-        if bridge is not None:
-            try:
-                bridge.stop()
-            except Exception:
-                pass
 
     def _start_server_from_cfg(self, open_browser=True):
-        """按当前配置（游戏目录/固定端口）启动 Web 服务与存档桥。
+        """按当前配置启动服务与桥（配置是唯一权威来源）。
 
-        配置为唯一权威来源：两个页面的输入框在失焦(FocusOut)时已
-        各自写回配置。若配置被程序更新（如自动端口），启动前同步界面。
-
-        :return: url 或 None（失败时已弹出错误）
+        :return: url 或 None（失败时已通过界面端口提示）
         """
         self._sync_page_vars()
-
-        directory = self.cfg.game_dir.strip()
-        if not directory:
-            self.ui.fail(self.t("err.no_dir"), self.t("err.launch_fail"))
-            return None
-        root_dir = Path(directory)
-        if not root_dir.is_dir():
-            self.ui.fail(self.t("err.dir_missing", dir=directory),
-                         self.t("err.launch_fail"))
-            return None
-
-        port_text = self.cfg.port.strip()
-        port = 0
-        if port_text:
-            try:
-                port = int(port_text)
-                if not 0 < port < 65536:
-                    raise ValueError
-            except ValueError:
-                self.ui.fail(self.t("err.port_invalid"),
-                             self.t("err.launch_fail"))
-                return None
-
-        if self.lweb.running:
-            self.web_log(self.t("msg.server_restart"), self.t("tag.start"))
-            self._stop_web_all()
-
-        bridge = None
-        try:
-            bridge = WebSocketBridge()
-            bridge.set_ui_queue(self.event_queue)
-            bridge.start()
-            url, actual_port = self.lweb.start(str(root_dir), port,
-                                               bridge=bridge)
-        except OSError as e:
-            if bridge is not None:
-                try:
-                    bridge.stop()
-                except Exception:
-                    pass
-            self.web_log(self.t("msg.server_fail", e=e), self.t("tag.error"))
-            self.logger.error(f"服务启动失败 port={port_text or '(auto)'}: {e}")
-            self.ui.fail(f"port={port_text or '(auto)'}: {e}",
-                         self.t("err.launch_fail"))
-            return None
-        self.bridge = bridge
-
-        # 自动分配端口时回写实际端口
-        if not port_text:
-            self.cfg.update(port=str(actual_port))
-            self._sync_page_vars()
-
-        self._update_server_buttons(True)
-        self.web_log(self.t("msg.server_started", url=url),
-                     self.t("tag.start"))
-        self.web_log(self.t("msg.server_dir", dir=root_dir),
-                     self.t("tag.start"))
-        self.web_log(self.t("msg.server_local"), self.t("tag.start"))
-        if bridge is not None:
-            self.web_log(f"存档桥已就绪: ws://127.0.0.1:{bridge.port}/",
-                         self.t("tag.start"))
-
-        if open_browser:
-            self.root.after(300, self._open_browser_and_log, url)
+        url = self.server.start(open_browser=open_browser)
+        self._update_server_buttons(self.server.running)
+        self._sync_page_vars()          # 自动分配端口时回写输入框
         return url
-
-    def _open_browser_and_log(self, url):
-        """启动游戏：用配置的浏览器开新窗口。"""
-        how = open_in_browser(url, browser_path=self.cfg.browser,
-                              new_window=True)
-        if how:
-            self.web_log(self.t("msg.browser_opened", how=how),
-                         self.t("tag.browser"))
-        else:
-            self.web_log(self.t("msg.browser_fail", url=url),
-                         self.t("tag.error"))
 
     # ---------- 存档管理页 ----------
     def build_saves_tab(self, main, button_font, help_font, log_font):
@@ -770,8 +660,7 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         """切换语言：更新配置并重建界面。"""
         if code == self.cfg.language:
             return
-        self.cfg.update(language=code)
-        self.tr.lang = code
+        self.core.set_language(code)
         self.rebuild_ui(switch_to="settings")
 
     def _browse_game_dir(self):
@@ -877,24 +766,6 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
                 w['time_lbl'].config(text="")
         self._refresh_settings_slot_combo()
         self._refresh_edit_slots()
-
-    def _refresh_edit_slots(self):
-        """让修改存档页的槽位下拉跟随存档库刷新。"""
-        if not hasattr(self, "_edit") or not hasattr(self, "edit_mode_var"):
-            return
-        if not self._widget_alive(self.edit_slot_combo):
-            return
-        ids = [i for i, info in enumerate(self.slots.info)
-               if info.get('exists')]
-        mapping = {self.slots.label(i): i for i in ids}
-        self._edit["slot_ids"] = ids
-        self._edit["slot_map"] = mapping
-        cur = self.edit_slot_var.get()
-        if self.edit_mode_var.get() == "file":
-            values = list(mapping.keys())
-            self.edit_slot_combo.configure(values=values)
-            if cur not in mapping:
-                self.edit_slot_var.set(values[0] if values else "")
 
     def _refresh_settings_slot_combo(self):
         """让配置页「默认存档位」下拉框跟随槽位名字刷新。"""
@@ -1019,8 +890,9 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
             self.root.after(150, self._poll_queue)
 
     def _handle_event(self, item):
+        """把后台事件分给 core（内部状态）与各页的渲染方法。"""
         kind = item[0]
-        if self.flows.handle_event(item):
+        if self.core.dispatch(item):
             return
         if kind == "server_log":
             self.web_log(item[1], self.t("tag.server"))
@@ -1028,6 +900,8 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
             self.web_log(item[1], self.t("tag.bridge"))
         elif kind == "dl_log":
             self._dl_log(item[1])
+        elif kind == "dl_busy":
+            self._handle_dl_busy(item[1])
         elif kind == "dl_versions":
             self._handle_dl_versions(item[2])
         elif kind == "dl_progress":
@@ -1039,6 +913,8 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
                                  bool(item[2]) if len(item) > 2 else False)
         elif kind == "dl_canceled":
             self._handle_dl_cancel()
+        elif kind == "dl_test_start":
+            self._handle_dl_test_start()
         elif kind == "dl_test_result":
             self._handle_dl_test_result(item[1])
 
@@ -1047,13 +923,7 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
     # =========================================================
     def _on_close(self):
         self.commit_notes()
-        self._stop_web_all()
-        if getattr(self, "logger", None) is not None:
-            try:
-                self.logger.action("EXIT", "程序退出")
-                self.logger.close()
-            except Exception:
-                pass
+        self.core.shutdown()
         self.root.destroy()
 
 

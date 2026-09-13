@@ -1,18 +1,15 @@
-"""
-pages_download：KGSaveManager「下载游戏」标签页（Mixin）。
+"""「下载游戏」页（视图）。
 
-依赖主类的：self.root/self.t/self.ui/self.cfg/self.event_queue/BASE_DIR
-（事件见 KGSaveManager._handle_event：dl_log / dl_versions / dl_progress /
- dl_done / dl_fail）
+逻辑全在 `core.download.DownloadController`：本模块只画控件、把用户选择交给
+core，并把 core 通过事件队列回传的进度/日志/结果画出来。
+事件：dl_busy / dl_log / dl_progress / dl_versions / dl_done / dl_fail /
+      dl_canceled / dl_test_start / dl_test_result
 """
 
 import os
-import threading
 
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, ttk
-
-import downloader
+from tkinter import scrolledtext, ttk
 
 
 class DownloadPageMixin:
@@ -22,20 +19,16 @@ class DownloadPageMixin:
         parent.columnconfigure(0, weight=1)
         parent.rowconfigure(3, weight=1)
 
+        choices = self.download.repo_choices()
         self.dl = {
             "busy": False,
-            "cancel": threading.Event(),
             "ver_map": {},
-            "repo_map": {
-                self.t("dl.repo_author"): "author",
-                self.t("dl.repo_community"): "community",
-            },
+            "repo_map": {label: key for label, key in choices},
         }
-        self.dl_repo_var = tk.StringVar(value=self.t("dl.repo_author"))
-        self.dl_mirror_var = tk.StringVar(value="github.com")
+        self.dl_repo_var = tk.StringVar(value=choices[0][0])
+        self.dl_mirror_var = tk.StringVar(value=self.download.mirrors()[0])
         self.dl_dir_var = tk.StringVar(
-            value=str(getattr(self, "base_dir", os.getcwd()) /
-                      "KittensGame"))
+            value=str(self.download.default_target()))
         self.dl_set_dir_var = tk.BooleanVar(value=True)
         self.dl_progress_var = tk.DoubleVar(value=0)
 
@@ -68,7 +61,7 @@ class DownloadPageMixin:
                                                       padx=(0, 8))
         self.dl_mirror_combo = ttk.Combobox(
             cfg, textvariable=self.dl_mirror_var, state="readonly",
-            values=list(downloader.MIRRORS.keys()), width=24, takefocus=0)
+            values=self.download.mirrors(), width=24, takefocus=0)
         self.dl_mirror_combo.grid(row=2, column=1, sticky="w", pady=4)
 
         ttk.Label(cfg, text=self.t("dl.dir")).grid(row=3, column=0,
@@ -133,8 +126,9 @@ class DownloadPageMixin:
         self._dl_log(self.t("dl.version_pick"))
 
         self._dl_refresh_versions()
+        self._update_download_buttons()
 
-    # ---------------- 动作 ----------------
+    # ---------------- 视图动作 ----------------
     def _dl_log(self, msg):
         if not hasattr(self, "dl_log_text") or not self._widget_alive(
                 self.dl_log_text):
@@ -149,132 +143,37 @@ class DownloadPageMixin:
         if chosen:
             self.dl_dir_var.set(chosen)
 
-    def _dl_refresh_versions(self, silent=False):
-        repo = self.dl["repo_map"].get(self.dl_repo_var.get(), "author")
-        threading.Thread(
-            target=self._dl_fetch_versions, args=(repo, silent),
-            daemon=True).start()
+    def _dl_repo_key(self):
+        return self.dl["repo_map"].get(self.dl_repo_var.get(), "author")
 
-    def _dl_fetch_versions(self, repo, silent):
-        try:
-            owner = downloader.REPOS[repo]["owner"]
-            name = downloader.REPOS[repo]["repo"]
-            items = downloader.list_versions(owner, name)
-        except Exception as e:
-            self.event_queue.put(
-                ("dl_fail", self.t("dl.version_fail", e=str(e)), silent))
-            return
-        self.event_queue.put(("dl_versions", repo, items))
+    def _dl_ref(self):
+        return self.dl.get("ver_map", {}).get(self.dl_version_combo.get())
+
+    def _dl_refresh_versions(self, silent=False):
+        self.download.refresh_versions(self._dl_repo_key(), silent)
 
     def _dl_start(self):
-        if self.dl.get("busy"):
+        ref = self._dl_ref()
+        if ref is None:
+            self.ui.warn(self.t("dl.version_pick"), self.t("dl.version"))
             return
-        repo = self.dl["repo_map"].get(self.dl_repo_var.get(), "author")
-        mirror = self.dl_mirror_var.get()
-        target = self.dl_dir_var.get().strip()
-        label = self.dl_version_combo.get()
-        ver_map = self.dl.get("ver_map", {})
-        if not label or label not in ver_map:
-            messagebox.showwarning(self.t("dl.version"),
-                                   self.t("dl.version_pick"))
-            return
-        if not target:
-            messagebox.showerror(self.t("dl.version"),
-                                 self.t("dl.dir_missing", dir=target or "?"))
-            return
-        os.makedirs(target, exist_ok=True)
-        has_content = any(
-            os.path.join(target, n) != os.path.join(target, ".temp")
-            for n in os.listdir(target)) and \
-            any(n != ".temp" for n in os.listdir(target))
-        if has_content:
-            if not messagebox.askyesno(
-                    self.t("dl.version"),
-                    self.t("dl.dir_has_content", dir=target)):
-                return
-
-        kind, ref = ver_map[label]
-        self.dl["busy"] = True
-        self.dl["cancel"].clear()
-        self.dl_btn_start.config(state=tk.DISABLED)
-        self.dl_btn_cancel.config(state=tk.NORMAL)
-        self.dl_progress_var.set(0)
-        threading.Thread(
-            target=self._dl_worker,
-            args=(repo, mirror, ref, target, self.dl_set_dir_var.get(),
-                  self.dl_keep_temp_var.get()),
-            daemon=True).start()
+        self.download.start(self._dl_repo_key(), self.dl_mirror_var.get(),
+                            ref, self.dl_dir_var.get().strip(),
+                            self.dl_set_dir_var.get(),
+                            self.dl_keep_temp_var.get())
 
     def _dl_cancel(self):
-        self.dl["cancel"].set()
+        self.download.cancel()
 
     def _dl_test_connectivity(self):
-        label = self.dl_version_combo.get()
-        ref = self.dl.get("ver_map", {}).get(label)
-        if not ref:
-            messagebox.showwarning(self.t("dl.version"),
-                                   self.t("dl.version_pick"))
-            return
-        repo = self.dl["repo_map"].get(self.dl_repo_var.get(), "author")
-        self.dl_btn_test.config(state=tk.DISABLED)
-        self.dl_test_label.config(text=self.t("dl.testing"))
-        threading.Thread(
-            target=self._dl_test_worker, args=(repo, ref),
-            daemon=True).start()
+        self.download.test_connectivity(self._dl_repo_key(), self._dl_ref())
 
-    def _dl_test_worker(self, repo, ref):
-        try:
-            results = downloader.test_sources(repo, ref, timeout=6)
-        except Exception as e:
-            self.event_queue.put(
-                ("dl_test_result",
-                 [f"test error: {type(e).__name__}: {e}"]))
-            return
-        lines = []
-        for source in downloader.MIRRORS:
-            ok, detail = results.get(source, (False, "not tested"))
-            mark = "OK" if ok else "FAIL"
-            lines.append(f"{source}: {mark} ({detail})")
-        self.event_queue.put(("dl_test_result", lines))
-
-    def _handle_dl_test_result(self, lines):
-        self.dl_btn_test.config(state=tk.NORMAL)
-        self.dl_test_label.config(text="\n".join(lines))
-
-    def _dl_worker(self, repo, mirror, ref, target, set_service,
-                   delete_temp):
-        try:
-            downloader.install_game(
-                repo, mirror, ref, target,
-                progress=self._dl_progress_cb,
-                cancel=lambda: self.dl["cancel"].is_set(),
-                delete_temp=delete_temp)
-            if set_service:
-                self.cfg.update(game_dir=target)
-                self._sync_page_vars()
-            self.event_queue.put(("dl_done", target, set_service))
-        except downloader.DownloadCancelled:
-            self.event_queue.put(("dl_canceled",))
-        except Exception as e:
-            self.event_queue.put(("dl_fail", self.t("dl.fail", e=str(e))))
-
-    def _dl_progress_cb(self, done, total, stage=None):
-        if stage == "extract":
-            self.event_queue.put(("dl_log", self.t("dl.unzip")))
-            return
-        pct = 0
-        if total:
-            pct = min(99, int(done * 100 / total))
-        self.event_queue.put(("dl_progress", pct))
-
-    # 事件处理（由主类 _handle_event 分发）
+    # ---------------- 事件渲染（由主类 _handle_event 分发） ----------------
     def _handle_dl_versions(self, items):
         labels = []
         mapping = {}
         for kind, label, ref in items:
-            disp = label if kind == "branch" else f"{label}"
-            if kind != "branch":
-                disp = f"{label} (tag)"
+            disp = label if kind == "branch" else f"{label} (tag)"
             labels.append(disp)
             mapping[disp] = ref
         self.dl["ver_map"] = mapping
@@ -282,29 +181,42 @@ class DownloadPageMixin:
         if labels:
             self.dl_version_combo.current(0)
 
+    def _handle_dl_busy(self, busy):
+        self.dl["busy"] = busy
+        if not hasattr(self, "dl_btn_start"):
+            return
+        self.dl_btn_start.config(state=tk.DISABLED if busy else tk.NORMAL)
+        self.dl_btn_cancel.config(state=tk.NORMAL if busy else tk.DISABLED)
+        if busy:
+            self.dl_progress_var.set(0)
+
     def _handle_dl_progress(self, pct):
         self.dl_progress_var.set(pct)
 
+    def _handle_dl_test_start(self):
+        self.dl_btn_test.config(state=tk.DISABLED)
+        self.dl_test_label.config(text=self.t("dl.testing"))
+
+    def _handle_dl_test_result(self, lines):
+        self.dl_btn_test.config(state=tk.NORMAL)
+        self.dl_test_label.config(text="\n".join(lines))
+
     def _handle_dl_done(self, target, set_service):
-        self.dl["busy"] = False
-        self.dl_btn_start.config(state=tk.NORMAL)
-        self.dl_btn_cancel.config(state=tk.DISABLED)
         self.dl_progress_var.set(100)
         self._dl_log(self.t("dl.done", dir=target))
         if set_service:
             self._dl_log(self.t("dl.service_set"))
+            self._sync_page_vars()
         self.update_slots_display()
 
     def _handle_dl_fail(self, msg, silent=False):
-        self.dl["busy"] = False
-        self.dl_btn_start.config(state=tk.NORMAL)
-        self.dl_btn_cancel.config(state=tk.DISABLED)
         self._dl_log(msg)
         if not silent:
-            messagebox.showerror(self.t("dl.version"), msg)
+            self.ui.fail(msg, self.t("dl.version"))
 
     def _handle_dl_cancel(self):
-        self.dl["busy"] = False
-        self.dl_btn_start.config(state=tk.NORMAL)
-        self.dl_btn_cancel.config(state=tk.DISABLED)
         self._dl_log(self.t("dl.cancel"))
+
+    def _update_download_buttons(self):
+        """按 core 的忙碌状态刷新按钮（界面重建后调用）。"""
+        self._handle_dl_busy(self.download.busy)
