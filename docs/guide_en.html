@@ -60,7 +60,7 @@
   <a class="l2" href="#external-i18n">External Translations</a>
   <a class="l2" href="#browser-cfg">Browser</a>
   <a class="l2" href="#paths">Paths &amp; Quotes</a>
-  <a class="l2" href="#other-cfg">Port &amp; Home Slot</a>
+  <a class="l2" href="#other-cfg">Port &amp; Default Slot</a>
   <a class="l1" href="#data">Data &amp; Logs</a>
   <a class="l2" href="#kgsm-data">Folder Layout</a>
   <a class="l2" href="#logs">Run Logs</a>
@@ -225,7 +225,7 @@ folder is flattened; <code>index.html</code> must exist at the root. The
       It is used by the local web server and by the downloader.</li>
   <li><b>Port</b>: fixed port for the local server. Empty means an automatic
       port; the actual port is written back to the field.</li>
-  <li><b>Home Save Slot</b>: the slot selected by default at startup.</li>
+  <li><b>Default Save Slot</b>: the slot selected by default at startup.</li>
   <li><b>Browser</b>: executable used for the game page and for external
       links. Empty means the system default browser.</li>
 </ul>
@@ -279,8 +279,8 @@ executable, or reset to system default.</p>
 <p>Paths are normalized when saved. Surrounding quotes are removed and
 separators are converted to backslashes, so
 <code>"C:/Games/KG"</code> and <code>C:\Games\KG</code> are both accepted.</p>
-<h3 id="other-cfg">Port &amp; Home Slot</h3>
-<p>The port field is optional; empty means an automatic port. Home Save
+<h3 id="other-cfg">Port &amp; Default Slot</h3>
+<p>The port field is optional; empty means an automatic port. Default Save
 Slot is the slot selected by default when the program starts; Save
 Management and the save actions start from that selection. The About area
 links to the project and the author profile.</p>

@@ -1,4 +1,4 @@
-# KGSaveManager
+﻿# KGSaveManager
 
 A save manager for Kittens Game on Windows (Python + Tkinter, no third-party dependencies).
 
@@ -10,7 +10,7 @@ A save manager for Kittens Game on Windows (Python + Tkinter, no third-party dep
 - Edit Save: open a slot file or the running game; view/source modes; value editing; backup (`.bak`); write-back re-encodes to the game format
 - Launch Game: local static web server (127.0.0.1) with an injected save bridge; opens the game in a new browser window; the bridge reports whether the save came from the running game or from the browser autosave snapshot
 - Download Game: two GitHub repositories, GitHub direct or mirror sources, connectivity test, flattened extraction with `index.html` check
-- Settings: language, browser, game directory, port, home save slot (selected at startup); changes are saved automatically
+- Settings: language, browser, game directory, port, default save slot (selected at startup); changes are saved automatically
 - External translations: JSON or PO files in the `i18n/` folder next to the program
 - Runtime data in `kgsm_data/`; run logs in `kgsm_data/kgsm_log/`, one file per launch
 

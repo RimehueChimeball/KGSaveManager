@@ -14,7 +14,7 @@ KittensGame 存档管理器 (KGSaveManager)
 5. 剪贴板：内置 tkinter 剪贴板实现，零第三方依赖。
 6. 中英翻译：无配置文件时按系统语言探测，配置页可切换，自动保存。
 7. 六个标签页：KGSM（导航与新手引导）、启动游戏（Web 服务）、存档管理、
-   修改存档、下载游戏、配置（语言/游戏目录/固定端口/首页指定存档）。
+   修改存档、下载游戏、配置（语言/游戏目录/固定端口/默认存档位）。
 
 模块拆分：i18n.py（翻译）、config_store.py（配置）、web_server.py（本地
 Web 服务）、web_bridge.py（页面桥）、savecodec.py（存档编解码）、
@@ -803,7 +803,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                   foreground="#666666").grid(row=3, column=2, sticky="w",
                                              padx=(10, 0), pady=6)
 
-        # 首页指定存档
+        # 默认存档位（启动时选中）
         ttk.Label(frame, text=self.t("st.home_slot")).grid(row=4, column=0,
                                                            sticky="w", pady=6,
                                                            padx=(0, 10))
@@ -1009,7 +1009,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                 self.edit_slot_var.set(values[0] if values else "")
 
     def _refresh_settings_slot_combo(self):
-        """让配置页「首页指定存档」下拉框跟随槽位名字刷新。"""
+        """让配置页「默认存档位」下拉框跟随槽位名字刷新。"""
         if not hasattr(self, "home_slot_widget"):
             return
         if not self._widget_alive(self.home_slot_widget):

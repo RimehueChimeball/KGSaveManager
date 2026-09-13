@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes are listed by version.
 
@@ -28,7 +28,7 @@ All notable changes are listed by version.
   `open_download_tab`, `MONITOR_TIMEOUT`, `GAME_DOWNLOAD_URLS`, unused JSON
   helpers and imports). `msg.monitor_timeout` and 38 other translation keys
   without a reference were dropped.
-- Home Save Slot now selects the slot used at startup (it had no consumer
+- Default Save Slot (previously "Home Save Slot") now selects the slot used at startup (it had no consumer
   after the home page redesign).
 - Save codec: compression now works on UTF-16 code units like the JS
   original, so saves containing non-BMP characters (emoji) round-trip
