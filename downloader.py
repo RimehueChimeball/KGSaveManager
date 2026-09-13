@@ -29,9 +29,10 @@ REPOS = {
 }
 
 # 下载源：空串 = GitHub 官网直连；其余为镜像前缀
+# 镜像键名与其域名保持一致（值末尾必须带 /，直接拼在完整 URL 前面）
 MIRRORS = {
     "github.com": "",
-    "ghproxy.net": "https://mirror.ghproxy.com/",
+    "ghproxy.net": "https://ghproxy.net/",
     "ghfast.top": "https://ghfast.top/",
     "gh-proxy.com": "https://gh-proxy.com/",
 }
@@ -180,13 +181,13 @@ def _flatten_extract(zip_path, target_dir):
         names = [n for n in zf.namelist() if not n.endswith("/")]
         if not names:
             raise DownloadError("zip 为空")
-        # 找公共顶层前缀（形如 repo-main/）
+        # 找公共顶层前缀（形如 repo-main/）：仅当所有条目都在同一个
+        # 顶层目录之下时才摊平，否则保持原结构。
         tops = {n.split("/", 1)[0] for n in names}
         prefix = None
         if len(tops) == 1:
             top = tops.pop()
-            if "/" in next(iter([n for n in names])) and \
-                    all(n.startswith(top + "/") for n in names):
+            if all(n.startswith(top + "/") for n in names):
                 prefix = top + "/"
         for n in names:
             rel = n[len(prefix):] if prefix else n

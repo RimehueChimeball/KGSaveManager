@@ -198,12 +198,16 @@ class AppConfig:
     def get_note(self, index):
         return str(self.notes.get(str(index), ""))[:200]
 
-    def set_note(self, index, text):
+    def set_note(self, index, text, save=True):
+        """设置某存档位备注；save=False 时由调用方统一保存（批量更新用）。"""
         key = str(index)
         text = str(text)[:200]
         if self.notes.get(key, "") != text:
             self.notes[key] = text
-            self.save()
+            if save:
+                self.save()
+            return True
+        return False
 
     def update(self, **kwargs):
         """批量更新合法字段并保存。"""

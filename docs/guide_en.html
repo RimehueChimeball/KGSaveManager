@@ -55,6 +55,7 @@
   <a class="l2" href="#dl-test">Connectivity Test</a>
   <a class="l2" href="#dl-flow">Download Procedure</a>
   <a class="l1" href="#settings">Settings</a>
+  <a class="l2" href="#settings-fields">Fields</a>
   <a class="l2" href="#language">Language</a>
   <a class="l2" href="#external-i18n">External Translations</a>
   <a class="l2" href="#browser-cfg">Browser</a>
@@ -65,12 +66,13 @@
   <a class="l2" href="#logs">Run Logs</a>
   <a class="l1" href="#trouble">Troubleshooting</a>
   <a class="l1" href="#build">Building the EXE</a>
+  <a class="l1" href="#tests">Tests</a>
   <a class="l1" href="#about">About</a>
 </nav>
 <main>
 <h1>KGSaveManager — Offline Guide</h1>
 <p>KGSaveManager is a save manager for Kittens Game on Windows (Python +
-Tkinter, bilingual UI, zero third-party dependencies). Version: v1.2.1.</p>
+Tkinter, bilingual UI, zero third-party dependencies). Version: v1.2.2.</p>
 
 <h2 id="quick-start">Quick Start</h2>
 <ol>
@@ -115,13 +117,22 @@ Deleting the configuration file does not affect recognition.</p>
 bridge. Select a slot and click <em>Auto Save</em>. If the slot already has
 a save, confirm the overwrite. The current save is retrieved over the
 bridge and written to the slot file.</p>
+<p>The bridge reports the data source in the server log: <code>engine</code>
+means the save was read from the running game, <code>localStorage</code>
+means the engine was not reachable yet and the most recent browser
+autosave snapshot was used instead. An idle connection is kept alive with
+WebSocket ping frames, so the log does not show a periodic
+disconnect/reconnect cycle.</p>
 <h3 id="manual-save">Manual Save</h3>
 <p>Manual Save opens a dialog with two areas.</p>
 <ul>
   <li>Top: the temp folder path and a Copy Path button. The path is not
       copied automatically. Drop the exported save file into the folder.
-      When a stable file is detected, it is written, the window closes, and
-      a “save detected” message is shown.</li>
+      A new file, or an existing file that is overwritten with different
+      content, is detected once its size and modification time stop
+      changing; it is then written, the window closes, and a “save
+      detected” message is shown. The consumed temp file is deleted
+      afterwards, and files older than seven days are removed at startup.</li>
   <li>Bottom: a text area for pasting the exported save text, and an OK
       button. Pasted text is validated. If the content may be invalid, the
       program asks for confirmation. Closing the window cancels the
@@ -206,6 +217,18 @@ folder is flattened; <code>index.html</code> must exist at the root. The
 .temp folder is removed after completion unless the option is disabled.</p>
 
 <h2 id="settings">Settings</h2>
+<h3 id="settings-fields">Fields</h3>
+<ul>
+  <li><b>Language</b>: Chinese or English. The label is always displayed in
+      English.</li>
+  <li><b>Game directory</b>: the folder that contains <code>index.html</code>.
+      It is used by the local web server and by the downloader.</li>
+  <li><b>Port</b>: fixed port for the local server. Empty means an automatic
+      port; the actual port is written back to the field.</li>
+  <li><b>Home Save Slot</b>: the slot selected by default at startup.</li>
+  <li><b>Browser</b>: executable used for the game page and for external
+      links. Empty means the system default browser.</li>
+</ul>
 <h3 id="language">Language</h3>
 <p>The interface supports Chinese and English. If no configuration exists,
 the system language is used. The Language label itself is always displayed
@@ -222,12 +245,12 @@ supported.</p>
 <p>Single-language JSON is also accepted; the language is inferred from the
 file name (<code>zh*</code> means Chinese, anything else means English).
 Example <code>zh.json</code>:</p>
-<pre>{ "sv.btn_save": "保存档案" }</pre>
+<pre>{ "sv.btn_auto_save": "自动存档" }</pre>
 <p>PO files contain msgid/msgstr pairs. Example <code>en.po</code>:</p>
-<pre>msgid "sv.btn_save"
-msgstr "Save Archive"</pre>
+<pre>msgid "sv.btn_auto_save"
+msgstr "Auto Save"</pre>
 <p>English example (<code>en.json</code>):</p>
-<pre>{ "sv.btn_save": "Save Archive", "dl.btn_download": "Fetch Game" }</pre>
+<pre>{ "sv.btn_auto_save": "Auto Save", "dl.btn_download": "Fetch Game" }</pre>
 <p>Keys that do not exist in the built-in tables are added; keys that exist
 are overridden.</p>
 <p>Where the keys come from: the built-in Chinese and English strings are
@@ -258,8 +281,9 @@ separators are converted to backslashes, so
 <code>"C:/Games/KG"</code> and <code>C:\Games\KG</code> are both accepted.</p>
 <h3 id="other-cfg">Port &amp; Home Slot</h3>
 <p>The port field is optional; empty means an automatic port. Home Save
-Slot selects the slot used by copy helpers. The About area links to the
-project and the author profile.</p>
+Slot is the slot selected by default when the program starts; Save
+Management and the save actions start from that selection. The About area
+links to the project and the author profile.</p>
 
 <h2 id="data">Data &amp; Logs</h2>
 <h3 id="kgsm-data">Folder Layout</h3>
@@ -305,6 +329,18 @@ start and stop, save and download operations, and errors.</p>
 pyinstaller KGSaveManager.spec</pre>
 <p>Output: <code>dist/KGSaveManager/KGSaveManager.exe</code>. The spec
 declares all modules and includes the <code>docs/</code> folder.</p>
+
+<h2 id="tests">Tests</h2>
+<pre>python -m unittest discover -s tests -t .</pre>
+<p>The suite uses the standard library only and does not touch the network
+or a real browser. It covers the save codec (including parity with the
+game's own <code>lib/lz-string.js</code> when Node.js and a game checkout
+are available), downloader extraction and mirror configuration, the
+WebSocket bridge protocol and keepalive, the injected page script (DOM
+element false positives, late engine binding, save source reporting),
+configuration notes, slot writing, and the translation tables. Static
+checks fail the suite when an unused import, an unreferenced function or a
+translation key without a reference is left behind.</p>
 
 <h2 id="about">About</h2>
 <p>KGSaveManager manages Kittens Game saves on Windows. It provides save

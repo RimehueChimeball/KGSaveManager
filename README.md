@@ -8,9 +8,9 @@ A save manager for Kittens Game on Windows (Python + Tkinter, no third-party dep
 - Tabs in fixed order: KGSM, Launch Game, Save Management, Edit Save, Download Game, Settings
 - Save Management: 10 slots recognized from filenames (`name_1.kgsav` .. `name_10.kgsav`); auto save (WebSocket bridge), manual save (drop file or paste text), copy save, auto load, rename, refresh, per-slot notes, abnormal-file check
 - Edit Save: open a slot file or the running game; view/source modes; value editing; backup (`.bak`); write-back re-encodes to the game format
-- Launch Game: local static web server (127.0.0.1) with an injected save bridge; opens the game in a new browser window
+- Launch Game: local static web server (127.0.0.1) with an injected save bridge; opens the game in a new browser window; the bridge reports whether the save came from the running game or from the browser autosave snapshot
 - Download Game: two GitHub repositories, GitHub direct or mirror sources, connectivity test, flattened extraction with `index.html` check
-- Settings: language, browser, game directory, port, home save slot; changes are saved automatically
+- Settings: language, browser, game directory, port, home save slot (selected at startup); changes are saved automatically
 - External translations: JSON or PO files in the `i18n/` folder next to the program
 - Runtime data in `kgsm_data/`; run logs in `kgsm_data/kgsm_log/`, one file per launch
 
@@ -30,7 +30,7 @@ python KGSaveManager.py
 ## Usage
 
 - Auto Save: requires the game launched via KGSM and connected. Writes the current game save to the selected slot; confirms on overwrite.
-- Manual Save: dialog with the temp folder path (Copy Path button) and a text area. Drop the exported file into the temp folder, or paste the save text and press OK. Pasted content is validated.
+- Manual Save: dialog with the temp folder path (Copy Path button) and a text area. Drop the exported file into the temp folder, or paste the save text and press OK. Pasted content is validated. A new file, or an existing file overwritten with different content, is detected; the consumed temp file is deleted afterwards.
 - Copy Save: copies the slot content to the clipboard for the game Import.
 - Auto Load: confirms once, then sends the slot content to the game page; the page reloads.
 - Rename: renames the slot file. The slot must contain a save.
@@ -47,12 +47,25 @@ program/
 ├─ pages_download.py / pages_editor.py / save_flows.py
 ├─ kgsm_logging.py / utils.py
 ├─ docs/guide_en.html
+├─ tests/                unit tests (standard library only)
 └─ kgsm_data/
    ├─ kittens_saves/
    ├─ kgsm_temp/
    ├─ kgsm_log/
    └─ kgsm_config.json
 ```
+
+## Tests
+
+```powershell
+python -m unittest discover -s tests -t .
+```
+
+The suite covers the save codec (with an optional parity check against the
+game's own `lib/lz-string.js` via Node.js), downloader extraction, the
+WebSocket bridge protocol, the injected page script, slot writing and the
+translation tables. It also fails when an unused import, an unreferenced
+function or an unused translation key is left in the code.
 
 ## Build
 

@@ -104,13 +104,34 @@ def _decompress(length, reset_value, get_next):
             num_bits += 1
 
 
+def _to_code_units(text):
+    """把 Python 字符串转成 UTF-16 代码单元序列（每个单元一个字符）。
+
+    JS 版 lz-string 按 UTF-16 代码单元压缩，非 BMP 字符（emoji 等）在
+    JS 里是代理对。Python 直接按码点压缩会把这类字符截断，所以这里先
+    转成“代码单元字符串”，代理项用单独字符表示（surrogatepass）。
+    """
+    raw = text.encode("utf-16-le", "surrogatepass")
+    return "".join(chr(raw[i] | (raw[i + 1] << 8)) for i in range(0, len(raw), 2))
+
+
+def _from_code_units(text):
+    """把代码单元字符串还原为正常 Python 字符串（合并代理对）。"""
+    if not text:
+        return text
+    try:
+        return text.encode("utf-16-le", "surrogatepass").decode("utf-16-le")
+    except Exception:
+        return text
+
+
 def decompress_base64(text):
     """解压 lz-string 的 Base64 存档串；失败返回 None。"""
     if not text:
         return None
     try:
-        return _decompress(len(text), 32,
-                           lambda i: _B64_REVERSE.get(text[i], 64))
+        return _from_code_units(_decompress(
+            len(text), 32, lambda i: _B64_REVERSE.get(text[i], 64)))
     except Exception:
         return None
 
@@ -120,8 +141,8 @@ def decompress_utf16(text):
     if not text:
         return None
     try:
-        return _decompress(len(text), 16384,
-                           lambda i: ord(text[i]) - 32)
+        return _from_code_units(_decompress(
+            len(text), 16384, lambda i: ord(text[i]) - 32))
     except Exception:
         return None
 
@@ -233,8 +254,12 @@ def _compress_base64_units(text):
 
 
 def compress_base64(text):
-    """把存档 JSON 文本压缩为 lz-string Base64 字符串（含 = 补位）。"""
-    units = _compress_base64_units(text)
+    """把存档 JSON 文本压缩为 lz-string Base64 字符串（含 = 补位）。
+
+    按 UTF-16 代码单元压缩，与 JS 版 lz-string 一致（emoji 等非 BMP
+    字符也能无损往返）。
+    """
+    units = _compress_base64_units(_to_code_units(text))
     res = "".join(_B64_ALPHABET[u] for u in units)
     rest = len(res) % 4
     if rest == 1:

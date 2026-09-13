@@ -146,10 +146,6 @@ class EditorPageMixin:
     def _mark_src_touched(self):
         self._edit["src_touched"] = True
 
-    def _current_data_text(self):
-        return json_compact(self._edit["data"]) if self._edit[
-            "data"] is not None else ""
-
     def edit_open_action(self):
         mode = self._edit["mode"]
         if mode == "file":

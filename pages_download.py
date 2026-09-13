@@ -252,7 +252,6 @@ class DownloadPageMixin:
             if set_service:
                 self.cfg.update(game_dir=target)
                 self._sync_page_vars()
-                self._refresh_kgm_dir()
             self.event_queue.put(("dl_done", target, set_service))
         except downloader.DownloadCancelled:
             self.event_queue.put(("dl_canceled",))
@@ -309,15 +308,3 @@ class DownloadPageMixin:
         self.dl_btn_start.config(state=tk.NORMAL)
         self.dl_btn_cancel.config(state=tk.DISABLED)
         self._dl_log(self.t("dl.cancel"))
-
-    def open_download_tab(self, repo_key):
-        """从 KGSM 主页跳转到下载页并预选仓库。"""
-        for label, key in self.dl["repo_map"].items():
-            if key == repo_key:
-                self.dl_repo_var.set(label)
-                break
-        self.notebook.select(
-            getattr(self, "tab_order", ("kgsm", "game", "saves", "editor",
-                                        "download", "settings")).index(
-                                            "download"))
-        self._dl_refresh_versions()

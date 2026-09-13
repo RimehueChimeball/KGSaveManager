@@ -2,8 +2,9 @@
 KittensGame 存档管理器 (KGSaveManager)
 ======================================
 
-基于 Tkinter 的《Kittens Game》桌面伴侣：存档管理、备注与配置持久化、
-一键本地 Web 服务（http.server + socketserver）启动游戏。
+基于 Tkinter 的《Kittens Game》存档管理器（save manager）：存档管理、
+备注与配置持久化、一键本地 Web 服务（http.server + socketserver）启动游戏、
+在与游戏页面的本地 WebSocket 桥之间读写实时存档。
 
 功能特性：
 1. 备注与配置持久化：kgsm_data/kgsm_config.json（原子写入，自动保存）。
@@ -12,25 +13,25 @@ KittensGame 存档管理器 (KGSaveManager)
 4. 文件校验：接收存档前校验非空、限体积，等待导出文件写入稳定。
 5. 剪贴板：内置 tkinter 剪贴板实现，零第三方依赖。
 6. 中英翻译：无配置文件时按系统语言探测，配置页可切换，自动保存。
-7. 四标签页：KGSM（快速启动/复制存档并启动）、启动游戏（Web 服务）、
-   存档管理（存档位）、配置（语言/游戏目录/固定端口/首页指定存档）。
+7. 六个标签页：KGSM（导航与新手引导）、启动游戏（Web 服务）、存档管理、
+   修改存档、下载游戏、配置（语言/游戏目录/固定端口/首页指定存档）。
 
-模块拆分：i18n.py（翻译）、config_store.py（配置）、
-web_server.py（本地 Web 服务）、utils.py（DPI）。
+模块拆分：i18n.py（翻译）、config_store.py（配置）、web_server.py（本地
+Web 服务）、web_bridge.py（页面桥）、savecodec.py（存档编解码）、
+downloader.py（游戏下载）、save_flows.py / pages_editor.py /
+pages_download.py（页面与流程 Mixin）、kgsm_logging.py（运行日志）、
+utils.py（DPI）。
 """
 
-import json
 import os
 import queue
 import sys
-import threading
 import time
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, simpledialog, ttk
 
-import savecodec
 from config_store import AppConfig
 from i18n import (LANG_EN, LANG_ZH, Translator,
                   load_external_translations)
@@ -38,24 +39,18 @@ from kgsm_logging import AppLogger
 from pages_download import DownloadPageMixin
 from pages_editor import EditorPageMixin
 from save_flows import SaveFlowMixin
-from savecodec import validate as validate_save_text
 from utils import setup_dpi_and_scaling
 from web_bridge import WebSocketBridge
 from web_server import LocalWebServer, open_in_browser
 
 # ==================== 配置 ====================
 APP_NAME = "KittensGame Save Manager"
-APP_VERSION = "v1.2.1"
+APP_VERSION = "v1.2.2"
 SLOT_COUNT = 10                                  # 存档位数量
 MAX_NOTE_LEN = 200                               # 单条备注最大长度
 MAX_SAVE_SIZE = 64 * 1024 * 1024                 # 单个存档最大体积（字节）
-MONITOR_TIMEOUT = 300                            # 监控导出的超时时间（秒）
+TEMP_KEEP_SECONDS = 7 * 24 * 3600                # 临时目录文件保留时长（秒）
 
-# 下载游戏链接：1=作者原版仓库（bloodrizer → nuclear-unicorn），2=社区版
-GAME_DOWNLOAD_URLS = [
-    "https://github.com/nuclear-unicorn/kittensgame",
-    "https://github.com/kitten-science/kittensgame",
-]
 # 关于页链接（固定文案，不随语言翻译）
 REPO_URL = "https://github.com/RimehueChimeball/KGSaveManager"
 PROFILE_URL = "https://github.com/RimehueChimeball"
@@ -74,24 +69,6 @@ BACKUP_DIR = DATA_FOLDER / "backups"             # 存档备份目录（编辑�
 
 # 标签页固定顺序：KGSM / 启动游戏 / 存档管理 / 修改存档 / 下载游戏 / 配置
 TAB_ORDER = ("kgsm", "game", "saves", "editor", "download", "settings")
-
-
-def json_loads(text):
-    return json.loads(text)
-
-
-def json_dump(obj):
-    """紧凑 JSON（JS JSON.stringify 风格）。"""
-    return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
-
-
-def json_compact(obj):
-    return json_dump(obj)
-
-
-def json_pretty(obj):
-    """美化排版（保留键序，不排序）。"""
-    return json.dumps(obj, ensure_ascii=False, indent=2)
 
 
 class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
@@ -117,8 +94,14 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                           f"配置: {CONFIG_FILE}",
                           f"日志目录: {DATA_FOLDER / 'kgsm_log'}"])
 
-        # 当前选中的存档位索引（0-based）
-        self.selected_slot = tk.IntVar(value=0)
+        # 清理临时文件夹中的过期导出文件
+        self._clean_temp_folder()
+
+        # 当前选中的存档位索引（0-based）：默认取配置页指定的存档位
+        home = self.cfg.home_slot
+        if not (0 <= home < SLOT_COUNT):
+            home = 0
+        self.selected_slot = tk.IntVar(value=home)
 
         # 每个存档位的备注（来自配置，修改自动保存）
         self.notes = [self.cfg.get_note(i) for i in range(SLOT_COUNT)]
@@ -158,6 +141,26 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
     def _ensure_dirs(self):
         for folder in (DATA_FOLDER, SAVE_LIBRARY, TEMP_FOLDER, BACKUP_DIR):
             folder.mkdir(parents=True, exist_ok=True)
+
+    def _clean_temp_folder(self):
+        """清理临时文件夹里的过期导出文件（只删超过保留期的文件）。"""
+        cutoff = time.time() - TEMP_KEEP_SECONDS
+        removed = 0
+        try:
+            entries = list(TEMP_FOLDER.iterdir())
+        except OSError:
+            return
+        for p in entries:
+            try:
+                if not p.is_file() or p.stat().st_mtime >= cutoff:
+                    continue
+                p.unlink()
+                removed += 1
+            except OSError:
+                continue
+        if removed:
+            self.logger.info(
+                f"清理临时文件 {removed} 个（保留 {TEMP_KEEP_SECONDS // 86400} 天内）")
 
     def t(self, key, **kw):
         return self.tr.t(key, **kw)
@@ -325,8 +328,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         """按当前语言重建整个界面（保留输入状态与服务运行状态）。"""
         self._flush_page_vars()
 
-        old_mode = getattr(self, "kgm_mode_var", None)
-        self._kgm_mode_default = old_mode.get() if old_mode else "recent"
         old_slot = getattr(self, "selected_slot", None)
         self._slot_restore = old_slot.get() if old_slot else 0
 
@@ -413,48 +414,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         lbl = ttk.Label(parent, text=text, foreground="#0645AD", cursor="hand2")
         lbl.bind("<Button-1>", lambda e: command())
         return lbl
-
-    def _refresh_kgm_dir(self):
-        if not hasattr(self, "kgm_dir_lbl"):
-            return
-        if not self._widget_alive(self.kgm_dir_lbl):
-            return
-        d = self.cfg.game_dir.strip()
-        if d:
-            self.kgm_dir_lbl.config(text=self.t("kgsm.dir_set", dir=d))
-        else:
-            self.kgm_dir_lbl.config(text=self.t("kgsm.dir_none"))
-
-    def _resolve_kgm_save(self):
-        """返回 (slot_index, exists) ；无可选时 (None, False)。"""
-        if self.kgm_mode_var.get() == "slot":
-            idx = self.cfg.home_slot
-            return idx, bool(self.slot_info[idx].get('exists'))
-        best_i, best_t = None, -1.0
-        for i, info in enumerate(self.slot_info):
-            if info.get('exists') and info.get('mtime', 0) > best_t:
-                best_t = info['mtime']
-                best_i = i
-        if best_i is None:
-            return None, False
-        return best_i, True
-
-    def _refresh_kgm_save(self):
-        if not hasattr(self, "kgm_save_lbl"):
-            return
-        if not self._widget_alive(self.kgm_save_lbl):
-            return
-        idx, exists = self._resolve_kgm_save()
-        prefix = self.t("kgsm.cur_prefix")
-        if idx is None:
-            text = prefix + self.t("ui.empty_short")
-        elif exists:
-            text = (prefix + f"{self.slot_label(idx)} · "
-                    f"{self.slot_info[idx]['time']}")
-        else:
-            # 槽位无存档：名字区已含“空/empty”占位
-            text = prefix + self.slot_label(idx)
-        self.kgm_save_lbl.config(text=text)
 
     def _open_external(self, url):
         """用配置的浏览器打开外部超链接（不强制新窗口）。"""
@@ -604,6 +563,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                 except Exception:
                     pass
             self.web_log(self.t("msg.server_fail", e=e), self.t("tag.error"))
+            self.logger.error(f"服务启动失败 port={port_text or '(auto)'}: {e}")
             messagebox.showerror(self.t("err.launch_fail"),
                                  f"port={port_text or '(auto)'}: {e}")
             return None
@@ -915,7 +875,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         cur = self.home_slot_widget.current()
         if 0 <= cur < SLOT_COUNT:
             self.cfg.update(home_slot=cur)
-        self._refresh_kgm_save()
 
     def _change_language(self, code):
         """切换语言：更新配置并重建界面。"""
@@ -932,7 +891,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         if chosen:
             self.cfg.update(game_dir=chosen)
             self._sync_page_vars()
-            self._refresh_kgm_dir()
 
     def _browse_browser(self):
         """选择浏览器 exe。"""
@@ -983,7 +941,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                 ups[cfg_attr] = value
         if ups:
             self.cfg.update(**ups)
-        self._refresh_kgm_dir()
 
     def _sync_page_vars(self):
         """把配置值同步回所有页面输入框。"""
@@ -1004,8 +961,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         text = text[:MAX_NOTE_LEN]
         if self.notes[idx] != text:
             self.notes[idx] = text
-            self.cfg.notes[str(idx)] = text
-            self.cfg.save()
+            self.cfg.set_note(idx, text)
 
     def commit_notes(self):
         changed = False
@@ -1013,7 +969,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             text = w['note_entry'].get()[:MAX_NOTE_LEN]
             if self.notes[i] != text:
                 self.notes[i] = text
-                self.cfg.notes[str(i)] = text
+                self.cfg.set_note(i, text, save=False)
                 changed = True
         if changed:
             self.cfg.save()
@@ -1032,7 +988,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             else:
                 w['time_lbl'].config(text="")
         self._refresh_settings_slot_combo()
-        self._refresh_kgm_save()
         self._refresh_edit_slots()
 
     def _refresh_edit_slots(self):
@@ -1182,55 +1137,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
     # =========================================================
     # 通用小工具
     # =========================================================
-    def _safe_mtime(self, path):
-        try:
-            return os.path.getmtime(path)
-        except OSError:
-            return 0.0
-
-    # =========================================================
-    # KGSM 页运行逻辑
-    # =========================================================
-    def kgm_quick_run(self):
-        """快速启动：服务目录非空则起服务并打开浏览器。"""
-        if not self.cfg.game_dir.strip():
-            messagebox.showerror(self.t("err.launch_fail"),
-                                 self.t("err.no_dir"))
-            return
-        self._start_server_from_cfg(open_browser=True)
-
-    def kgm_copy_run(self):
-        """复制存档并启动：校验所选存档非空后复制到剪贴板再启动。"""
-        if not self.cfg.game_dir.strip():
-            messagebox.showerror(self.t("err.launch_fail"),
-                                 self.t("err.no_dir"))
-            return
-
-        idx, exists = self._resolve_kgm_save()
-        if idx is None:
-            messagebox.showerror(self.t("err.launch_fail"),
-                                 self.t("err.no_saves"))
-            return
-        if not exists:
-            messagebox.showerror(self.t("err.launch_fail"),
-                                 self.t("err.no_save"))
-            return
-
-        try:
-            content = self._read_save_file(self.slot_info[idx]['filename'])
-        except Exception as e:
-            self.log(self.t("msg.read_fail", e=e), self.t("tag.load"))
-            messagebox.showerror(self.t("err.load_fail"), str(e))
-            return
-
-        if not self._copy_to_clipboard(content):
-            return
-        self.log(self.t("msg.copied_save", slot=self.slot_label(idx)),
-                 self.t("tag.load"))
-        self.log(self.t("msg.import_hint"))
-
-        self._start_server_from_cfg(open_browser=True)
-
     def _read_save_file(self, path):
         """读取存档文件并做基本校验，返回文本内容。"""
         size = os.path.getsize(path)
@@ -1341,8 +1247,11 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             if dest is not None:
                 self.log(self.t("msg.auto_saved", dest=dest.name),
                          self.t("tag.done"))
+            else:
+                self.logger.error(f"自动存档写入槽位失败: slot={item[1]}")
         elif kind == "auto_save_fail":
             self.log(self.t("msg.auto_timeout"), self.t("tag.timeout"))
+            self.logger.warn("自动存档超时：页面未返回存档数据")
         elif kind == "bridge_log":
             self.web_log(item[1], self.t("tag.bridge"))
         elif kind == "dl_log":

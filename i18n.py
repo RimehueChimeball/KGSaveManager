@@ -44,20 +44,6 @@ _ZH = {
 
     # ---- KGSM 页 ----
     "kgsm.heading": "KittensGame 存档管理器",
-    "kgsm.dir_none": "游戏目录：未设置",
-    "kgsm.dir_set": "游戏目录：{dir}",
-    "kgsm.quick_title": "快速启动游戏",
-    "kgsm.quick_desc": "以游戏目录为根启动本地服务，并在浏览器中打开游戏。",
-    "kgsm.copy_title": "复制存档并启动游戏",
-    "kgsm.copy_desc": "先把存档复制到剪贴板，再启动服务打开游戏，"
-                      "进入游戏后直接粘贴 (Ctrl+V) 导入。",
-    "kgsm.mode_recent": "最近存档",
-    "kgsm.mode_slot": "指定存档",
-    "kgsm.cur_prefix": "当前将复制：",
-    "kgsm.btn_run": "运行",
-    "kgsm.first_use_q": "第一次使用？",
-    "kgsm.btn_config": "配置程序",
-    "kgsm.download": "下载游戏 · Kittens Game（GitHub）",
     "kgsm.guide_title": "新手引导",
     "kgsm.step_doc": "阅读离线文档 · 快速开始",
     "kgsm.step_dl": "下载游戏",
@@ -79,9 +65,7 @@ _ZH = {
     "sv.title_slots": "存档位",
     "sv.title_log": "输出日志",
     "sv.slot_prefix": "存档",
-    "sv.btn_save": "存档",
     "sv.btn_load": "复制存档",
-    "sv.btn_cancel": "取消存档",
     "sv.btn_rename": "改名",
     "sv.btn_refresh": "刷新",
     "sv.btn_check": "检查异常文件",
@@ -130,7 +114,6 @@ _ZH = {
     "msg.manual_title": "手动存档",
     "msg.manual_tip": "把存档文件导入此文件夹",
     "msg.manual_hint": "上方：把游戏导出的存档文件放入临时文件夹，检测到存档后自动保存并关闭窗口。\n下方：也可以直接把存档文本粘贴进输入框，点「确定」保存；关闭窗口表示取消操作。",
-    "msg.manual_detected": "检测到存档",
     "msg.manual_detected_saved": "检测到存档，已保存到 {slot}。",
     "msg.btn_ok": "确定",
     "msg.btn_close": "关闭",
@@ -138,6 +121,7 @@ _ZH = {
     "msg.path_copied": "已复制路径到剪贴板: {path}",
     "msg.paste_empty": "请先粘贴存档内容，或把存档文件放入临时文件夹。",
     "msg.saved_to": "已写入存档: {dest}",
+    "msg.temp_cleaned": "已清理临时文件: {name}",
     "msg.invalid_ask": "存档可能/疑似不合法，仍要保存吗？",
     "msg.invalid_skip": "已取消写入（存档疑似不合法）。",
     "msg.paste_invalid_file": "放入的存档可能/疑似不合法，仍要保存吗？",
@@ -165,7 +149,6 @@ _ZH = {
     "ed.sent": "已发送到游戏，页面将刷新载入。",
     "ed.value_title": "修改数值",
     "ed.value_prompt": "输入新值（自动识别 JSON 类型，无法解析则存为字符串）：",
-    "ed.invalid_value": "请输入 JSON 可解析的数值，或留空取消。",
 
     # ---- 下载游戏 ----
     "tab.download": "下载游戏",
@@ -175,7 +158,6 @@ _ZH = {
     "dl.version": "版本",
     "dl.refresh_versions": "刷新版本列表",
     "dl.mirror": "下载源",
-    "dl.mirror_direct": "GitHub 直连",
     "dl.dir": "存放目录",
     "dl.dir_default_tip": "默认：程序目录\\KittensGame",
     "dl.set_service_dir": "下载完成后，把该目录设为服务目录（游戏目录）",
@@ -184,20 +166,14 @@ _ZH = {
     "dl.btn_test": "测试连通性",
     "dl.testing": "正在测试各下载源…",
     "dl.log": "下载日志",
-    "dl.busy": "正在下载，请稍候…",
     "dl.version_fail": "获取版本列表失败：{e}",
     "dl.version_pick": "请选择一个版本。",
     "dl.dir_missing": "存放目录为空或不合法：{dir}",
     "dl.dir_has_content": "目标目录已存在且非空：{dir}\n继续将清空其中内容，确定继续吗？",
-    "dl.downloading": "正在下载（{mb:.1f} MB）: {url}",
-    "dl.downloaded": "下载完成：{file}（{mb:.1f} MB）",
     "dl.unzip": "正在解压…",
-    "dl.no_index": "解压后未在目录根找到 index.html（{dir}）",
     "dl.done": "下载完成，游戏目录：{dir}",
     "dl.service_set": "已把该目录设置为服务目录（游戏目录）。",
-    "dl.cleanup": "已清理临时文件。",
     "dl.fail": "下载失败：{e}",
-    "dl.not_a_zip": "下载内容不是有效的 zip 包（可能版本不存在或镜像异常）。",
     "dl.cancel": "已取消下载。",
 
     # ---- 日志/标签与消息（输出内容） ----
@@ -230,19 +206,12 @@ _ZH = {
     "msg.temp_path": "临时文件夹: {path}",
     "msg.file_renamed": "存档文件已改名: {old} → {new}",
     "msg.refreshed": "已刷新存档库。",
-    "msg.cancel_pending": "正在取消存档操作...",
-    "msg.no_operation": "当前没有进行中的存档操作",
-    "msg.busy": "已有存档操作进行中，请先取消或等待完成",
     "msg.user_cancel": "用户取消存档操作",
     "msg.save_start": "开始对 {slot} 进行存档操作",
-    "msg.copied_path": "已复制路径到剪贴板: {path}",
-    "msg.export_hint": "请在游戏中点击 Options → Export，粘贴此路径并保存为 .txt 文件。",
-    "msg.save_success": "成功存档: {src} → {dest}（已覆盖写入）",
     "msg.process_fail": "处理存档失败: {e}",
     "msg.read_fail": "读取存档失败: {e}",
     "msg.copied_save": "已将 {slot} 的存档内容复制到剪贴板",
     "msg.load_hint": "请打开游戏，点击 Options → Import，粘贴 (Ctrl+V) 并确认。",
-    "msg.import_hint": "游戏打开后点击 Options → Import，粘贴 (Ctrl+V) 即可导入。",
     "msg.check_start": "开始检查异常文件...",
     "msg.lib_abnormal": "【存档库】发现以下不合规文件（程序不会处理）：",
     "msg.lib_clean": "【存档库】没有不合规文件。",
@@ -251,12 +220,8 @@ _ZH = {
     "msg.temp_clean": "【临时文件夹】为空。",
     "msg.check_tail": "这些文件不会被程序管理，请自行判断是否转移或删除。",
     "msg.item": "  - {f}",
-    "msg.monitor_timeout": "存档超时：未在5分钟内检测到新文件，请确保已正确导出存档。",
-    "msg.monitor_error": "监控出错: {e}",
     "err.file_empty": "存档文件为空",
     "err.file_too_large": "存档文件过大（{size} 字节）",
-    "err.export_empty": "导出文件为空",
-    "err.export_content_empty": "导出文件内容为空",
     "dlg.clipboard_title": "剪贴板错误",
     "err.save_fail": "存档失败",
     "err.load_fail": "读档失败",
@@ -266,15 +231,11 @@ _ZH = {
     "err.port_invalid": "端口必须是 1-65535 之间的数字，或留空自动选择。",
     "err.no_dir": "服务目录为空。请先在「配置」页设置游戏目录。",
     "err.dir_missing": "目录不存在：{dir}",
-    "err.no_save": "所选存档为空，无法复制。",
-    "err.no_saves": "存档库中还没有可用存档。",
     "dlg.rename_title": "槽位改名",
     "dlg.rename_prompt": "输入槽位新名字（同时用于存档文件名，如 名字_1.kgsav）：",
     "err.name_invalid": "名字不能为空，且不能包含 \\ / : * ? \" < > | 等字符。",
     "err.rename_need_file": "该槽位还没有存档文件，请先「存档」一次后再改名。",
     "err.name_file_exists": "目标存档文件已存在，改名中止：{file}",
-    "dlg.save_new": "对 {slot} 进行存档操作？",
-    "dlg.save_overwrite": "对 {slot} 进行存档操作？将覆盖现有存档。",
     "dlg.no_file": "{slot} 没有存档文件。",
     "dlg.copied_ok": "已复制 {slot} 的存档到剪贴板，可以导入到游戏中了。",
 }
@@ -294,22 +255,6 @@ _EN = {
 
     # ---- KGSM page ----
     "kgsm.heading": "KittensGame Save Manager",
-    "kgsm.dir_none": "Game directory: not set",
-    "kgsm.dir_set": "Game directory: {dir}",
-    "kgsm.quick_title": "Quick Launch Game",
-    "kgsm.quick_desc": "Start the local server rooted at the game directory "
-                       "and open the game in your browser.",
-    "kgsm.copy_title": "Copy Save & Launch Game",
-    "kgsm.copy_desc": "Copy the save to the clipboard first, then start the "
-                      "server and open the game. Paste (Ctrl+V) inside the "
-                      "game to import.",
-    "kgsm.mode_recent": "Latest Save",
-    "kgsm.mode_slot": "Selected Save",
-    "kgsm.cur_prefix": "Will copy: ",
-    "kgsm.btn_run": "Run",
-    "kgsm.first_use_q": "First time here?",
-    "kgsm.btn_config": "Configure",
-    "kgsm.download": "Download Game · Kittens Game (GitHub)",
     "kgsm.guide_title": "Getting Started",
     "kgsm.step_doc": "Read the offline guide · Quick start",
     "kgsm.step_dl": "Download the game",
@@ -334,9 +279,7 @@ _EN = {
     "sv.title_slots": "Save Slots",
     "sv.title_log": "Output Log",
     "sv.slot_prefix": "Save",
-    "sv.btn_save": "Save",
     "sv.btn_load": "Copy Save",
-    "sv.btn_cancel": "Cancel Saving",
     "sv.btn_rename": "Rename",
     "sv.btn_refresh": "Refresh",
     "sv.btn_check": "Check Abnormal Files",
@@ -393,7 +336,6 @@ _EN = {
                        "window closes.\nBottom: alternatively paste the save "
                        "text into the box and click OK; closing the window "
                        "cancels the operation.",
-    "msg.manual_detected": "Save file detected",
     "msg.manual_detected_saved": "Save detected and stored to {slot}.",
     "msg.btn_ok": "OK",
     "msg.btn_close": "Close",
@@ -402,6 +344,7 @@ _EN = {
     "msg.paste_empty": "Paste the save text first, or drop a save file into "
                        "the temp folder.",
     "msg.saved_to": "Save written: {dest}",
+    "msg.temp_cleaned": "Temp file removed: {name}",
     "msg.invalid_ask": "The save may/might be invalid. Save anyway?",
     "msg.invalid_skip": "Write cancelled (the save looks invalid).",
     "msg.paste_invalid_file": "The dropped save may/might be invalid. "
@@ -434,8 +377,6 @@ _EN = {
     "ed.value_title": "Edit Value",
     "ed.value_prompt": "Enter a new value (JSON type auto-detected; falls "
                        "back to a string if unparsable):",
-    "ed.invalid_value": "Enter a JSON-parsable value, or leave empty to "
-                        "cancel.",
 
     # ---- Download game ----
     "tab.download": "Download Game",
@@ -445,7 +386,6 @@ _EN = {
     "dl.version": "Version",
     "dl.refresh_versions": "Refresh versions",
     "dl.mirror": "Download source",
-    "dl.mirror_direct": "GitHub direct",
     "dl.dir": "Destination folder",
     "dl.dir_default_tip": "Default: program folder\\KittensGame",
     "dl.set_service_dir": "After download, use this folder as the service "
@@ -455,25 +395,17 @@ _EN = {
     "dl.btn_test": "Test Connectivity",
     "dl.testing": "Testing each source…",
     "dl.log": "Download Log",
-    "dl.busy": "Downloading, please wait…",
     "dl.version_fail": "Failed to list versions: {e}",
     "dl.version_pick": "Choose a version first.",
     "dl.dir_missing": "Destination folder is empty or invalid: {dir}",
     "dl.dir_has_content": "The destination already exists and is not empty: "
                           "{dir}\nContinuing will clear its contents. "
                           "Continue?",
-    "dl.downloading": "Downloading ({mb:.1f} MB): {url}",
-    "dl.downloaded": "Downloaded: {file} ({mb:.1f} MB)",
     "dl.unzip": "Extracting…",
-    "dl.no_index": "No index.html found at the folder root after extraction "
-                    "({dir})",
     "dl.done": "Download complete. Game folder: {dir}",
     "dl.service_set": "This folder has been set as the service (game) "
                       "directory.",
-    "dl.cleanup": "Temporary files cleaned up.",
     "dl.fail": "Download failed: {e}",
-    "dl.not_a_zip": "The downloaded content is not a valid zip (the version "
-                    "may not exist or the mirror failed).",
     "dl.cancel": "Download cancelled.",
 
     # ---- Log tags & messages (output) ----
@@ -507,22 +439,13 @@ _EN = {
     "msg.temp_path": "Temp folder: {path}",
     "msg.file_renamed": "Save file renamed: {old} → {new}",
     "msg.refreshed": "Save library refreshed.",
-    "msg.cancel_pending": "Cancelling the save operation...",
-    "msg.no_operation": "No save operation in progress",
-    "msg.busy": "A save operation is in progress; cancel it or wait.",
     "msg.user_cancel": "Save operation cancelled by the user",
     "msg.save_start": "Saving to {slot}...",
-    "msg.copied_path": "Path copied to clipboard: {path}",
-    "msg.export_hint": "In the game click Options → Export, paste this path "
-                       "and save it as a .txt file.",
-    "msg.save_success": "Save OK: {src} → {dest} (overwritten)",
     "msg.process_fail": "Failed to process the save: {e}",
     "msg.read_fail": "Failed to read the save: {e}",
     "msg.copied_save": "{slot} save copied to the clipboard",
     "msg.load_hint": "Open the game, click Options → Import, paste (Ctrl+V) "
                      "and confirm.",
-    "msg.import_hint": "When the game opens, click Options → Import and paste "
-                       "(Ctrl+V) to import.",
     "msg.check_start": "Checking for abnormal files...",
     "msg.lib_abnormal": "[Save library] abnormal files found "
                         "(not managed by the program):",
@@ -534,13 +457,8 @@ _EN = {
     "msg.check_tail": "These files are not managed by the program; decide "
                       "whether to move or delete them.",
     "msg.item": "  - {f}",
-    "msg.monitor_timeout": "Timeout: no new file detected within 5 minutes. "
-                           "Make sure the save was exported correctly.",
-    "msg.monitor_error": "Monitor error: {e}",
     "err.file_empty": "The save file is empty",
     "err.file_too_large": "The save file is too large ({size} bytes)",
-    "err.export_empty": "The exported file is empty",
-    "err.export_content_empty": "The exported file has no content",
     "dlg.clipboard_title": "Clipboard Error",
     "err.save_fail": "Save Failed",
     "err.load_fail": "Load Failed",
@@ -552,8 +470,6 @@ _EN = {
     "err.no_dir": "Server directory is empty. Set the game directory "
                   "in Settings first.",
     "err.dir_missing": "Directory does not exist: {dir}",
-    "err.no_save": "The selected save is empty, nothing to copy.",
-    "err.no_saves": "There are no saves available yet.",
     "dlg.rename_title": "Rename Slot",
     "dlg.rename_prompt": "Enter the new slot name (also used in save "
                          "filenames, e.g. name_1.kgsav):",
@@ -563,9 +479,6 @@ _EN = {
                             "before renaming.",
     "err.name_file_exists": "Target save file already exists, rename "
                             "aborted: {file}",
-    "dlg.save_new": "Save to {slot}?",
-    "dlg.save_overwrite": "Save to {slot}? The existing save will be "
-                          "overwritten.",
     "dlg.no_file": "{slot} has no save file.",
     "dlg.copied_ok": "The {slot} save was copied to the clipboard; "
                      "you can import it into the game now.",

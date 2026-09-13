@@ -4,10 +4,10 @@ save_flows：KGSaveManager 存档流程 Mixin（自动存档 / 自动读档 / �
 从主类迁出（解耦）。依赖主类属性/方法：
 self.t/self.log/self.cfg/self.lweb/self.bridge/self.event_queue/
 self.selected_slot/self.slot_info/self.slot_label/self.slot_name/
-self.slot_default_base/self.update_slots_display/self._refresh_kgm_save/
-self._read_save_file/self._copy_to_clipboard/self._safe_mtime/
-self._widget_alive/self.commit_notes/self.app_name/self.save_library/
-self.temp_folder/self.max_save_size
+self.slot_default_base/self.update_slots_display/self._read_save_file/
+self._copy_to_clipboard/self._widget_alive/self.commit_notes/
+self.app_name/self.save_library/self.temp_folder/self.max_save_size/
+self.logger
 """
 
 import os
@@ -121,9 +121,10 @@ class SaveFlowMixin:
             "slot": slot,
             "win": win,
             "closed": False,
-            "before": set(os.listdir(self.temp_folder)),
+            "before": self._temp_snapshot(),
             "detecting_path": None,
             "last_size": -1,
+            "last_mtime": -1,
         }
 
         top = ttk.LabelFrame(win, text=self.t("msg.manual_tip"), padding="8")
@@ -170,8 +171,29 @@ class SaveFlowMixin:
                 pass
         self._manual_win = None
 
+    def _temp_snapshot(self):
+        """临时文件夹快照 {文件名: (mtime_ns, size)}。
+
+        用内容快照而不是“文件名集合”做对比：游戏导出若覆盖同名文件
+        （上次导入后残留、或导出名固定），集合差为空会漏检。
+        """
+        snap = {}
+        try:
+            with os.scandir(self.temp_folder) as it:
+                for entry in it:
+                    try:
+                        if not entry.is_file():
+                            continue
+                        st = entry.stat()
+                    except OSError:
+                        continue
+                    snap[entry.name] = (st.st_mtime_ns, st.st_size)
+        except OSError:
+            return snap
+        return snap
+
     def _manual_poll(self):
-        """轮询临时文件夹：检测到新文件（写入稳定）即保存并关闭。"""
+        """轮询临时文件夹：检测到新增或被覆盖的文件（写入稳定）即保存并关闭。"""
         ctx = getattr(self, "_manual_ctx", None)
         if not ctx or ctx.get("closed"):
             return
@@ -180,32 +202,28 @@ class SaveFlowMixin:
             return
 
         if ctx.get("detecting_path") is None:
-            try:
-                now = set(os.listdir(self.temp_folder))
-            except OSError:
-                now = set()
-            news = [f for f in (now - ctx["before"])
-                    if os.path.isfile(os.path.join(self.temp_folder, f))]
-            if news:
-                fname = max(
-                    news, key=lambda f: self._safe_mtime(
-                        os.path.join(self.temp_folder, f)))
+            now = self._temp_snapshot()
+            changed = [name for name, meta in now.items()
+                       if ctx["before"].get(name) != meta]
+            if changed:
+                fname = max(changed, key=lambda f: now[f][0])
                 path = os.path.join(self.temp_folder, fname)
                 ctx["detecting_path"] = path
-                try:
-                    ctx["last_size"] = os.path.getsize(path)
-                except OSError:
-                    ctx["last_size"] = -1
+                ctx["last_size"] = now[fname][1]
+                ctx["last_mtime"] = now[fname][0]
                 win.after(500, self._manual_poll)
                 return
         else:
             path = ctx["detecting_path"]
             try:
-                size = os.path.getsize(path)
+                st = os.stat(path)
+                size, mtime = st.st_size, st.st_mtime_ns
             except OSError:
-                size = -1
-            if size != ctx.get("last_size") or size <= 0:
+                size, mtime = -1, -1
+            if (size != ctx.get("last_size")
+                    or mtime != ctx.get("last_mtime") or size <= 0):
                 ctx["last_size"] = size
+                ctx["last_mtime"] = mtime
                 win.after(500, self._manual_poll)
                 return
             try:
@@ -218,7 +236,8 @@ class SaveFlowMixin:
                 win.destroy()
                 return
             self._manual_finish(content, detected=True,
-                                invalid_key="msg.paste_invalid_file")
+                                invalid_key="msg.paste_invalid_file",
+                                source_path=path)
             return
 
         win.after(700, self._manual_poll)
@@ -247,8 +266,9 @@ class SaveFlowMixin:
                 return
         self._manual_finish(content, detected=False, invalid_key=None)
 
-    def _manual_finish(self, content, detected, invalid_key):
-        """统一收尾：写入槽位 → 关闭窗口 → （检测到时）弹窗提示。"""
+    def _manual_finish(self, content, detected, invalid_key,
+                       source_path=None):
+        """统一收尾：写入槽位 → 删除临时原文 → 关闭窗口 →（检测到时）弹窗提示。"""
         ctx = getattr(self, "_manual_ctx", None)
         win = ctx["win"] if ctx else None
         slot = ctx["slot"] if ctx else self.selected_slot.get()
@@ -277,11 +297,22 @@ class SaveFlowMixin:
         if dest is not None:
             self.log(self.t("msg.saved_to", dest=dest.name),
                      self.t("tag.done"))
+            if source_path:
+                self._remove_temp_file(source_path)
             if detected:
                 messagebox.showinfo(
                     self.app_name,
                     self.t("msg.manual_detected_saved",
                            slot=self.slot_label(slot)))
+
+    def _remove_temp_file(self, path):
+        """导入成功后删除临时文件夹里的原文，避免下次同名覆盖漏检。"""
+        try:
+            name = os.path.basename(path)
+            os.remove(path)
+        except OSError:
+            return
+        self.log(self.t("msg.temp_cleaned", name=name), self.t("tag.save"))
 
     def _write_save_to_slot(self, slot, text):
         """把存档文本写入槽位文件（先写临时再原子覆盖）。"""
@@ -299,10 +330,12 @@ class SaveFlowMixin:
             tmp.write_text(text, encoding="utf-8")
             os.replace(str(tmp), str(dest))
             self.update_slots_display()
-            self._refresh_kgm_save()
             return dest
         except OSError as e:
             self.log(self.t("msg.process_fail", e=e), self.t("tag.save"))
+            logger = getattr(self, "logger", None)
+            if logger is not None:
+                logger.error(f"写入存档失败 {dest.name}: {e}")
             try:
                 tmp.unlink(missing_ok=True)
             except Exception:

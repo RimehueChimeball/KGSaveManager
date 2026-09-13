@@ -4,7 +4,17 @@ web_bridge：KGSM 与游戏页面的本地 WebSocket 桥（仅 127.0.0.1）。
 - 游戏页由 KGSM 启动时，被注入 bridge.js，页面连到本服务；
 - KGSM 点「自动存档」→ 服务端向页面发 request_save → 页面回传当前
   存档文本（原样，不重新编码）→ 服务端转交 KGSM 写入槽位。
-- 纯标准库实现最小 WebSocket（RFC6455 服务端）。
+- 纯标准库实现最小 WebSocket（RFC6455 服务端）；
+- 空闲连接由服务端定时 ping 保活（页面自动回 pong），不再因为
+  「一段时间没有数据」而断开重连。
+
+页面注入脚本的两个关键点：
+1. 引擎必须在页面 boot 完成后才能取到。<div id="game"> 存在时，
+   window.game 会被命名访问解析成那个 DOM 元素（truthy 但没有 save()），
+   因此候选对象要排除 DOM 节点，并在引擎出现前持续重试（hello 也会
+   在引擎就绪后补发一次）。
+2. request_save 触发时若引擎尚未就绪，先等待一段时间再回退到
+   localStorage 快照，并把数据来源（engine/localStorage）回报给服务端。
 """
 
 import base64
@@ -13,79 +23,144 @@ import json
 import socket
 import struct
 import threading
+import time
 
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
+WS_PING_INTERVAL = 20.0      # 秒：空闲时向页面发 ping 的间隔
+WS_IDLE_TIMEOUT = 75.0       # 秒：既无数据也无 pong 视为断线
+WS_POLL = 1.0                # 秒：socket 轮询粒度
 
-def bridge_js(ws_url):
-    """生成注入页面的桥接脚本（连接 ws 并响应 request_save）。"""
+
+class _IdleTimeout(Exception):
+    """空闲超时：本轮什么都没读到（不代表连接断开）。"""
+
+
+def bridge_js(ws_url, save_wait_ms=5000, hello_timeout_ms=120000):
+    """生成注入页面的桥接脚本（连接 ws、响应 request_save、等待引擎就绪）。
+
+    :param save_wait_ms: 收到 request_save 后等待引擎就绪的最长时间
+    :param hello_timeout_ms: 引擎未就绪时重复上报 hello 的最长时间
+    """
     return (
         "(function(){\n"
         "var KGSM_SAVE_KEY='com.nuclearunicorn.kittengame.savedata';\n"
-        "function findEngine(){\n"
-        "  var names=['game','gamePage','kg','engine','ui','Game'];\n"
-        "  var hits=[];\n"
-        "  var i,k,v;\n"
-        "  for(i=0;i<names.length;i++){ if(window[names[i]]){ hits.push(names[i]); } }\n"
-        "  for(i=0;i<names.length;i++){\n"
-        "    v=window[names[i]];\n"
-        "    if(v && typeof v==='object'){\n"
-        "      if(typeof v.save==='function'){ return {engine:v,hits:hits}; }\n"
-        "      for(k in v){\n"
-        "        try{ if(v[k] && typeof v[k].save==='function' && v[k].resPool){"
-        " return {engine:v[k],hits:hits}; } }catch(e){}\n"
-        "      }\n"
+        "var ENGINE_NAMES=['game','gamePage','kg','engine','ui','Game'];\n"
+        f"var HELLO_TIMEOUT={int(hello_timeout_ms)};\n"
+        f"var SAVE_WAIT={int(save_wait_ms)};\n"
+        "var cached=null;\n"
+        "var cachedInfo=null;\n"
+        "var lastDeepScan=0;\n"
+        "function isDomNode(v){\n"
+        "  try{\n"
+        "    if(!v || typeof v!=='object'){ return false; }\n"
+        "    if(typeof v.nodeType==='number' && v.nodeType===1){ return true; }\n"
+        "    if(typeof v.appendChild==='function'"
+        " && typeof v.getElementsByTagName==='function'){ return true; }\n"
+        "  }catch(e){}\n"
+        "  return false;\n"
+        "}\n"
+        "function isEngine(v){\n"
+        "  if(!v || typeof v!=='object' || isDomNode(v)){ return false; }\n"
+        "  try{ return typeof v.save==='function'; }catch(e){ return false; }\n"
+        "}\n"
+        "function remember(engine,hits,doms){\n"
+        "  cached=engine;\n"
+        "  cachedInfo={hits:hits,doms:doms};\n"
+        "  return {engine:engine,hits:hits,domKeys:doms};\n"
+        "}\n"
+        "function findEngine(force){\n"
+        "  if(!force && cached && isEngine(cached)){\n"
+        "    return {engine:cached,hits:cachedInfo.hits,domKeys:cachedInfo.doms};\n"
+        "  }\n"
+        "  var hits=[],doms=[],i,k,v;\n"
+        "  for(i=0;i<ENGINE_NAMES.length;i++){\n"
+        "    v=window[ENGINE_NAMES[i]];\n"
+        "    if(!v){ continue; }\n"
+        "    if(isDomNode(v)){ doms.push(ENGINE_NAMES[i]); continue; }\n"
+        "    hits.push(ENGINE_NAMES[i]);\n"
+        "    if(isEngine(v)){ return remember(v,hits,doms); }\n"
+        "    for(k in v){\n"
+        "      try{ if(isEngine(v[k]) && (v[k].resPool||v[k].managers)){"
+        " return remember(v[k],hits,doms); } }catch(e){}\n"
         "    }\n"
         "  }\n"
-        "  for(k in window){\n"
-        "    try{\n"
-        "      v=window[k];\n"
-        "      if(v && typeof v==='object' && typeof v.save==='function'"
-        " && (v.resPool||v.managers)){ return {engine:v,hits:hits}; }\n"
-        "    }catch(e){}\n"
+        "  var now=Date.now();\n"
+        "  if(force || now-lastDeepScan>=1000){\n"
+        "    lastDeepScan=now;\n"
+        "    for(k in window){\n"
+        "      try{\n"
+        "        v=window[k];\n"
+        "        if(isEngine(v) && (v.resPool||v.managers)){"
+        " return remember(v,hits,doms); }\n"
+        "      }catch(e){}\n"
+        "    }\n"
         "  }\n"
-        "  return {engine:null,hits:hits};\n"
+        "  return {engine:null,hits:hits,domKeys:doms};\n"
         "}\n"
         "function compressJson(json){\n"
-        "  var e=findEngine().engine;\n"
+        "  var e=findEngine(false).engine;\n"
         "  if(e && typeof e.compressLZData==='function'){ return e.compressLZData(json); }\n"
-        "  if(window.LZString && typeof LZString.compressToBase64==='function'){ return LZString.compressToBase64(json); }\n"
+        "  if(window.LZString && typeof LZString.compressToBase64==='function'){"
+        " return LZString.compressToBase64(json); }\n"
         "  return json;\n"
         "}\n"
         "function currentSave(){\n"
-        "  var e=findEngine().engine;\n"
+        "  var e=findEngine(true).engine;\n"
         "  if(e){\n"
         "    try{\n"
         "      var json=JSON.stringify(e.save());\n"
-        "      if(json && json[0]==='{'){ return compressJson(json); }\n"
+        "      if(json && json[0]==='{'){ return {data:compressJson(json),source:'engine'}; }\n"
         "    }catch(err){}\n"
         "  }\n"
         "  try{\n"
         "    var ls=window.LCstorage||window.localStorage;\n"
         "    var raw=ls?ls.getItem(KGSM_SAVE_KEY):null;\n"
-        "    return raw||'';\n"
-        "  }catch(e2){return '';}\n"
+        "    return {data:raw||'',source:raw?'localStorage':''};\n"
+        "  }catch(e2){ return {data:'',source:''}; }\n"
         "}\n"
         "function bridgeInfo(){\n"
-        "  var found=findEngine();\n"
+        "  var found=findEngine(true);\n"
         "  return {type:'hello',\n"
+        "    ready: !!found.engine,\n"
         "    hasGame: !!(found.engine && typeof found.engine.save==='function'),\n"
         "    foundKeys: found.hits,\n"
+        "    domKeys: found.domKeys,\n"
         "    hasLZ: !!window.LZString,\n"
         "    hasCompress: !!(found.engine && typeof found.engine.compressLZData==='function'),\n"
         "    hasLC: !!((window.LCstorage||window.localStorage))};\n"
         "}\n"
+        "function announce(ws){\n"
+        "  var info=bridgeInfo();\n"
+        "  try{ ws.send(JSON.stringify(info)); }catch(e){ return; }\n"
+        "  if(info.ready){ return; }\n"
+        "  if(Date.now()-started<HELLO_TIMEOUT){\n"
+        "    setTimeout(function(){ announce(ws); },1000);\n"
+        "  }\n"
+        "}\n"
+        "var started=Date.now();\n"
         "function connect(){\n"
         "  var ws;\n"
         "  try{ ws=new WebSocket('" + ws_url + "'); }catch(e){ return; }\n"
-        "  ws.onopen=function(){ try{ ws.send(JSON.stringify(bridgeInfo())); }catch(e){} };\n"
+        "  ws.onopen=function(){ announce(ws); };\n"
         "  ws.onmessage=function(ev){\n"
         "    try{\n"
         "      var msg=JSON.parse(ev.data);\n"
-        "      if(msg && msg.type==='request_save'){\n"
-        "        var data=currentSave();\n"
-        "        ws.send(JSON.stringify({type:'save_data',id:msg.id,data:data}));\n"
-        "      } else if(msg && msg.type==='apply_save' && typeof msg.data==='string' && msg.data){\n"
+        "      if(!msg){ return; }\n"
+        "      if(msg.type==='request_save'){\n"
+        "        var rid=msg.id;\n"
+        "        var deadline=Date.now()+SAVE_WAIT;\n"
+        "        var send=function(){\n"
+        "          if(!findEngine(true).engine && Date.now()<deadline){\n"
+        "            setTimeout(send,200);\n"
+        "            return;\n"
+        "          }\n"
+        "          var res=currentSave();\n"
+        "          ws.send(JSON.stringify({type:'save_data',id:rid,"
+        "data:res.data,source:res.source}));\n"
+        "        };\n"
+        "        send();\n"
+        "      } else if(msg.type==='apply_save' && typeof msg.data==='string' && msg.data){\n"
         "        try{\n"
         "          var ls=window.LCstorage||window.localStorage;\n"
         "          if(ls){ ls.setItem(KGSM_SAVE_KEY, msg.data); }\n"
@@ -211,7 +286,7 @@ class WebSocketBridge:
             event = threading.Event()
             with self._lock:
                 self._pending = {"id": req_id, "event": event,
-                                 "data": None}
+                                 "data": None, "source": None}
             try:
                 self._send_text(client, json.dumps(
                     {"type": "request_save", "id": req_id}))
@@ -224,7 +299,8 @@ class WebSocketBridge:
                 pend = self._pending
                 self._pending = None
             if pend and pend['data'] is not None:
-                self._log(f"save data received: {len(pend['data'])} chars")
+                self._log(f"save data received: {len(pend['data'])} chars "
+                          f"(source: {pend.get('source') or 'unknown'})")
                 return pend['data']
             self._log("save request timed out, trying next client if any")
         self._log("save request timed out: page did not respond")
@@ -250,11 +326,6 @@ class WebSocketBridge:
                 self._drop_client(client)
                 continue
         return False
-
-    def _clear_pending(self, req_id):
-        with self._lock:
-            if self._pending and self._pending['id'] == req_id:
-                self._pending = None
 
     # ---------------- 服务器内部 ----------------
     def _accept_loop(self):
@@ -318,10 +389,27 @@ class WebSocketBridge:
         return True
 
     def _read_loop(self, conn):
-        conn.settimeout(30)
+        """读取页面帧；空闲时发 ping 保活，长时间无响应才断开。"""
+        conn.settimeout(WS_POLL)
+        active = time.time()          # 最近一次收到完整帧的时刻
+        pinged = 0.0
         while True:
             try:
                 head = self._recv_exact(conn, 2)
+            except _IdleTimeout:
+                now = time.time()
+                if now - pinged >= WS_PING_INTERVAL:
+                    pinged = now
+                    try:
+                        self._send_ping(conn)
+                    except Exception:
+                        return
+                if now - active > WS_IDLE_TIMEOUT:
+                    self._log(
+                        f"bridge idle {int(now - active)}s without any "
+                        f"frame, closing connection")
+                    return
+                continue
             except Exception:
                 return
             if head is None:
@@ -348,6 +436,7 @@ class WebSocketBridge:
             payload = self._recv_exact(conn, length)
             if payload is None:
                 return
+            active = time.time()
             if masked:
                 payload = bytes(b ^ mask_key[i % 4]
                                 for i, b in enumerate(payload))
@@ -357,6 +446,8 @@ class WebSocketBridge:
                 except Exception:
                     pass
                 return
+            if opcode == 0xA:        # pong：保活确认，已由 active 记录
+                continue
             if opcode == 0x9:        # ping -> pong
                 try:
                     self._send_raw(conn, bytes([0x8A]) +
@@ -370,11 +461,20 @@ class WebSocketBridge:
     def _recv_exact(self, conn, n):
         buf = b""
         while len(buf) < n:
-            chunk = conn.recv(n - len(buf))
+            try:
+                chunk = conn.recv(n - len(buf))
+            except socket.timeout:
+                if not buf:
+                    raise _IdleTimeout()
+                raise
             if not chunk:
                 return None
             buf += chunk
         return buf
+
+    def _send_ping(self, conn):
+        """发送空 ping 帧；浏览器按 RFC6455 自动回 pong。"""
+        self._send_raw(conn, bytes([0x89]) + self._frame_len(0))
 
     def _frame_len(self, length):
         if length < 126:
@@ -402,13 +502,15 @@ class WebSocketBridge:
         if mtype == "hello":
             self._log("hello from page: " + json.dumps(
                 {k: msg[k] for k in
-                 ("hasGame", "foundKeys", "hasLZ", "hasCompress", "hasLC")
+                 ("ready", "hasGame", "foundKeys", "domKeys", "hasLZ",
+                  "hasCompress", "hasLC")
                  if k in msg}))
             return
         if mtype != "save_data":
             return
         req_id = msg.get("id")
         data = msg.get("data")
+        source = msg.get("source") or "unknown"
         if not isinstance(data, str):
             self._log("save_data ignored: data is not a string")
             return
@@ -416,6 +518,7 @@ class WebSocketBridge:
             pend = self._pending
             if pend and pend['id'] == req_id:
                 pend['data'] = data
+                pend['source'] = source
                 pend['event'].set()
             else:
                 self._log("save_data ignored: no matching request id")

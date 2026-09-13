@@ -2,6 +2,43 @@
 
 All notable changes are listed by version.
 
+## v1.2.2
+
+- Bridge diagnosis corrected: `<div id="game">` is exposed as `window.game`
+  before the game boots, which was misread as "engine exists but has no
+  `save()`". DOM nodes are now excluded from engine candidates, the engine
+  is re-scanned while booting, and `hello` is sent again once the engine is
+  ready, so the log shows the real engine state.
+- Live reads wait for the engine (up to five seconds) before falling back to
+  the browser autosave snapshot, and the server log reports the data source
+  (`engine` or `localStorage`).
+- Idle bridge connections are kept alive with WebSocket ping frames instead
+  of being closed after 30 seconds; a connection that stops answering pongs
+  is reclaimed after 75 seconds. This removes the periodic
+  disconnect/reconnect cycle in the launch log.
+- Manual save: an existing file overwritten with different content is now
+  detected (previously only brand-new file names were), the consumed temp
+  file is deleted after a successful import, and files older than seven days
+  are cleaned from the temp folder at startup.
+- Mirror list fixed: the `ghproxy.net` entry pointed at the unrelated
+  `mirror.ghproxy.com` domain, which no longer responds.
+- Dead code removed: the pre-redesign home-page actions
+  (`kgm_quick_run`, `kgm_copy_run`, `_resolve_kgm_save`,
+  `_refresh_kgm_dir`, `_refresh_kgm_save`, `kgm_mode_var`,
+  `open_download_tab`, `MONITOR_TIMEOUT`, `GAME_DOWNLOAD_URLS`, unused JSON
+  helpers and imports). `msg.monitor_timeout` and 38 other translation keys
+  without a reference were dropped.
+- Home Save Slot now selects the slot used at startup (it had no consumer
+  after the home page redesign).
+- Save codec: compression now works on UTF-16 code units like the JS
+  original, so saves containing non-BMP characters (emoji) round-trip
+  without corruption.
+- Tests added under `tests/` (standard library only): save codec round-trip
+  and parity with the game's `lib/lz-string.js`, downloader extraction,
+  bridge protocol and keepalive, injected page script scenarios, slot
+  writing, translation tables, and static checks against unused imports,
+  unreferenced functions and unused translation keys.
+
 ## v1.2.1
 
 - Save bridge: engine discovery across window keys and `gamePage`;
