@@ -1,4 +1,4 @@
-﻿# KGSaveManager
+# KGSaveManager
 
 A save manager for Kittens Game on Windows (Python + Tkinter, no third-party dependencies).
 
@@ -13,6 +13,7 @@ A save manager for Kittens Game on Windows (Python + Tkinter, no third-party dep
 - Settings: language, browser, game directory, port, default save slot (selected at startup); changes are saved automatically
 - External translations: JSON or PO files in the `i18n/` folder next to the program
 - Runtime data in `kgsm_data/`; run logs in `kgsm_data/kgsm_log/`, one file per launch
+- Layered code: `core/` holds all UI-agnostic logic and reaches the screen only through a UI port (`core/ui_port.py`), so another frontend (for example an HTML/webview UI) can reuse it unchanged
 
 ## Run
 
@@ -44,7 +45,9 @@ program/
 ├─ KGSaveManager.py
 ├─ i18n.py / config_store.py / web_server.py / web_bridge.py
 ├─ savecodec.py / downloader.py
-├─ pages_download.py / pages_editor.py / save_flows.py
+├─ pages_download.py / pages_editor.py / pages_manual.py  (views)
+├─ ui_tk.py                     (Tkinter UI port)
+├─ core/                        (UI-agnostic logic: ui_port / slots / flows)
 ├─ kgsm_logging.py / utils.py
 ├─ docs/guide_en.html
 ├─ tests/                unit tests (standard library only)

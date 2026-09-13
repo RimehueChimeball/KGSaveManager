@@ -1,8 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
-# KGSaveManager PyInstaller 配置（模块：i18n/config_store/web_server/web_bridge/savecodec/utils）
+# KGSaveManager PyInstaller 配置
 # - console=False：GUI 程序不弹出控制台
-# - hiddenimports：显式声明拆分的模块，避免“仅运行时局部导入”导致漏包
-#   （web_server.open_in_browser 在函数内 import config_store）
+# - hiddenimports：显式声明拆分的模块（含 core 逻辑层与 Tkinter 界面端口实现），
+#   避免“仅运行时局部导入”导致漏包（web_server.open_in_browser 在函数内
+#   import config_store）
 # - upx=False：不依赖外部 UPX 压缩工具，避免构建告警（体积差异可忽略）
 
 a = Analysis(
@@ -12,7 +13,9 @@ a = Analysis(
     datas=[('docs', 'docs')],
     hiddenimports=['i18n', 'config_store', 'web_server', 'utils',
                    'web_bridge', 'savecodec', 'downloader', 'kgsm_logging',
-                   'pages_download', 'pages_editor', 'save_flows'],
+                   'pages_download', 'pages_editor', 'pages_manual',
+                   'ui_tk', 'core', 'core.ui_port', 'core.slots',
+                   'core.flows'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

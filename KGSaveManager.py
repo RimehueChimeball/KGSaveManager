@@ -16,11 +16,11 @@ KittensGame 存档管理器 (KGSaveManager)
 7. 六个标签页：KGSM（导航与新手引导）、启动游戏（Web 服务）、存档管理、
    修改存档、下载游戏、配置（语言/游戏目录/固定端口/默认存档位）。
 
-模块拆分：i18n.py（翻译）、config_store.py（配置）、web_server.py（本地
-Web 服务）、web_bridge.py（页面桥）、savecodec.py（存档编解码）、
-downloader.py（游戏下载）、save_flows.py / pages_editor.py /
-pages_download.py（页面与流程 Mixin）、kgsm_logging.py（运行日志）、
-utils.py（DPI）。
+模块分层：`core/`（与界面无关的逻辑：槽位/存档流程/界面端口定义）、
+`ui_tk.py`（Tkinter 对界面端口的实现）、各页面 Mixin（视图）、
+i18n.py（翻译）、config_store.py（配置）、web_server.py（本地 Web 服务）、
+web_bridge.py（页面桥）、savecodec.py（存档编解码）、downloader.py（下载）、
+kgsm_logging.py（运行日志）、utils.py（DPI）。
 """
 
 import os
@@ -30,15 +30,18 @@ import time
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, scrolledtext, simpledialog, ttk
+from tkinter import scrolledtext, ttk
 
 from config_store import AppConfig
+from core.flows import SaveFlows, clean_temp_folder
+from core.slots import SlotStore
 from i18n import (LANG_EN, LANG_ZH, Translator,
                   load_external_translations)
 from kgsm_logging import AppLogger
 from pages_download import DownloadPageMixin
 from pages_editor import EditorPageMixin
-from save_flows import SaveFlowMixin
+from pages_manual import ManualSaveMixin
+from ui_tk import TkUiPort
 from utils import setup_dpi_and_scaling
 from web_bridge import WebSocketBridge
 from web_server import LocalWebServer, open_in_browser
@@ -71,7 +74,7 @@ BACKUP_DIR = DATA_FOLDER / "backups"             # 存档备份目录（编辑�
 TAB_ORDER = ("kgsm", "game", "saves", "editor", "download", "settings")
 
 
-class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
+class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
     def __init__(self, root):
         self.root = root
         self.root.title(f"{APP_NAME} {APP_VERSION}")
@@ -95,7 +98,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                           f"日志目录: {DATA_FOLDER / 'kgsm_log'}"])
 
         # 清理临时文件夹中的过期导出文件
-        self._clean_temp_folder()
+        clean_temp_folder(TEMP_FOLDER, TEMP_KEEP_SECONDS, self.logger)
 
         # 当前选中的存档位索引（0-based）：默认取配置页指定的存档位
         home = self.cfg.home_slot
@@ -105,10 +108,6 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
 
         # 每个存档位的备注（来自配置，修改自动保存）
         self.notes = [self.cfg.get_note(i) for i in range(SLOT_COUNT)]
-
-        # 存档信息列表
-        self.slot_info = []
-        self.load_slot_info()
 
         # 后台线程与 UI 通信的事件队列
         self.event_queue = queue.Queue()
@@ -124,6 +123,17 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         self.max_save_size = MAX_SAVE_SIZE
         self.temp_folder = TEMP_FOLDER
         self.backup_dir = BACKUP_DIR
+
+        # 逻辑层：界面端口 → 槽位存储 → 存档流程（core 不含任何 GUI 代码）
+        self.ui = TkUiPort(self)
+        self.slots = SlotStore(SAVE_LIBRARY, self.t, SLOT_COUNT)
+        self.flows = SaveFlows(
+            ui=self.ui, slots=self.slots, cfg=self.cfg, t=self.t,
+            events=self.event_queue, app_name=APP_NAME,
+            temp_folder=TEMP_FOLDER, max_save_size=MAX_SAVE_SIZE,
+            get_bridge=lambda: self.bridge,
+            is_server_running=lambda: self.lweb.running,
+            logger=self.logger)
 
         # 首次构建标志（重建界面时不重复输出“程序启动”日志）
         self._first_build = True
@@ -142,131 +152,13 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         for folder in (DATA_FOLDER, SAVE_LIBRARY, TEMP_FOLDER, BACKUP_DIR):
             folder.mkdir(parents=True, exist_ok=True)
 
-    def _clean_temp_folder(self):
-        """清理临时文件夹里的过期导出文件（只删超过保留期的文件）。"""
-        cutoff = time.time() - TEMP_KEEP_SECONDS
-        removed = 0
-        try:
-            entries = list(TEMP_FOLDER.iterdir())
-        except OSError:
-            return
-        for p in entries:
-            try:
-                if not p.is_file() or p.stat().st_mtime >= cutoff:
-                    continue
-                p.unlink()
-                removed += 1
-            except OSError:
-                continue
-        if removed:
-            self.logger.info(
-                f"清理临时文件 {removed} 个（保留 {TEMP_KEEP_SECONDS // 86400} 天内）")
-
     def t(self, key, **kw):
         return self.tr.t(key, **kw)
 
-    def slot_name(self, index):
-        """槽位当前显示名：来自存档库文件的真实前缀（文件名不翻译）。
-
-        仅当该槽位有存档文件时才有名字；无文件时返回空串。
-        """
-        if hasattr(self, "slot_info") and index < len(self.slot_info):
-            info = self.slot_info[index]
-            if info.get('exists'):
-                return info.get('name', "")
-        return ""
-
-    def _slot_name_text(self, index, exists):
-        """槽位名字显示区文案：
-        - 有存档文件：显示文件名前缀（程序自动读文件名得到）；
-        - 无文件：显示“空/empty”占位。"""
-        if exists:
-            return self.slot_name(index)
-        return self.t("ui.empty_short")
-
-    def slot_label(self, index):
-        """槽位列表显示文本：<翻译前缀>NN.名字（前缀随语言，
-        名字 = 磁盘文件名前缀，如 zh: 存档01.钢铁 / en: Save01.钢铁）。"""
-        exists = False
-        if hasattr(self, "slot_info") and index < len(self.slot_info):
-            exists = bool(self.slot_info[index].get('exists'))
-        prefix = self.t("sv.slot_prefix")
-        return f"{prefix}{index + 1:02d}.{self._slot_name_text(index, exists)}"
-
-    def slot_default_base(self, index):
-        """槽位无文件时新建存档使用的默认文件名前缀 存档N（不补零）。"""
-        return f"存档{index + 1}"
-
-    @staticmethod
-    def _parse_slot_file(filename):
-        """解析形如 “任意名_槽位号.kgsav” 的文件名。
-
-        返回 (槽位号0起, 名字前缀) 或 None（不合规）。
-        """
-        if not filename.lower().endswith(".kgsav"):
-            return None
-        stem = filename[:-len(".kgsav")]
-        idx = stem.rfind("_")
-        if idx <= 0:
-            return None
-        base, num = stem[:idx], stem[idx + 1:]
-        if not num.isdigit():
-            return None
-        n = int(num)
-        if not (1 <= n <= SLOT_COUNT):
-            return None
-        return n - 1, base
-
-    def load_slot_info(self):
-        """扫描存档库，按“文件名_槽位号.kgsav”自动识别每个槽位。
-
-        - 槽位名字与存档文件都由文件名+修改日期得到，不依赖配置文件；
-        - 同一槽位多个匹配文件时取修改时间最新者。
-        """
-        self.slot_info = [{'exists': False, 'mtime': 0, 'name': ""}
-                          for _ in range(SLOT_COUNT)]
+    def _widget_alive(self, widget):
         try:
-            files = list(SAVE_LIBRARY.iterdir())
-        except OSError:
-            files = []
-        for p in files:
-            if not p.is_file():
-                continue
-            parsed = self._parse_slot_file(p.name)
-            if parsed is None:
-                continue
-            i, base = parsed
-            try:
-                st = p.stat()
-            except OSError:
-                continue
-            cur = self.slot_info[i]
-            if cur['exists'] and cur['mtime'] >= st.st_mtime:
-                continue          # 保留最新者
-            self.slot_info[i] = {
-                'exists': True,
-                'filename': str(p),
-                'name': base,
-                'time': datetime.fromtimestamp(st.st_mtime).strftime(
-                    "%Y-%m-%d %H:%M:%S"),
-                'size': st.st_size,
-                'mtime': st.st_mtime,
-            }
-
-    def _copy_to_clipboard(self, text):
-        """安全地写入剪贴板（tkinter 内置，零依赖）。
-
-        注意：剪贴板内容随本程序退出而清空；正常“复制后粘贴到游戏”
-        流程中程序保持运行，不受影响。
-        """
-        try:
-            self.root.clipboard_clear()
-            self.root.clipboard_append(text)
-            self.root.update()
-            return True
-        except Exception as e:
-            self.log(self.t("msg.clipboard_fail", e=e), self.t("tag.error"))
-            messagebox.showerror(self.t("dlg.clipboard_title"), str(e))
+            return widget is not None and widget.winfo_exists()
+        except Exception:
             return False
 
     # =========================================================
@@ -407,8 +299,8 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             open_in_browser(doc.as_uri(), browser_path=self.cfg.browser,
                             new_window=False)
         else:
-            messagebox.showerror(self.t("err.launch_fail"),
-                                 f"offline doc not found: {doc}")
+            self.ui.fail(f"offline doc not found: {doc}",
+                         self.t("err.launch_fail"))
 
     def _make_link(self, parent, text, command):
         lbl = ttk.Label(parent, text=text, foreground="#0645AD", cursor="hand2")
@@ -420,8 +312,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         how = open_in_browser(url, browser_path=self.cfg.browser,
                               new_window=False)
         if how is None:
-            messagebox.showerror(self.t("err.launch_fail"),
-                                 f"open failed: {url}")
+            self.ui.fail(f"open failed: {url}", self.t("err.launch_fail"))
 
     # ---------- 启动游戏页 ----------
     def build_game_tab(self, parent, button_font, log_font):
@@ -524,13 +415,12 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
 
         directory = self.cfg.game_dir.strip()
         if not directory:
-            messagebox.showerror(self.t("err.launch_fail"),
-                                 self.t("err.no_dir"))
+            self.ui.fail(self.t("err.no_dir"), self.t("err.launch_fail"))
             return None
         root_dir = Path(directory)
         if not root_dir.is_dir():
-            messagebox.showerror(self.t("err.launch_fail"),
-                                 self.t("err.dir_missing", dir=directory))
+            self.ui.fail(self.t("err.dir_missing", dir=directory),
+                         self.t("err.launch_fail"))
             return None
 
         port_text = self.cfg.port.strip()
@@ -541,8 +431,8 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                 if not 0 < port < 65536:
                     raise ValueError
             except ValueError:
-                messagebox.showerror(self.t("err.launch_fail"),
-                                     self.t("err.port_invalid"))
+                self.ui.fail(self.t("err.port_invalid"),
+                             self.t("err.launch_fail"))
                 return None
 
         if self.lweb.running:
@@ -564,8 +454,8 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
                     pass
             self.web_log(self.t("msg.server_fail", e=e), self.t("tag.error"))
             self.logger.error(f"服务启动失败 port={port_text or '(auto)'}: {e}")
-            messagebox.showerror(self.t("err.launch_fail"),
-                                 f"port={port_text or '(auto)'}: {e}")
+            self.ui.fail(f"port={port_text or '(auto)'}: {e}",
+                         self.t("err.launch_fail"))
             return None
         self.bridge = bridge
 
@@ -698,7 +588,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             rb = ttk.Radiobutton(row, variable=self.selected_slot, value=i)
             rb.pack(side=tk.LEFT, padx=8)
 
-            name_lbl = ttk.Label(row, text=self.slot_label(i), width=17,
+            name_lbl = ttk.Label(row, text=self.slots.label(i), width=17,
                                  anchor=tk.W, font=('微软雅黑', 10))
             name_lbl.pack(side=tk.LEFT, padx=8)
 
@@ -886,8 +776,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
 
     def _browse_game_dir(self):
         initial = self.cfg.game_dir.strip() or str(BASE_DIR)
-        chosen = filedialog.askdirectory(title=self.t("st.game_dir"),
-                                         initialdir=initial)
+        chosen = self.ui.ask_directory(self.t("st.game_dir"), initial)
         if chosen:
             self.cfg.update(game_dir=chosen)
             self._sync_page_vars()
@@ -896,14 +785,13 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         """选择浏览器 exe。"""
         initial = self.cfg.browser.strip() or ""
         if not initial:
-            import os as _os
             for base in (r"%ProgramFiles(x86)%", r"%ProgramFiles%"):
-                p = _os.path.expandvars(base + r"\Microsoft\Edge\Application")
-                if _os.path.isdir(p):
+                p = os.path.expandvars(base + r"\Microsoft\Edge\Application")
+                if os.path.isdir(p):
                     initial = p
                     break
-        chosen = filedialog.askopenfilename(
-            title=self.t("st.browser"), initialdir=initial,
+        chosen = self.ui.ask_file(
+            self.t("st.browser"), initial,
             filetypes=[("可执行程序", "*.exe"), ("所有文件", "*.*")])
         if chosen:
             self.cfg.update(browser=chosen)
@@ -979,10 +867,10 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
 
         空槽位：名字区显示“空/empty”，时间列留白。
         """
-        self.load_slot_info()
-        for i, info in enumerate(self.slot_info):
+        self.slots.refresh()
+        for i, info in enumerate(self.slots.info):
             w = self.slot_widgets[i]
-            w['name_lbl'].config(text=self.slot_label(i))
+            w['name_lbl'].config(text=self.slots.label(i))
             if info.get('exists'):
                 w['time_lbl'].config(text=info['time'])
             else:
@@ -996,9 +884,9 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             return
         if not self._widget_alive(self.edit_slot_combo):
             return
-        ids = [i for i, info in enumerate(self.slot_info)
+        ids = [i for i, info in enumerate(self.slots.info)
                if info.get('exists')]
-        mapping = {self.slot_label(i): i for i in ids}
+        mapping = {self.slots.label(i): i for i in ids}
         self._edit["slot_ids"] = ids
         self._edit["slot_map"] = mapping
         cur = self.edit_slot_var.get()
@@ -1014,34 +902,12 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             return
         if not self._widget_alive(self.home_slot_widget):
             return
-        values = [self.slot_label(i) for i in range(SLOT_COUNT)]
+        values = [self.slots.label(i) for i in range(SLOT_COUNT)]
         self.home_slot_widget.configure(values=values)
         cur = self.home_slot_widget.current()
         target = self.cfg.home_slot
         if cur != target or cur < 0:
             self.home_slot_widget.current(target)
-
-    @staticmethod
-    def _widget_alive(widget):
-        try:
-            return widget is not None and widget.winfo_exists()
-        except Exception:
-            return False
-
-    def _ensure_bridge_client(self, timeout=6.0):
-        """等待桥有可用的页面连接（reload 后自动重连期），期间保持 UI 响应。"""
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            if (self.lweb.running and self.bridge is not None
-                    and self.bridge.has_client):
-                return True
-            try:
-                self.root.update()
-            except Exception:
-                pass
-            time.sleep(0.15)
-        return bool(self.lweb.running and self.bridge is not None
-                    and self.bridge.has_client)
 
     def _on_slot_mousewheel(self, event):
         """滚轮滚动存档位列表：仅当指针位于该区域内时生效。"""
@@ -1063,41 +929,27 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         self.commit_notes()
         slot = self.selected_slot.get()
 
-        if not self.slot_info[slot].get('exists'):
-            messagebox.showwarning(self.t("dlg.rename_title"),
-                                   self.t("err.rename_need_file"))
+        if not self.slots.exists(slot):
+            self.ui.warn(self.t("err.rename_need_file"),
+                         self.t("dlg.rename_title"))
             return
 
-        old = self.slot_info[slot]['name']
-        new = simpledialog.askstring(
-            self.t("dlg.rename_title"), self.t("dlg.rename_prompt"),
-            initialvalue=old, parent=self.root)
+        old = self.slots.name(slot)
+        old_file_name = self.slots.path(slot).name
+        new = self.ui.ask_text(self.t("dlg.rename_title"),
+                               self.t("dlg.rename_prompt"), old)
         if new is None:
             return
-        new = new.strip()
-        if not new or len(new) > 40 or any(c in new for c in '\\/:*?"<>|'):
-            messagebox.showerror(self.t("dlg.rename_title"),
-                                 self.t("err.name_invalid"))
+        path, error = self.slots.rename(slot, new)
+        if path is None:
+            if error:
+                self.ui.fail(error, self.t("dlg.rename_title"))
             return
-        if new == old:
-            return
-
-        # 只改磁盘文件名：旧名_N.kgsav → 新名_N.kgsav（不写入配置）
-        new_file = SAVE_LIBRARY / f"{new}_{slot + 1}.kgsav"
-        if new_file.exists():
-            messagebox.showerror(
-                self.t("dlg.rename_title"),
-                self.t("err.name_file_exists", file=new_file.name))
-            return
-        old_file = Path(self.slot_info[slot]['filename'])
-        try:
-            os.replace(str(old_file), str(new_file))
-        except OSError as e:
-            messagebox.showerror(self.t("dlg.rename_title"), str(e))
-            return
-        self.log(self.t("msg.file_renamed", old=old_file.name,
-                        new=new_file.name), self.t("tag.rename"))
-        self.update_slots_display()
+        if path.name == old_file_name:
+            return                        # 名字没变
+        self.log(self.t("msg.file_renamed", old=old_file_name,
+                        new=path.name), self.t("tag.rename"))
+        self.ui.slots_changed()
 
     def refresh_action(self):
         """手动刷新存档库（重新扫描文件名与修改日期）。"""
@@ -1135,95 +987,23 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         self._append_log(self.web_log_text, msg, tag)
 
     # =========================================================
-    # 通用小工具
+    # 存档管理页按钮（视图胶水：读输入框 → 调 core → 刷新显示）
     # =========================================================
-    def _read_save_file(self, path):
-        """读取存档文件并做基本校验，返回文本内容。"""
-        size = os.path.getsize(path)
-        if size <= 0:
-            raise ValueError(self.t("err.file_empty"))
-        if size > MAX_SAVE_SIZE:
-            raise ValueError(self.t("err.file_too_large", size=size))
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read()
+    def auto_save_action(self):
+        self.commit_notes()
+        self.flows.auto_save(self.selected_slot.get())
 
-    # =========================================================
-    # 存档管理页操作（读档/检查）
-    # =========================================================
+    def auto_load_action(self):
+        self.commit_notes()
+        self.flows.auto_load(self.selected_slot.get())
+
     def load_action(self):
         self.commit_notes()
-
-        slot = self.selected_slot.get()
-        if not self.slot_info[slot].get('exists'):
-            messagebox.showwarning(APP_NAME,
-                                   self.t("dlg.no_file",
-                                          slot=self.slot_label(slot)))
-            return
-
-        slot_file = self.slot_info[slot]['filename']
-        try:
-            content = self._read_save_file(slot_file)
-            if not self._copy_to_clipboard(content):
-                return
-            self.log(self.t("msg.copied_save", slot=self.slot_label(slot)),
-                     self.t("tag.load"))
-            self.log(self.t("msg.load_hint"))
-            messagebox.showinfo(
-                APP_NAME,
-                self.t("dlg.copied_ok", slot=self.slot_label(slot)))
-        except Exception as e:
-            self.log(self.t("msg.read_fail", e=e), self.t("tag.load"))
-            messagebox.showerror(self.t("err.load_fail"), str(e))
+        self.flows.copy_save(self.selected_slot.get())
 
     def check_action(self):
         self.commit_notes()
-
-        self.log(self.t("msg.check_start"), self.t("tag.check"))
-
-        try:
-            library_files = sorted(os.listdir(SAVE_LIBRARY))
-        except OSError:
-            library_files = []
-        try:
-            temp_files = sorted(os.listdir(TEMP_FOLDER))
-        except OSError:
-            temp_files = []
-
-        # 合规 = 文件名能被解析为 “任意名_槽位号.kgsav”（槽位号 1..N）
-        valid_names = {f for f in library_files
-                       if self._parse_slot_file(f) is not None}
-        invalid_lib = [f for f in library_files if f not in valid_names]
-        empty_lib = []
-        for name in valid_names:
-            p = os.path.join(SAVE_LIBRARY, name)
-            try:
-                if os.path.isfile(p) and os.path.getsize(p) == 0:
-                    empty_lib.append(name)
-            except OSError:
-                pass
-
-        self.log("=" * 50, self.t("tag.check"))
-        if invalid_lib:
-            self.log(self.t("msg.lib_abnormal"), self.t("tag.check"))
-            for f in invalid_lib:
-                self.log(self.t("msg.item", f=f), self.t("tag.check"))
-        else:
-            self.log(self.t("msg.lib_clean"), self.t("tag.check"))
-
-        if empty_lib:
-            self.log(self.t("msg.lib_empty"), self.t("tag.check"))
-            for f in empty_lib:
-                self.log(self.t("msg.item", f=f), self.t("tag.check"))
-
-        if temp_files:
-            self.log(self.t("msg.temp_files"), self.t("tag.check"))
-            for f in temp_files:
-                self.log(self.t("msg.item", f=f), self.t("tag.check"))
-        else:
-            self.log(self.t("msg.temp_clean"), self.t("tag.check"))
-
-        self.log(self.t("msg.check_tail"), self.t("tag.check"))
-        self.log("=" * 50, self.t("tag.check"))
+        self.flows.check_library()
 
     # =========================================================
     # 事件队列轮询（UI 线程）
@@ -1240,18 +1020,10 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
 
     def _handle_event(self, item):
         kind = item[0]
+        if self.flows.handle_event(item):
+            return
         if kind == "server_log":
             self.web_log(item[1], self.t("tag.server"))
-        elif kind == "auto_save_data":
-            dest = self._write_save_to_slot(item[1], item[2])
-            if dest is not None:
-                self.log(self.t("msg.auto_saved", dest=dest.name),
-                         self.t("tag.done"))
-            else:
-                self.logger.error(f"自动存档写入槽位失败: slot={item[1]}")
-        elif kind == "auto_save_fail":
-            self.log(self.t("msg.auto_timeout"), self.t("tag.timeout"))
-            self.logger.warn("自动存档超时：页面未返回存档数据")
         elif kind == "bridge_log":
             self.web_log(item[1], self.t("tag.bridge"))
         elif kind == "dl_log":

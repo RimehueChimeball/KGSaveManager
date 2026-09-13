@@ -13,6 +13,7 @@ Kittens Game 存档管理器（Windows，Python + Tkinter，零第三方依赖�
 - 配置：语言、浏览器、游戏目录、端口、默认存档位（启动时选中）；修改自动保存
 - 外部翻译：支持程序目录下 `i18n/` 文件夹中的 JSON 与 PO 文件
 - 运行数据集中在 `kgsm_data/`；运行日志位于 `kgsm_data/kgsm_log/`，每次启动一个文件
+- 分层结构：`core/` 存放全部与界面无关的逻辑，只通过界面端口（`core/ui_port.py`）与屏幕交互，因此另一套前端（例如 HTML/webview 界面）可以原样复用
 
 ## 运行
 
@@ -44,7 +45,9 @@ python KGSaveManager.py
 ├─ KGSaveManager.py
 ├─ i18n.py / config_store.py / web_server.py / web_bridge.py
 ├─ savecodec.py / downloader.py
-├─ pages_download.py / pages_editor.py / save_flows.py
+├─ pages_download.py / pages_editor.py / pages_manual.py  (views)
+├─ ui_tk.py                     (Tkinter UI port)
+├─ core/                        (UI-agnostic logic: ui_port / slots / flows)
 ├─ kgsm_logging.py / utils.py
 ├─ docs/guide_en.html
 ├─ tests/                单元测试（仅标准库）

@@ -1,7 +1,7 @@
 """
 pages_download：KGSaveManager「下载游戏」标签页（Mixin）。
 
-依赖主类的：self.root/self.t/self.cfg/self.event_queue/BASE_DIR/_handle_event
+依赖主类的：self.root/self.t/self.ui/self.cfg/self.event_queue/BASE_DIR
 （事件见 KGSaveManager._handle_event：dl_log / dl_versions / dl_progress /
  dl_done / dl_fail）
 """
@@ -10,7 +10,7 @@ import os
 import threading
 
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext, ttk
+from tkinter import messagebox, scrolledtext, ttk
 
 import downloader
 
@@ -142,9 +142,9 @@ class DownloadPageMixin:
         self._append_log(self.dl_log_text, msg, self.t("tag.download"))
 
     def _dl_browse_dir(self):
-        chosen = filedialog.askdirectory(
-            title=self.t("dl.dir"),
-            initialdir=self.dl_dir_var.get().strip()
+        chosen = self.ui.ask_directory(
+            self.t("dl.dir"),
+            self.dl_dir_var.get().strip()
             or str(getattr(self, "base_dir", os.getcwd())))
         if chosen:
             self.dl_dir_var.set(chosen)

@@ -2,10 +2,9 @@
 pages_editor：KGSaveManager「修改存档」标签页（Mixin）。
 
 从主类迁出（解耦）：
-- 依赖主类属性：self.t/self.log/self.cfg/self.slot_info/self.root/
-  self.lweb/self.bridge/self._read_save_file/self.slot_name/
-  self.slot_default_base/self.update_slots_display/self.app_name/
-  self.save_library
+- 依赖主类属性：self.t/self.log/self.cfg/self.slots/self.flows/self.root/
+  self.lweb/self.bridge/self.update_slots_display/self.app_name/
+  self.save_library/self.max_save_size/self.backup_dir
 """
 
 import json
@@ -119,10 +118,10 @@ class EditorPageMixin:
         mode = self.edit_mode_var.get()
         self._edit["mode"] = mode
         if mode == "file":
-            ids = [i for i, info in enumerate(self.slot_info)
+            ids = [i for i, info in enumerate(self.slots.info)
                    if info.get('exists')]
             self._edit["slot_ids"] = ids
-            self._edit["slot_map"] = {self.slot_label(i): i for i in ids}
+            self._edit["slot_map"] = {self.slots.label(i): i for i in ids}
             self.edit_slot_combo.configure(
                 values=list(self._edit["slot_map"].keys()))
             self.edit_slot_combo.state(["!disabled"])
@@ -151,12 +150,12 @@ class EditorPageMixin:
         if mode == "file":
             label = self.edit_slot_var.get()
             slot = self._edit["slot_map"].get(label, -1)
-            if slot < 0 or not self.slot_info[slot].get('exists'):
+            if slot < 0 or not self.slots.info[slot].get('exists'):
                 messagebox.showwarning(self.app_name, self.t("ed.no_slot"))
                 return
-            path = Path(self.slot_info[slot]['filename'])
+            path = Path(self.slots.info[slot]['filename'])
             try:
-                content = self._read_save_file(str(path))
+                content = self.slots.read(str(path), self.max_save_size)
             except Exception as e:
                 messagebox.showerror(self.t("err.load_fail"), str(e))
                 return
@@ -181,13 +180,13 @@ class EditorPageMixin:
             self._edit.update({"data": obj, "slot": slot, "path": str(path),
                                "src_touched": False})
             self._edit_view_changed()
-            self.log(self.t("ed.loaded", name=self.slot_label(slot)),
+            self.log(self.t("ed.loaded", name=self.slots.label(slot)),
                      self.t("tag.load"))
         else:
             if not (self.lweb.running and self.bridge is not None):
                 messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
                 return
-            if not self.bridge.has_client and not self._ensure_bridge_client(6.0):
+            if not self.bridge.has_client and not self.flows.ensure_bridge_client(6.0):
                 messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
                 return
             content = self.bridge.request_save(timeout=15)
@@ -246,7 +245,7 @@ class EditorPageMixin:
                 messagebox.showwarning(self.app_name, self.t("ed.no_slot"))
                 return
             dest = Path(path) if path else self.save_library / (
-                f"{self.slot_name(slot) or self.slot_default_base(slot)}"
+                f"{self.slots.base_for_write(slot)}"
                 f"_{slot + 1}.kgsav")
             tmp = dest.with_name("." + dest.name + ".tmp")
             try:
@@ -262,7 +261,7 @@ class EditorPageMixin:
             if not (self.lweb.running and self.bridge is not None):
                 messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
                 return
-            if not self.bridge.has_client and not self._ensure_bridge_client(6.0):
+            if not self.bridge.has_client and not self.flows.ensure_bridge_client(6.0):
                 messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
                 return
             if self.bridge.apply_save(blob):

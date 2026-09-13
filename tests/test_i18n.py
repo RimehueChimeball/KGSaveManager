@@ -25,7 +25,8 @@ PLACEHOLDER = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 
 def py_files():
-    return sorted(p for p in ROOT.glob("*.py"))
+    """参与扫描的源码：仓库根目录与 core/ 逻辑层（翻译键在两处都会用到）。"""
+    return sorted(list(ROOT.glob("*.py")) + list(ROOT.glob("core/*.py")))
 
 
 def repo_text():

@@ -21,7 +21,8 @@ ALLOWED_UNCALLED = {
 
 
 def py_files():
-    return sorted(p for p in ROOT.glob("*.py"))
+    """参与检查的源码：仓库根目录与 core/ 逻辑层（不含 tests/ 自身）。"""
+    return sorted(list(ROOT.glob("*.py")) + list(ROOT.glob("core/*.py")))
 
 
 def strip_imports(tree, src):
