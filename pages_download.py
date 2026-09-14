@@ -60,7 +60,7 @@ class DownloadPageMixin:
                                              width=30, takefocus=0)
         self.dl_version_combo.grid(row=1, column=1, sticky="w", pady=4)
         ttk.Button(cfg, text=self.t("dl.refresh_versions"),
-                   command=self._dl_refresh_versions).grid(
+                   command=lambda: self._dl_refresh_versions(refresh=True)).grid(
             row=1, column=2, padx=(8, 0), pady=4)
 
         ttk.Label(cfg, text=self.t("dl.mirror")).grid(row=2, column=0,
@@ -149,21 +149,25 @@ class DownloadPageMixin:
         if chosen:
             self.dl_dir_var.set(chosen)
 
-    def _dl_refresh_versions(self, silent=False):
+    def _dl_refresh_versions(self, silent=False, refresh=False):
         repo = self.dl["repo_map"].get(self.dl_repo_var.get(), "author")
         threading.Thread(
-            target=self._dl_fetch_versions, args=(repo, silent),
+            target=self._dl_fetch_versions, args=(repo, silent, refresh),
             daemon=True).start()
 
-    def _dl_fetch_versions(self, repo, silent):
+    def _dl_fetch_versions(self, repo, silent, refresh=False):
         try:
             owner = downloader.REPOS[repo]["owner"]
             name = downloader.REPOS[repo]["repo"]
-            items = downloader.list_versions(owner, name)
+            notes = []
+            items = downloader.list_versions(owner, name, notes=notes,
+                                            refresh=refresh)
         except Exception as e:
             self.event_queue.put(
                 ("dl_fail", self.t("dl.version_fail", e=str(e)), silent))
             return
+        for line in notes:
+            self.event_queue.put(("dl_log", line))
         self.event_queue.put(("dl_versions", repo, items))
 
     def _dl_start(self):

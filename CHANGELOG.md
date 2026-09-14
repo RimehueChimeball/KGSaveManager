@@ -4,6 +4,19 @@ All notable changes are listed by version.
 
 ## v1.2.3
 
+- Fixed the download page failing for the original repository
+  (`nuclear-unicorn/kittensgame`) with every source reporting 404, while the
+  community repository worked. The default branch was guessed as `main` whenever
+  the GitHub API call failed; the original repository only has `master`, so all
+  four sources answered 404. The branch is now detected properly: the API is
+  queried first and, if it is unavailable (unauthenticated GitHub API calls are
+  limited to 60 per hour per IP), the candidates are probed against the archive
+  URL and the branch that actually exists is used. The download log now says why
+  (for example “GitHub API unavailable (possibly rate limited), detected default
+  branch: master”).
+- The version list is cached for ten minutes and only refetched when the
+  “Refresh versions” button is pressed, so browsing the page or switching
+  language no longer burns the API quota.
 - Fixed the Download Game page doing nothing when the download button was
   clicked: the version list stored the repository ref as a string while the
   start routine unpacked it as a `(kind, ref)` pair, so every click raised
