@@ -193,7 +193,7 @@ class DownloadPageMixin:
                     self.t("dl.dir_has_content", dir=target)):
                 return
 
-        kind, ref = ver_map[label]
+        ref = ver_map[label]
         self.dl["busy"] = True
         self.dl["cancel"].clear()
         self.dl_btn_start.config(state=tk.DISABLED)
@@ -243,15 +243,17 @@ class DownloadPageMixin:
 
     def _dl_worker(self, repo, mirror, ref, target, set_service,
                    delete_temp):
+        """后台线程：只做下载与解压，不碰任何界面控件。
+
+        写配置、同步输入框、刷新界面一律交给事件队列，在 UI 线程处理
+        （后台线程操作 Tk 变量会抛 "main thread is not in main loop"）。
+        """
         try:
             downloader.install_game(
                 repo, mirror, ref, target,
                 progress=self._dl_progress_cb,
                 cancel=lambda: self.dl["cancel"].is_set(),
                 delete_temp=delete_temp)
-            if set_service:
-                self.cfg.update(game_dir=target)
-                self._sync_page_vars()
             self.event_queue.put(("dl_done", target, set_service))
         except downloader.DownloadCancelled:
             self.event_queue.put(("dl_canceled",))
@@ -286,12 +288,15 @@ class DownloadPageMixin:
         self.dl_progress_var.set(pct)
 
     def _handle_dl_done(self, target, set_service):
+        """完成收尾（UI 线程）：写配置、同步输入框、刷新存档位显示。"""
         self.dl["busy"] = False
         self.dl_btn_start.config(state=tk.NORMAL)
         self.dl_btn_cancel.config(state=tk.DISABLED)
         self.dl_progress_var.set(100)
         self._dl_log(self.t("dl.done", dir=target))
         if set_service:
+            self.cfg.update(game_dir=target)
+            self._sync_page_vars()
             self._dl_log(self.t("dl.service_set"))
         self.update_slots_display()
 

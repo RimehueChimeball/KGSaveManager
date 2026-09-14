@@ -1,6 +1,25 @@
-﻿# Changelog
+# Changelog
 
 All notable changes are listed by version.
+
+## v1.2.3
+
+- Fixed the Download Game page doing nothing when the download button was
+  clicked: the version list stored the repository ref as a string while the
+  start routine unpacked it as a `(kind, ref)` pair, so every click raised
+  `ValueError: too many values to unpack` inside the Tkinter callback. In the
+  packaged window build there is no console, so the failure was completely
+  silent. The button now starts the download. (Broken since v1.2.0.)
+- Unhandled exceptions in UI callbacks are no longer silent: they are written to
+  the run log and the page log and shown in a message box with the log path.
+- The download worker no longer touches Tkinter variables from its background
+  thread (writing the game directory and syncing the input fields now happens on
+  the UI thread after the `dl_done` event), which previously could raise
+  `main thread is not in main loop`.
+- The pending UI poll job is cancelled on exit, avoiding a Tcl error while
+  shutting down.
+- Added `tests/test_download_page.py`: it drives the download page with a stubbed
+  downloader and fails if the button stops starting a download again.
 
 ## v1.2.2
 

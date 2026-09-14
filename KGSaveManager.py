@@ -28,6 +28,7 @@ import queue
 import sys
 import time
 import tkinter as tk
+import traceback
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, simpledialog, ttk
@@ -45,7 +46,7 @@ from web_server import LocalWebServer, open_in_browser
 
 # ==================== 配置 ====================
 APP_NAME = "KittensGame Save Manager"
-APP_VERSION = "v1.2.2"
+APP_VERSION = "v1.2.3"
 SLOT_COUNT = 10                                  # 存档位数量
 MAX_NOTE_LEN = 200                               # 单条备注最大长度
 MAX_SAVE_SIZE = 64 * 1024 * 1024                 # 单个存档最大体积（字节）
@@ -78,6 +79,8 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         self.root.geometry("1120x640")
         self.root.minsize(800, 480)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        # 界面回调异常不再静默：写日志 + 弹窗提示（打包版无控制台）
+        self.root.report_callback_exception = self._on_callback_error
 
         # 数据目录与配置（配置读取/首启自动创建）
         self._ensure_dirs()
@@ -133,7 +136,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         self._first_build = False
 
         # 启动事件队列轮询（所有后台结果都在 UI 线程处理）
-        self.root.after(150, self._poll_queue)
+        self._poll_job = self.root.after(150, self._poll_queue)
 
     # =========================================================
     # 基础工具
@@ -141,6 +144,30 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
     def _ensure_dirs(self):
         for folder in (DATA_FOLDER, SAVE_LIBRARY, TEMP_FOLDER, BACKUP_DIR):
             folder.mkdir(parents=True, exist_ok=True)
+
+    def _on_callback_error(self, exc_type, exc_value, exc_tb):
+        """界面回调里的未处理异常：绝不允许静默失败。
+
+        打包后的窗口程序没有控制台，回调里抛异常过去是「点了没反应」——
+        这里统一写运行日志、写页面日志，并弹窗告知，便于定位。
+        """
+        detail = "".join(
+            traceback.format_exception(exc_type, exc_value, exc_tb)).strip()
+        summary = f"{exc_type.__name__}: {exc_value}"
+        try:
+            self.logger.error("界面回调异常: " + detail.replace("\n", " | "))
+        except Exception:
+            pass
+        try:
+            self.log(self.t("msg.process_fail", e=summary), self.t("tag.error"))
+        except Exception:
+            pass
+        try:
+            messagebox.showerror(
+                APP_NAME,
+                f"{summary}\n\n{self.t('msg.crash_hint', path=CONFIG_FILE.parent / 'kgsm_log')}")
+        except Exception:
+            pass
 
     def _clean_temp_folder(self):
         """清理临时文件夹里的过期导出文件（只删超过保留期的文件）。"""
@@ -1229,6 +1256,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
     # 事件队列轮询（UI 线程）
     # =========================================================
     def _poll_queue(self):
+        self._poll_job = None
         try:
             while True:
                 item = self.event_queue.get_nowait()
@@ -1236,7 +1264,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         except queue.Empty:
             pass
         if self.root.winfo_exists():
-            self.root.after(150, self._poll_queue)
+            self._poll_job = self.root.after(150, self._poll_queue)
 
     def _handle_event(self, item):
         kind = item[0]
@@ -1276,6 +1304,12 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
     def _on_close(self):
         self.commit_notes()
         self._stop_web_all()
+        if getattr(self, "_poll_job", None) is not None:
+            try:                     # 取消排队中的轮询，避免退出时报 Tcl 噪音
+                self.root.after_cancel(self._poll_job)
+            except Exception:
+                pass
+            self._poll_job = None
         if getattr(self, "logger", None) is not None:
             try:
                 self.logger.action("EXIT", "程序退出")

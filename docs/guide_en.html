@@ -72,7 +72,7 @@
 <main>
 <h1>KGSaveManager — Offline Guide</h1>
 <p>KGSaveManager is a save manager for Kittens Game on Windows (Python +
-Tkinter, bilingual UI, zero third-party dependencies). Version: v1.2.2.</p>
+Tkinter, bilingual UI, zero third-party dependencies). Version: v1.2.3.</p>
 
 <h2 id="quick-start">Quick Start</h2>
 <ol>
@@ -317,7 +317,12 @@ start and stop, save and download operations, and errors.</p>
   <li>“Game page is not connected”: launch the game through KGSM and reload
       the page if necessary.</li>
   <li>Download fails: select another source or run the connectivity test.
-      You may also enable an accelerator and use <code>github.com</code>.</li>
+      You may also enable an accelerator and use <code>github.com</code>.
+      If a source answers with an HTTP 5xx error, switch to another source:
+      the mirrors are third-party proxies and fail independently.</li>
+  <li>“Failed to process the save” together with a dialog that mentions the run
+      log: an unexpected error happened inside the interface. The message box and
+      the run log (<code>kgsm_data/kgsm_log/</code>) both contain the details.</li>
   <li>“Save may be invalid”: the text could not be decoded as a Kittens
       Game save. Proceed only if the content is known to be correct.</li>
   <li>Focus: press Esc to remove focus from an input. Page switching
