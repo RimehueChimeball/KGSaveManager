@@ -214,6 +214,7 @@ _ZH = {
     "msg.user_cancel": "用户取消存档操作",
     "msg.save_start": "开始对 {slot} 进行存档操作",
     "msg.process_fail": "处理存档失败: {e}",
+    "msg.crash_hint": "详细信息已写入运行日志: {path}",
     "msg.read_fail": "读取存档失败: {e}",
     "msg.copied_save": "已将 {slot} 的存档内容复制到剪贴板",
     "msg.load_hint": "请打开游戏，点击 Options → Import，粘贴 (Ctrl+V) 并确认。",
@@ -452,6 +453,7 @@ _EN = {
     "msg.user_cancel": "Save operation cancelled by the user",
     "msg.save_start": "Saving to {slot}...",
     "msg.process_fail": "Failed to process the save: {e}",
+    "msg.crash_hint": "Details were written to the run log: {path}",
     "msg.read_fail": "Failed to read the save: {e}",
     "msg.copied_save": "{slot} save copied to the clipboard",
     "msg.load_hint": "Open the game, click Options → Import, paste (Ctrl+V) "

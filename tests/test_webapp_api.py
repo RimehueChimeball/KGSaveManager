@@ -276,7 +276,7 @@ class TestWebApp(unittest.TestCase):
     # ---------------- 下载（打桩） ----------------
     def test_download_versions_event(self):
         orig = downloader.list_versions
-        downloader.list_versions = lambda owner, repo: [
+        downloader.list_versions = lambda owner, repo, **kw: [
             ("branch", "master", "refs/heads/master")]
         try:
             self.assertTrue(self.h.call("download_versions", repo="author"))

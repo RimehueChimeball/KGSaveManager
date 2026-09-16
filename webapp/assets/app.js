@@ -569,7 +569,9 @@
       renderAll();
     },
     "dl-versions": async () => {
-      await call("download_versions", { repo: $("#dl-repo").value });
+      // 按钮显式刷新：忽略后端缓存，强制重新抓取
+      await call("download_versions", { repo: $("#dl-repo").value,
+                                        refresh: true });
     },
     "dl-test": async () => {
       await call("download_test", {

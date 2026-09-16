@@ -194,7 +194,7 @@ class TestDownloadRun(unittest.TestCase):
 class TestVersionsAndTest(unittest.TestCase):
     def test_refresh_versions_emits_items(self):
         orig = downloader.list_versions
-        downloader.list_versions = lambda owner, repo: [
+        downloader.list_versions = lambda owner, repo, **kw: [
             ("branch", "master", "refs/heads/master")]
         try:
             with TemporaryDirectory() as tmp:
@@ -207,10 +207,31 @@ class TestVersionsAndTest(unittest.TestCase):
         finally:
             downloader.list_versions = orig
 
+    def test_refresh_versions_logs_notes(self):
+        """诊断提示（限流/缓存）要先写进下载日志。"""
+        orig = downloader.list_versions
+
+        def with_note(owner, repo, notes=None, refresh=False):
+            if notes is not None:
+                notes.append("GitHub API 不可用（可能触发限流），已实测默认分支：master")
+            return [("branch", "master", "refs/heads/master")]
+
+        downloader.list_versions = with_note
+        try:
+            with TemporaryDirectory() as tmp:
+                h = DownloadHarness(tmp)
+                h.dl.refresh_versions("author", refresh=True)
+                item = h.drain_until("dl_log")
+                self.assertIsNotNone(item, "未收到诊断日志事件")
+                self.assertIn("限流", item[1])
+                self.assertIsNotNone(h.drain_until("dl_versions"))
+        finally:
+            downloader.list_versions = orig
+
     def test_refresh_versions_failure_emits_fail(self):
         orig = downloader.list_versions
 
-        def boom(owner, repo):
+        def boom(owner, repo, **kw):
             raise OSError("offline")
 
         downloader.list_versions = boom

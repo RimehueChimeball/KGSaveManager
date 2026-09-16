@@ -355,8 +355,9 @@ class WebApi:
             self._manual.pop(session, None)
 
     # ---------------- 下载游戏 ----------------
-    def download_versions(self, repo):
-        self.core.download.refresh_versions(repo)
+    def download_versions(self, repo, refresh=False):
+        """拉取版本列表；refresh=True 时忽略缓存（对应「刷新版本列表」按钮）。"""
+        self.core.download.refresh_versions(repo, refresh=bool(refresh))
         return True
 
     def download_test(self, repo, ref):

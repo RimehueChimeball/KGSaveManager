@@ -45,20 +45,24 @@ class DownloadController:
         return os.path.join(str(self.base_dir), "KittensGame")
 
     # ---------------- 版本列表 ----------------
-    def refresh_versions(self, repo_key, silent=False):
-        """后台拉取版本列表。"""
+    def refresh_versions(self, repo_key, silent=False, refresh=False):
+        """后台拉取版本列表；refresh=True 时忽略缓存强制重抓。"""
         threading.Thread(target=self._fetch_versions,
-                         args=(repo_key, silent), daemon=True).start()
+                         args=(repo_key, silent, refresh), daemon=True).start()
 
-    def _fetch_versions(self, repo_key, silent):
+    def _fetch_versions(self, repo_key, silent, refresh=False):
         try:
             owner = downloader.REPOS[repo_key]["owner"]
             name = downloader.REPOS[repo_key]["repo"]
-            items = downloader.list_versions(owner, name)
+            notes = []
+            items = downloader.list_versions(owner, name, notes=notes,
+                                            refresh=refresh)
         except Exception as e:
             self.events.put(
                 ("dl_fail", self.t("dl.version_fail", e=str(e)), silent))
             return
+        for line in notes:          # 诊断提示（限流/缓存等）先写进下载日志
+            self.events.put(("dl_log", line))
         self.events.put(("dl_versions", repo_key, items))
 
     # ---------------- 连通性测试 ----------------

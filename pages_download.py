@@ -53,7 +53,7 @@ class DownloadPageMixin:
                                              width=30, takefocus=0)
         self.dl_version_combo.grid(row=1, column=1, sticky="w", pady=4)
         ttk.Button(cfg, text=self.t("dl.refresh_versions"),
-                   command=self._dl_refresh_versions).grid(
+                   command=lambda: self._dl_refresh_versions(refresh=True)).grid(
             row=1, column=2, padx=(8, 0), pady=4)
 
         ttk.Label(cfg, text=self.t("dl.mirror")).grid(row=2, column=0,
@@ -149,8 +149,9 @@ class DownloadPageMixin:
     def _dl_ref(self):
         return self.dl.get("ver_map", {}).get(self.dl_version_combo.get())
 
-    def _dl_refresh_versions(self, silent=False):
-        self.download.refresh_versions(self._dl_repo_key(), silent)
+    def _dl_refresh_versions(self, silent=False, refresh=False):
+        self.download.refresh_versions(self._dl_repo_key(), silent,
+                                       refresh=refresh)
 
     def _dl_start(self):
         ref = self._dl_ref()

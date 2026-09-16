@@ -53,25 +53,70 @@ def _http_json(url, timeout=20):
         return json.loads(resp.read().decode("utf-8", "replace"))
 
 
-def list_versions(owner, repo):
+# 默认分支候选顺序：两个仓库都有 master；社区版另有 main。
+# 不能只猜一个名字——GitHub API 未登录时限流（每 IP 每小时 60 次），
+# 一旦拿不到 default_branch，猜错就会让所有下载源 404（作者原版只有 master）。
+DEFAULT_BRANCH_CANDIDATES = ("master", "main")
+
+_LIST_CACHE = {}          # (owner, repo) -> (抓取时间, items, 来源)
+LIST_CACHE_SECONDS = 600  # 缓存 10 分钟，避免频繁请求被限流
+
+
+def branch_exists(owner, repo, branch, timeout=8):
+    """该分支的 zip 是否真的存在（HEAD 探测，直连 GitHub）。"""
+    req = urllib.request.Request(zip_url(owner, repo, f"refs/heads/{branch}"),
+                                 method="HEAD",
+                                 headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return getattr(resp, "status", 200) < 400
+    except Exception:
+        return False
+
+
+def detect_default_branch(owner, repo, timeout=8):
+    """返回 (分支名, 来源)。来源为 'api' / 'probe' / 'fallback'。
+
+    优先问 GitHub API；API 不可用（限流、断网、代理）时按候选分支实测，
+    避免猜错分支导致所有下载源都 404。
+    """
+    try:
+        info = _http_json(f"https://api.github.com/repos/{owner}/{repo}")
+        db = (info or {}).get("default_branch")
+        if db:
+            return db, "api"
+    except Exception:
+        pass
+    for branch in DEFAULT_BRANCH_CANDIDATES:
+        if branch_exists(owner, repo, branch, timeout=timeout):
+            return branch, "probe"
+    return DEFAULT_BRANCH_CANDIDATES[0], "fallback"
+
+
+def list_versions(owner, repo, notes=None, refresh=False):
     """返回可用版本 [(kind, label, ref)]——只列“真正可玩”的选择。
 
     两仓库都没有像样的 release；开发分支（dev/chore/experimental/feature/
     dependabot…）不是可玩版本，全部不列出。这里只提供：
-    - 仓库默认分支（一般是 main，即最新版）；
+    - 仓库默认分支（实测确认存在，即最新版）；
     - 真实存在的 release 标签（若有）。
+
+    :param notes: 可选 list，会追加一行诊断文本（供界面写入下载日志）
+    :param refresh: True 表示忽略缓存，强制重新抓取
     """
-    items = []
-    default_branch = "main"
-    try:
-        info = _http_json(f"https://api.github.com/repos/{owner}/{repo}")
-        db = info.get("default_branch")
-        if db:
-            default_branch = db
-    except Exception:
-        pass
-    items.append(("branch", default_branch,
-                  f"refs/heads/{default_branch}"))
+    key = (owner, repo)
+    now = time.time()
+    if not refresh:
+        cached = _LIST_CACHE.get(key)
+        if cached and now - cached[0] < LIST_CACHE_SECONDS:
+            if notes is not None:
+                notes.append(_note("cache", cached[1], cached[2]))
+            return [tuple(x) for x in cached[1]]
+
+    default_branch, source = detect_default_branch(owner, repo)
+    items = [("branch", default_branch, f"refs/heads/{default_branch}")]
+    if source != "api" and notes is not None:
+        notes.append(_note(source, default_branch, None))
     try:
         rels = _http_json(
             f"https://api.github.com/repos/{owner}/{repo}/releases",
@@ -82,6 +127,22 @@ def list_versions(owner, repo):
                 items.append(("tag", tag, f"refs/tags/{tag}"))
     except Exception:
         pass
+    _LIST_CACHE[key] = (now, list(items), source)
+    return items
+
+
+def _note(source, branch, source_name):
+    """给界面用的诊断/提示文本（不参与翻译，保持与日志同风格）。"""
+    if source == "api":
+        return f"版本列表来自 GitHub API（默认分支 {branch}）"
+    if source == "probe":
+        return (f"GitHub API 不可用（可能触发限流），已实测默认分支："
+                f"{branch}")
+    if source == "cache":
+        return (f"版本列表来自本地缓存（默认分支 {branch}，来源 "
+                f"{source_name or '未知'}）")
+    return f"GitHub API 不可用，且默认分支探测失败，暂用 {branch}"
+
     return items
 
 

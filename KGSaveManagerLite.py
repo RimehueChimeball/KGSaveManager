@@ -29,6 +29,7 @@ import queue
 import sys
 import time
 import tkinter as tk
+import traceback
 from datetime import datetime
 from pathlib import Path
 from tkinter import scrolledtext, ttk
@@ -76,6 +77,8 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         self.root.geometry("1120x640")
         self.root.minsize(800, 480)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        # 界面回调异常不再静默：写日志 + 弹窗提示（打包版没有控制台）
+        self.root.report_callback_exception = self._on_callback_error
 
         # 逻辑层（core）：配置、日志、槽位、存档流程、服务/桥、下载、编辑器
         # 界面只通过 TkUiPort 与 core 交互，core 不含任何 GUI 代码。
@@ -124,13 +127,38 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         self._first_build = False
 
         # 启动事件队列轮询（所有后台结果都在 UI 线程处理）
-        self.root.after(150, self._poll_queue)
+        self._poll_job = self.root.after(150, self._poll_queue)
 
     # =========================================================
     # 基础工具
     # =========================================================
     def t(self, key, **kw):
         return self.tr.t(key, **kw)
+
+    def _on_callback_error(self, exc_type, exc_value, exc_tb):
+        """界面回调里的未处理异常：绝不允许静默失败。
+
+        打包后的窗口程序没有控制台，回调里抛异常过去就是「点了没反应」——
+        这里统一写运行日志、写页面日志，并弹窗告知错误与日志位置。
+        """
+        detail = "".join(
+            traceback.format_exception(exc_type, exc_value, exc_tb)).strip()
+        summary = f"{exc_type.__name__}: {exc_value}"
+        try:
+            self.logger.error("界面回调异常: " + detail.replace("\n", " | "))
+        except Exception:
+            pass
+        try:
+            self.log(self.t("msg.process_fail", e=summary), self.t("tag.error"))
+        except Exception:
+            pass
+        try:
+            self.ui.fail(
+                f"{summary}\n\n"
+                f"{self.t('msg.crash_hint', path=self.paths.logs)}",
+                self.app_name)
+        except Exception:
+            pass
 
     def _widget_alive(self, widget):
         try:
@@ -880,6 +908,7 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
     # 事件队列轮询（UI 线程）
     # =========================================================
     def _poll_queue(self):
+        self._poll_job = None
         try:
             while True:
                 item = self.event_queue.get_nowait()
@@ -887,7 +916,7 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         except queue.Empty:
             pass
         if self.root.winfo_exists():
-            self.root.after(150, self._poll_queue)
+            self._poll_job = self.root.after(150, self._poll_queue)
 
     def _handle_event(self, item):
         """把后台事件分给 core（内部状态）与各页的渲染方法。"""
@@ -923,6 +952,12 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
     # =========================================================
     def _on_close(self):
         self.commit_notes()
+        if getattr(self, "_poll_job", None) is not None:
+            try:                     # 取消排队中的轮询，避免退出时报 Tcl 噪音
+                self.root.after_cancel(self._poll_job)
+            except Exception:
+                pass
+            self._poll_job = None
         self.core.shutdown()
         self.root.destroy()
 

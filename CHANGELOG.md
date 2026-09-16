@@ -4,6 +4,15 @@ All notable changes are listed by version.
 
 ## v1.3.0
 
+- Ported the v1.2.3 fixes into this line (bug fixes only, no feature changes):
+  the default branch is now detected reliably instead of being guessed as `main`
+  (the original repository only has `master`, so guessing made every download
+  source answer 404 when the GitHub API was rate limited); the version list is
+  cached for ten minutes and only refetched when the button is pressed; the
+  download log explains why a fallback happened. The Lite (Tkinter) frontend also
+  reports unhandled interface-callback exceptions (run log, page log and a dialog
+  with the log path) instead of failing silently, and cancels its pending UI poll
+  job on exit.
 - The HTML frontend is now the main version and keeps the plain name
   `KGSaveManager.py`; the Tkinter frontend is the Lite version
   (`KGSaveManagerLite.py`). Both share `kgsm_data/` and behave identically.

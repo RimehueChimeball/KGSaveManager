@@ -360,7 +360,16 @@ start and stop, save and download operations, and errors.</p>
   <li>“Game page is not connected”: launch the game through KGSM and reload
       the page if necessary.</li>
   <li>Download fails: select another source or run the connectivity test.
-      You may also enable an accelerator and use <code>github.com</code>.</li>
+      You may also enable an accelerator and use <code>github.com</code>.
+      If a source answers with an HTTP 5xx error, switch to another source: the
+      mirrors are independent third-party proxies and fail independently.</li>
+  <li>The download log says “GitHub API unavailable (possibly rate limited),
+      detected default branch: …”: the unauthenticated GitHub API allows 60
+      requests per hour per IP, so the version list falls back to probing the
+      branch that really exists. Downloads keep working.</li>
+  <li>“Failed to process the save” together with a dialog naming the run log: an
+      unexpected error happened inside the interface; the message box and
+      <code>kgsm_data/kgsm_log/</code> contain the details.</li>
   <li>“Save may be invalid”: the text could not be decoded as a Kittens
       Game save. Proceed only if the content is known to be correct.</li>
   <li>Focus: press Esc to remove focus from an input. Page switching
