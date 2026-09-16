@@ -192,7 +192,8 @@ class WebSocketBridge:
         self._thread = None
         self._clients = []
         self._lock = threading.Lock()
-        self._pending = None      # {'id','event','data'}
+        self._pending = None      # {'id','event','data','source'} 取存档请求
+        self._apply = None        # {'id','event','ok','err'} 下发存档的确认
         self._next_id = 1
         self._ui_queue = None
         self.port = None
@@ -268,19 +269,19 @@ class WebSocketBridge:
 
     # ---------------- 请求存档 ----------------
     def request_save(self, timeout=15.0):
-        """向已连接的页面请求一次存档；返回文本或 None。
+        """向已连接的页面请求一次存档；返回存档文本或 None。
 
-        优先用最新连接的客户端；发送失败自动剔除并换下一个候选，
-        避免页面刷新后残留的旧连接把请求全部带超时。
+        - 优先用最新连接的客户端；发送失败自动剔除换下一个候选，避免页面刷新
+          后残留的旧连接把请求全部带超时。
+        - 若已有请求在途（例如编辑器与自动存档同时发起），先等它结束再发自己
+          的请求，而不是立刻返回 None（旧行为会让界面误报"超时/解码失败"）。
+        - 等待时长用调用方给的 timeout（不再被硬性截断成 8 秒）。
         """
         candidates = self._pick_clients()
         if not candidates:
             return None
-        if self._pending is not None:
-            return None          # 已有请求在进行
+        self._wait_pending(float(timeout))
         for client in candidates:
-            if self._pending is not None:
-                self._pending = None
             req_id = self._next_id
             self._next_id += 1
             event = threading.Event()
@@ -292,39 +293,81 @@ class WebSocketBridge:
                     {"type": "request_save", "id": req_id}))
             except Exception:
                 self._log("request send failed, dropping stale client")
+                with self._lock:
+                    if self._pending and self._pending["id"] == req_id:
+                        self._pending = None
                 self._drop_client(client)
                 continue
-            event.wait(min(timeout, 8.0))
+            got_it = event.wait(timeout)
             with self._lock:
                 pend = self._pending
-                self._pending = None
+                if pend is not None and pend["id"] == req_id:
+                    self._pending = None
+            if pend is not None and pend.get("id") != req_id:
+                # 已经被别的请求接管（极罕见）：不要误用别人的数据
+                self._log("save request superseded by another request")
+                pend = None
             if pend and pend['data'] is not None:
                 self._log(f"save data received: {len(pend['data'])} chars "
                           f"(source: {pend.get('source') or 'unknown'})")
                 return pend['data']
-            self._log("save request timed out, trying next client if any")
+            if not got_it:
+                self._log("save request timed out, trying next client if any")
         self._log("save request timed out: page did not respond")
         return None
 
-    def apply_save(self, blob, timeout=5.0):
-        """把存档文本下发给页面（页面写入本地存档后自动刷新）。
+    def _wait_pending(self, timeout):
+        """等前一个请求结束（最多 timeout 秒），避免并发时立刻失败。"""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            with self._lock:
+                pend = self._pending
+            if pend is None:
+                return True
+            pend["event"].wait(0.2)
+        return False
 
-        :return: True 表示已发送给已连接的页面；无连接/出错返回 False
+    def apply_save(self, blob, timeout=8.0):
+        """把存档下发给页面，并等待页面确认写入结果。
+
+        :return: True=页面确认写入（apply_ok）
+                 False=页面报错或发送失败
+                 None=已发送但页面没在 timeout 内确认（例如页面正在刷新）
         """
         candidates = self._pick_clients()
         if not candidates:
             return False
         for client in candidates:
+            req_id = self._next_id
+            self._next_id += 1
+            event = threading.Event()
+            with self._lock:
+                self._apply = {"id": req_id, "event": event, "ok": None,
+                               "err": None}
             try:
                 self._send_text(client, json.dumps(
-                    {"type": "apply_save", "id": self._next_id,
-                     "data": blob}))
-                self._log(f"save sent to page: {len(blob)} chars")
-                return True
+                    {"type": "apply_save", "id": req_id, "data": blob}))
             except Exception:
                 self._log("apply send failed, dropping stale client")
+                with self._lock:
+                    self._apply = None
                 self._drop_client(client)
                 continue
+            self._log(f"save sent to page: {len(blob)} chars, waiting for ack")
+            if event.wait(timeout):
+                with self._lock:
+                    result = self._apply
+                    self._apply = None
+                if result and result["ok"]:
+                    self._log("page confirmed the save was applied")
+                    return True
+                detail = (result or {}).get("err") or "unknown"
+                self._log(f"page reported apply error: {detail}")
+                return False
+            with self._lock:
+                self._apply = None
+            self._log("page did not confirm within the timeout")
+            return None
         return False
 
     # ---------------- 服务器内部 ----------------
@@ -505,6 +548,21 @@ class WebSocketBridge:
                  ("ready", "hasGame", "foundKeys", "domKeys", "hasLZ",
                   "hasCompress", "hasLC")
                  if k in msg}))
+            return
+        if mtype == "apply_ok":
+            with self._lock:
+                ap = self._apply
+                if ap and ap["id"] == msg.get("id"):
+                    ap["ok"] = True
+                    ap["event"].set()
+            return
+        if mtype == "apply_err":
+            with self._lock:
+                ap = self._apply
+                if ap and ap["id"] == msg.get("id"):
+                    ap["ok"] = False
+                    ap["err"] = str(msg.get("err") or "page reported an error")
+                    ap["event"].set()
             return
         if mtype != "save_data":
             return

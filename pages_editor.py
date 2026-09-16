@@ -10,6 +10,7 @@ pages_editor：KGSaveManager「修改存档」标签页（Mixin）。
 
 import json
 import os
+import threading
 from pathlib import Path
 from tkinter import messagebox, scrolledtext, simpledialog, ttk
 
@@ -187,19 +188,38 @@ class EditorPageMixin:
             if not (self.lweb.running and self.bridge is not None):
                 messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
                 return
+            # 实时取档要等页面回数据（可能几秒），放后台线程，别冻结界面
+            self.log(self.t("ed.pulling"), self.t("tag.load"))
+            threading.Thread(target=self._edit_live_worker, daemon=True).start()
+
+    def _edit_live_worker(self):
+        """后台线程：等连接 → 向页面要存档 → 解码，结果经事件队列回 UI。"""
+        try:
             if not self.bridge.has_client and not self._ensure_bridge_client(6.0):
-                messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
+                self.event_queue.put(("edit_live_data", None, "no_bridge"))
                 return
             content = self.bridge.request_save(timeout=15)
             obj = self._decode_to_obj(content or "")
             if obj is None:
-                messagebox.showerror(self.t("err.load_fail"),
-                                     self.t("ed.parse_err", err="decode"))
+                self.event_queue.put(("edit_live_data", None, "decode"))
                 return
-            self._edit.update({"data": obj, "slot": -1, "path": None,
-                               "src_touched": False})
-            self._edit_view_changed()
-            self.log(self.t("ed.pulled"), self.t("tag.load"))
+            self.event_queue.put(("edit_live_data", obj, None))
+        except Exception as e:
+            self.event_queue.put(("edit_live_data", None, f"{type(e).__name__}: {e}"))
+
+    def _handle_edit_live_data(self, obj, error):
+        """UI 线程：把实时取到的存档放进编辑器。"""
+        if obj is None:
+            if error == "no_bridge":
+                messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
+            else:
+                messagebox.showerror(self.t("err.load_fail"),
+                                     self.t("ed.parse_err", err=error or "decode"))
+            return
+        self._edit.update({"data": obj, "slot": -1, "path": None,
+                           "src_touched": False})
+        self._edit_view_changed()
+        self.log(self.t("ed.pulled"), self.t("tag.load"))
 
     def _decode_to_obj(self, text):
         s = (text or "").strip()
@@ -262,14 +282,34 @@ class EditorPageMixin:
             if not (self.lweb.running and self.bridge is not None):
                 messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
                 return
+            # 下发 + 等页面确认同样放后台线程
+            threading.Thread(target=self._edit_live_write_worker, args=(blob,),
+                             daemon=True).start()
+
+    def _edit_live_write_worker(self, blob):
+        try:
             if not self.bridge.has_client and not self._ensure_bridge_client(6.0):
-                messagebox.showwarning(self.app_name, self.t("ed.no_bridge"))
+                self.event_queue.put(("edit_live_write", False, "no_bridge"))
                 return
-            if self.bridge.apply_save(blob):
-                self.log(self.t("ed.sent"), self.t("tag.done"))
-                messagebox.showinfo(self.app_name, self.t("ed.sent"))
-            else:
-                self.log(self.t("msg.auto_load_fail"), self.t("tag.error"))
+            result = self.bridge.apply_save(blob, timeout=8.0)
+            self.event_queue.put(("edit_live_write", result, None))
+        except Exception as e:
+            self.event_queue.put(("edit_live_write", False,
+                                  f"{type(e).__name__}: {e}"))
+
+    def _handle_edit_live_write(self, result, error):
+        """UI 线程：实时写入结果（True/None/False）。"""
+        if error == "no_bridge" or result is False:
+            self.log(self.t("msg.auto_load_fail"), self.t("tag.error"))
+            messagebox.showerror(self.app_name, self.t("msg.auto_load_fail"))
+            return
+        if result is None:
+            self.log(self.t("msg.auto_load_unconfirmed"), self.t("tag.timeout"))
+            messagebox.showwarning(self.app_name,
+                                   self.t("msg.auto_load_unconfirmed"))
+            return
+        self.log(self.t("ed.sent"), self.t("tag.done"))
+        messagebox.showinfo(self.app_name, self.t("ed.sent"))
 
     def _rebuild_edit_tree(self):
         tree = self.edit_tree

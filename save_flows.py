@@ -12,11 +12,20 @@ self.logger
 
 import os
 import threading
+import time
+from datetime import datetime
+from pathlib import Path
 
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
 import savecodec
+
+# 浏览器/下载器还没写完的文件：不当候选，避免导入半成品
+PARTIAL_SUFFIXES = (".crdownload", ".part", ".partial", ".download",
+                    ".tmp", ".filepart", ".opdownload")
+# 候选文件长期无法稳定（仍在写入）时，重置重扫，避免无意义空转
+MANUAL_CANDIDATE_TIMEOUT = 120.0
 
 
 class SaveFlowMixin:
@@ -84,13 +93,18 @@ class SaveFlowMixin:
             messagebox.showerror(self.t("err.load_fail"), str(e))
             return
 
-        if self.bridge.apply_save(blob):
-            self.log(self.t("msg.auto_load_sent"), self.t("tag.load"))
-            messagebox.showinfo(self.app_name, self.t("msg.auto_load_sent"))
-        else:
-            self.log(self.t("msg.auto_load_fail"), self.t("tag.error"))
-            messagebox.showerror(self.t("err.load_fail"),
-                                 self.t("msg.auto_load_fail"))
+        # 下发与等待确认放到后台线程：页面确认最多要等几秒，不能冻结界面
+        self.log(self.t("msg.auto_load_sending", slot=self.slot_label(slot)),
+                 self.t("tag.load"))
+        threading.Thread(target=self._auto_load_worker, args=(slot, blob),
+                         daemon=True).start()
+
+    def _auto_load_worker(self, slot, blob):
+        try:
+            result = self.bridge.apply_save(blob, timeout=8.0)
+        except Exception:
+            result = False
+        self.event_queue.put(("auto_load_result", slot, result))
 
     # ---------------- 手动存档对话框 ----------------
     def manual_save_action(self):
@@ -193,7 +207,15 @@ class SaveFlowMixin:
         return snap
 
     def _manual_poll(self):
-        """轮询临时文件夹：检测到新增或被覆盖的文件（写入稳定）即保存并关闭。"""
+        """轮询临时文件夹：候选文件写入稳定后保存并关闭窗口。
+
+        候选规则：
+        - 忽略浏览器/下载器留下的半成品（.crdownload/.part/.tmp…）；
+        - 优先"开窗后新增或被覆盖"的文件；开窗时夹子里已有的文件也会被
+          当作候选（支持"先导出、再点手动存档"的顺序），并在日志里说明；
+        - 候选文件消失（被改名/删除）时重置并重新扫描，不会卡死；
+        - 候选长时间无法稳定（仍在写入）时重置重扫，避免一直空转。
+        """
         ctx = getattr(self, "_manual_ctx", None)
         if not ctx or ctx.get("closed"):
             return
@@ -202,15 +224,14 @@ class SaveFlowMixin:
             return
 
         if ctx.get("detecting_path") is None:
-            now = self._temp_snapshot()
-            changed = [name for name, meta in now.items()
-                       if ctx["before"].get(name) != meta]
-            if changed:
-                fname = max(changed, key=lambda f: now[f][0])
-                path = os.path.join(self.temp_folder, fname)
-                ctx["detecting_path"] = path
-                ctx["last_size"] = now[fname][1]
-                ctx["last_mtime"] = now[fname][0]
+            candidate = self._pick_manual_candidate(ctx)
+            if candidate is not None:
+                fname, meta = candidate
+                ctx["detecting_path"] = os.path.join(self.temp_folder,
+                                                     fname)
+                ctx["last_size"] = meta[1]
+                ctx["last_mtime"] = meta[0]
+                ctx["candidate_at"] = time.time()
                 win.after(500, self._manual_poll)
                 return
         else:
@@ -219,9 +240,23 @@ class SaveFlowMixin:
                 st = os.stat(path)
                 size, mtime = st.st_size, st.st_mtime_ns
             except OSError:
-                size, mtime = -1, -1
+                # 文件被改名或删除：重置候选，重新扫描（旧逻辑会在这里卡死）
+                self.log(self.t("msg.manual_candidate_gone",
+                                name=os.path.basename(path)),
+                         self.t("tag.save"))
+                self._reset_manual_candidate(ctx)
+                win.after(500, self._manual_poll)
+                return
             if (size != ctx.get("last_size")
                     or mtime != ctx.get("last_mtime") or size <= 0):
+                if time.time() - ctx.get("candidate_at", time.time()) > \
+                        MANUAL_CANDIDATE_TIMEOUT:
+                    self.log(self.t("msg.manual_candidate_busy",
+                                    name=os.path.basename(path)),
+                             self.t("tag.save"))
+                    self._reset_manual_candidate(ctx)
+                    win.after(700, self._manual_poll)
+                    return
                 ctx["last_size"] = size
                 ctx["last_mtime"] = mtime
                 win.after(500, self._manual_poll)
@@ -242,13 +277,50 @@ class SaveFlowMixin:
 
         win.after(700, self._manual_poll)
 
+    def _pick_manual_candidate(self, ctx):
+        """挑一个候选文件，返回 (文件名, (mtime_ns, size)) 或 None。"""
+        now = self._temp_snapshot()
+        changed = [name for name, meta in now.items()
+                   if ctx["before"].get(name) != meta
+                   and not self._is_partial_name(name)]
+        if changed:
+            fname = max(changed, key=lambda f: now[f][0])
+            return fname, now[fname]
+
+        # 开窗时夹子里已有文件：只认最新那个，且要在日志里说清楚
+        if not ctx.get("scanned_existing"):
+            ctx["scanned_existing"] = True
+            existing = [name for name, meta in now.items()
+                        if not self._is_partial_name(name) and meta[1] > 0]
+            if existing:
+                fname = max(existing, key=lambda f: now[f][0])
+                self.log(self.t("msg.manual_using_existing", name=fname),
+                         self.t("tag.save"))
+                return fname, now[fname]
+        return None
+
+    @staticmethod
+    def _is_partial_name(name):
+        """浏览器/下载器未完成的文件（不应当作存档导入）。"""
+        low = name.lower()
+        return any(low.endswith(suffix) for suffix in PARTIAL_SUFFIXES)
+
+    @staticmethod
+    def _reset_manual_candidate(ctx):
+        ctx["detecting_path"] = None
+        ctx["last_size"] = -1
+        ctx["last_mtime"] = -1
+        ctx["candidate_at"] = time.time()
+
     def _manual_confirm(self):
         """手动对话框「确定」：粘贴文本校验后写入。"""
         ctx = getattr(self, "_manual_ctx", None)
         if not ctx:
             return
-        content = self._manual_text.get("1.0", "end").strip()
-        if not content:
+        # 只去掉粘贴带来的行尾换行：UTF-16 存档的尾部空格是载荷本身，
+        # 整体 strip() 会破坏它（详见 savecodec.validate 的格式判定）
+        content = self._tidy_payload(self._manual_text.get("1.0", "end"))
+        if not content.strip():
             messagebox.showwarning(self.app_name, self.t("msg.paste_empty"),
                                    parent=ctx["win"])
             return
@@ -265,6 +337,11 @@ class SaveFlowMixin:
                     parent=ctx["win"]):
                 return
         self._manual_finish(content, detected=False, invalid_key=None)
+
+    @staticmethod
+    def _tidy_payload(text):
+        """只裁掉行尾换行；保留其它空白（可能是存档载荷的一部分）。"""
+        return (text or "").rstrip("\r\n")
 
     def _manual_finish(self, content, detected, invalid_key,
                        source_path=None):
@@ -315,9 +392,13 @@ class SaveFlowMixin:
         self.log(self.t("msg.temp_cleaned", name=name), self.t("tag.save"))
 
     def _write_save_to_slot(self, slot, text):
-        """把存档文本写入槽位文件（先写临时再原子覆盖）。"""
-        text = (text or "").strip()
-        if not text:
+        """把存档文本写入槽位文件（先写临时再原子覆盖）。
+
+        覆盖前把原文件备份到 `kgsm_data/backups/`（与编辑器同一套命名），
+        避免一次误操作把已有存档弄丢。
+        """
+        text = self._tidy_payload(text)
+        if not text.strip():
             return None
         if len(text) > self.max_save_size:
             self.log(self.t("err.file_too_large", size=len(text)),
@@ -326,6 +407,7 @@ class SaveFlowMixin:
         base = self.slot_name(slot) or self.slot_default_base(slot)
         dest = self.save_library / f"{base}_{slot + 1}.kgsav"
         tmp = self.save_library / f".{dest.name}.tmp"
+        self._backup_slot_file(dest)
         try:
             tmp.write_text(text, encoding="utf-8")
             os.replace(str(tmp), str(dest))
@@ -341,3 +423,18 @@ class SaveFlowMixin:
             except Exception:
                 pass
             return None
+
+    def _backup_slot_file(self, dest):
+        """覆盖槽位前备份原文件；原文件不存在或备份失败都不影响写入。"""
+        backup_dir = getattr(self, "backup_dir", None)
+        if backup_dir is None or not dest.is_file():
+            return
+        try:
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            bak = Path(backup_dir) / f"{dest.name}.{stamp}.bak"
+            bak.write_bytes(dest.read_bytes())
+            self.log(self.t("msg.slot_backup", path=bak.name),
+                     self.t("tag.save"))
+        except OSError as e:
+            self.log(self.t("msg.backup_fail", e=e), self.t("tag.error"))

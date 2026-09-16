@@ -210,6 +210,15 @@ _ZH = {
     "msg.save_start": "开始对 {slot} 进行存档操作",
     "msg.process_fail": "处理存档失败: {e}",
     "msg.crash_hint": "详细信息已写入运行日志: {path}",
+    "ed.pulling": "正在向游戏页面请求当前存档……",
+    "msg.port_auto_used": "本次使用自动分配的端口: {port}（不写入配置）",
+    "msg.manual_using_existing": "临时文件夹里已有文件，按候选处理: {name}",
+    "msg.manual_candidate_gone": "候选文件已消失，重新扫描: {name}",
+    "msg.manual_candidate_busy": "文件长时间未写入完成，重新扫描: {name}",
+    "msg.slot_backup": "覆盖前已备份原存档: {path}",
+    "msg.backup_fail": "备份原存档失败: {e}",
+    "msg.auto_load_sending": "正在把 {slot} 发送到游戏页面，等待确认……",
+    "msg.auto_load_unconfirmed": "存档已发送，但游戏页面未确认写入结果；请确认游戏内是否已载入。",
     "msg.read_fail": "读取存档失败: {e}",
     "msg.copied_save": "已将 {slot} 的存档内容复制到剪贴板",
     "msg.load_hint": "请打开游戏，点击 Options → Import，粘贴 (Ctrl+V) 并确认。",
@@ -444,6 +453,22 @@ _EN = {
     "msg.save_start": "Saving to {slot}...",
     "msg.process_fail": "Failed to process the save: {e}",
     "msg.crash_hint": "Details were written to the run log: {path}",
+    "ed.pulling": "Requesting the current save from the game page...",
+    "msg.port_auto_used": "Using an automatically assigned port for this run: "
+                          "{port} (not written to the configuration)",
+    "msg.manual_using_existing": "A file is already in the temp folder, using "
+                                 "it as the candidate: {name}",
+    "msg.manual_candidate_gone": "Candidate file disappeared, rescanning: "
+                                 "{name}",
+    "msg.manual_candidate_busy": "File did not finish writing for a long time, "
+                                 "rescanning: {name}",
+    "msg.slot_backup": "Existing save backed up before overwrite: {path}",
+    "msg.backup_fail": "Failed to back up the existing save: {e}",
+    "msg.auto_load_sending": "Sending {slot} to the game page, waiting for "
+                             "confirmation...",
+    "msg.auto_load_unconfirmed": "The save was sent, but the game page did not "
+                                 "confirm the result; please check in the game "
+                                 "whether it loaded.",
     "msg.read_fail": "Failed to read the save: {e}",
     "msg.copied_save": "{slot} save copied to the clipboard",
     "msg.load_hint": "Open the game, click Options → Import, paste (Ctrl+V) "

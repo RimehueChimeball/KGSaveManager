@@ -120,11 +120,36 @@ class TestWriteSaveToSlot(unittest.TestCase):
             stub = _Stub(tmp, lib)
             dest = stub._write_save_to_slot(2, "  SAVEDATA  ")
             self.assertEqual(dest.name, "Save03_3.kgsav")
-            self.assertEqual(dest.read_text(encoding="utf-8"), "SAVEDATA")
+            # 首尾空白可能是载荷本身（UTF-16 存档尾部就是空格填充），一律保留
+            self.assertEqual(dest.read_text(encoding="utf-8"), "  SAVEDATA  ")
             self.assertEqual(stub.display_updates, 1)
             self.assertEqual(
                 sorted(p.name for p in lib.iterdir()), ["Save03_3.kgsav"],
                 "不应留下临时文件")
+
+    def test_only_line_endings_are_trimmed(self):
+        with TemporaryDirectory() as tmp:
+            lib = Path(tmp) / "kittens_saves"
+            lib.mkdir()
+            stub = _Stub(tmp, lib)
+            dest = stub._write_save_to_slot(0, "PAYLOAD  \r\n")
+            self.assertEqual(dest.read_text(encoding="utf-8"), "PAYLOAD  ",
+                             "只裁行尾换行，空格要保留")
+
+    def test_backs_up_existing_slot_before_overwrite(self):
+        with TemporaryDirectory() as tmp:
+            lib = Path(tmp) / "kittens_saves"
+            lib.mkdir()
+            backups = Path(tmp) / "backups"
+            stub = _Stub(tmp, lib)
+            stub.backup_dir = backups
+            stub._write_save_to_slot(0, "FIRST")
+            stub._write_save_to_slot(0, "SECOND")
+            baks = list(backups.glob("*.bak"))
+            self.assertEqual(len(baks), 1, "覆盖前应留一份备份")
+            self.assertEqual(baks[0].read_text(encoding="utf-8"), "FIRST")
+            self.assertTrue(any("msg.slot_backup" in tag_and_msg[1]
+                                for tag_and_msg in stub.logs))
 
     def test_uses_existing_slot_name(self):
         with TemporaryDirectory() as tmp:

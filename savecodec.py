@@ -36,8 +36,12 @@ def _decompress(length, reset_value, get_next):
             if position == 0:
                 position = reset_value
                 if index >= length:
-                    return None
-                val = get_next(index)
+                    # 数据读完：按 0 位继续（与 lz-string 一致——它把越界读到的
+                    # undefined 当作 0）。这样"尾部填充被裁掉"的存档仍能解出，
+                    # 而不是被判成损坏。index 照常推进，主循环据此收尾。
+                    val = 0
+                else:
+                    val = get_next(index)
                 index += 1
             if bit:
                 s += power
@@ -272,33 +276,42 @@ def compress_base64(text):
 
 
 def validate(text):
-    """校验存档文本。
+    """校验存档文本（按格式判定，不做整体的 strip）。
+
+    重要：UTF-16 变体的载荷**尾部空格本身就是数据**（lz-string 的填充位），
+    对整串 `strip()` 会让它解不出来——旧版本因此把合法的 UTF-16 存档判成
+    “疑似不合法”。这里改成按格式判定：
+
+    - 看起来是 JSON（去空白后以 `{` 开头）→ 只对 JSON 做空白归一化；
+    - 否则原样尝试 base64 / UTF-16 解码；失败再试"去掉尾部空白"一次，
+      兼容从网页/聊天工具里复制时丢掉尾部空白的文本。
 
     :return: (ok, kind)
-        ok=True 表示疑似合法存档（原始 JSON / base64 / utf16 任一可解码为 JSON）
+        ok=True 表示疑似合法存档
         kind ∈ {'json','base64','utf16', None}
     """
     if not text or not text.strip():
         return False, None
-    data = text.strip()
-    try:
-        if data[0] == "{":
-            json.loads(data)
+
+    stripped = text.strip()
+    if stripped.startswith("{"):
+        try:
+            json.loads(stripped)
             return True, "json"
-    except Exception:
-        pass
-    out = decompress_base64(data)
-    if out:
-        try:
-            if out[0] == "{" and json.loads(out):
-                return True, "base64"
         except Exception:
             pass
-    out = decompress_utf16(data)
-    if out:
-        try:
-            if out[0] == "{" and json.loads(out):
-                return True, "utf16"
-        except Exception:
-            pass
+
+    # 原样优先（保住 UTF-16 的尾部填充），再去尾空白重试一次
+    for candidate, kind in ((text, "base64"), (text.rstrip(), "base64"),
+                            (text, "utf16"), (text.rstrip(), "utf16")):
+        if not candidate:
+            continue
+        out = (decompress_base64(candidate) if kind == "base64"
+               else decompress_utf16(candidate))
+        if out and out.startswith("{"):
+            try:
+                if json.loads(out):
+                    return True, kind
+            except Exception:
+                continue
     return False, None

@@ -26,6 +26,7 @@ utils.py（DPI）。
 import os
 import queue
 import sys
+import threading
 import time
 import tkinter as tk
 import traceback
@@ -46,7 +47,7 @@ from web_server import LocalWebServer, open_in_browser
 
 # ==================== 配置 ====================
 APP_NAME = "KittensGame Save Manager"
-APP_VERSION = "v1.2.3"
+APP_VERSION = "v1.2.4"
 SLOT_COUNT = 10                                  # 存档位数量
 MAX_NOTE_LEN = 200                               # 单条备注最大长度
 MAX_SAVE_SIZE = 64 * 1024 * 1024                 # 单个存档最大体积（字节）
@@ -621,10 +622,11 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             return None
         self.bridge = bridge
 
-        # 自动分配端口时回写实际端口
+        # 自动分配的端口只用于本次运行：不回写配置
+        # （旧行为会把临时端口存成"固定端口"，下次启动该端口被占用就直接失败）
         if not port_text:
-            self.cfg.update(port=str(actual_port))
-            self._sync_page_vars()
+            self.web_log(self.t("msg.port_auto_used", port=actual_port),
+                         self.t("tag.start"))
 
         self._update_server_buttons(True)
         self.web_log(self.t("msg.server_started", url=url),
@@ -1081,16 +1083,22 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
             return False
 
     def _ensure_bridge_client(self, timeout=6.0):
-        """等待桥有可用的页面连接（reload 后自动重连期），期间保持 UI 响应。"""
+        """等待桥有可用的页面连接（reload 后自动重连期）。
+
+        在 UI 线程里调用时顺便泵一下事件让界面不假死；在后台线程里调用时
+        只 sleep——`root.update()` 不能跨线程用。
+        """
+        on_ui_thread = threading.current_thread() is threading.main_thread()
         deadline = time.time() + timeout
         while time.time() < deadline:
             if (self.lweb.running and self.bridge is not None
                     and self.bridge.has_client):
                 return True
-            try:
-                self.root.update()
-            except Exception:
-                pass
+            if on_ui_thread:
+                try:
+                    self.root.update()
+                except Exception:
+                    pass
             time.sleep(0.15)
         return bool(self.lweb.running and self.bridge is not None
                     and self.bridge.has_client)
@@ -1291,6 +1299,20 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         if self.root.winfo_exists():
             self._poll_job = self.root.after(150, self._poll_queue)
 
+    def _handle_auto_load_result(self, slot, result):
+        """自动读档结果：True=页面确认写入；False=页面报错；None=未确认。"""
+        if result is True:
+            self.log(self.t("msg.auto_load_sent"), self.t("tag.load"))
+            messagebox.showinfo(self.app_name, self.t("msg.auto_load_sent"))
+        elif result is None:
+            self.log(self.t("msg.auto_load_unconfirmed"), self.t("tag.timeout"))
+            messagebox.showwarning(self.app_name,
+                                   self.t("msg.auto_load_unconfirmed"))
+        else:
+            self.log(self.t("msg.auto_load_fail"), self.t("tag.error"))
+            messagebox.showerror(self.t("err.load_fail"),
+                                 self.t("msg.auto_load_fail"))
+
     def _handle_event(self, item):
         kind = item[0]
         if kind == "server_log":
@@ -1305,6 +1327,12 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         elif kind == "auto_save_fail":
             self.log(self.t("msg.auto_timeout"), self.t("tag.timeout"))
             self.logger.warn("自动存档超时：页面未返回存档数据")
+        elif kind == "auto_load_result":
+            self._handle_auto_load_result(item[1], item[2])
+        elif kind == "edit_live_data":
+            self._handle_edit_live_data(item[1], item[2])
+        elif kind == "edit_live_write":
+            self._handle_edit_live_write(item[1], item[2])
         elif kind == "bridge_log":
             self.web_log(item[1], self.t("tag.bridge"))
         elif kind == "dl_log":

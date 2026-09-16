@@ -2,6 +2,44 @@
 
 All notable changes are listed by version.
 
+## v1.2.4
+
+- Fixed Manual Save getting stuck forever: once a half-finished file (for
+  example a browser's `.crdownload`) had been picked as the candidate and was
+  then renamed or deleted, the dialog kept polling that path and never imported
+  anything again. The candidate is now reset and rescanned when it disappears or
+  when it does not stop changing for two minutes, and half-finished names
+  (`.crdownload`, `.part`, `.tmp`, …) are ignored entirely.
+- Manual Save now also works in the natural order “export the file first, then
+  click Manual Save”: a file that is already in the temp folder is picked up as
+  the candidate (the download log says so).
+- Saves are no longer altered on import: only trailing line endings are removed
+  instead of stripping the whole payload. UTF-16 saves end with padding spaces
+  that are part of the data, so the old behaviour both changed the file and made
+  the format check report “possibly invalid” for perfectly good saves.
+  The codec now recognises the format first (JSON / Base64 / UTF-16) and the
+  decoder tolerates the trailing padding being cut off, matching the game’s
+  JavaScript implementation.
+- Auto Load and the editor’s live write now wait for the page to confirm the
+  result (`apply_ok` / `apply_err`) instead of reporting success as soon as the
+  data was sent. If the page does not confirm in time, the dialog says so instead
+  of claiming success. Both run in the background, so the window no longer
+  freezes while waiting.
+- The editor’s “open from the running game” no longer blocks the window: the
+  fetch runs in the background and the result is applied when it arrives.
+- A slot file is backed up to `kgsm_data/backups/` before being overwritten by
+  Manual Save or Auto Save, using the same naming as the editor.
+- The automatically assigned port is no longer written into the configuration:
+  it was stored as if it were a fixed port, so the next start failed whenever
+  that port happened to be busy.
+- Concurrent bridge requests no longer fail instantly: a request that arrives
+  while another one is in flight waits for it instead of returning “no data”
+  immediately, and the caller’s timeout is honoured.
+- Fixed the version-list cache log line printing the source where the branch
+  belongs.
+- Tests: added `tests/test_manual_save.py` (manual-save state machine) and
+  extended the bridge tests (apply confirmation, concurrent requests).
+
 ## v1.2.3
 
 - The application now ships its own icon: the executable shows it in Explorer and

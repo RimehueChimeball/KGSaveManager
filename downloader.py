@@ -109,9 +109,11 @@ def list_versions(owner, repo, notes=None, refresh=False):
     if not refresh:
         cached = _LIST_CACHE.get(key)
         if cached and now - cached[0] < LIST_CACHE_SECONDS:
+            cached_items, cached_source = cached[1], cached[2]
+            cached_branch = cached_items[0][1] if cached_items else "?"
             if notes is not None:
-                notes.append(_note("cache", cached[2], cached[1]))
-            return [tuple(x) for x in cached[1]]
+                notes.append(_note("cache", cached_branch, cached_source))
+            return [tuple(x) for x in cached_items]
 
     default_branch, source = detect_default_branch(owner, repo)
     items = [("branch", default_branch, f"refs/heads/{default_branch}")]
