@@ -1,6 +1,11 @@
-"""core.editor 测试：解码、树行、改值、写回（含备份）。"""
+"""core.editor 测试：解码、树行、改值、写回（含备份）。
+
+实时取档/下发走后台线程，结果经事件队列回传；测试里用 `next_event()`
+把事件交回 `sync_event()`，等价于前端在 UI 线程做的处理。
+"""
 
 import json
+import queue
 import sys
 import unittest
 from pathlib import Path
@@ -40,6 +45,7 @@ class Harness:
         self.backups = Path(tmp) / "backups"
         self.ui = NullUiPort(confirm_default=True)
         self.bridge = bridge
+        self.events = queue.Queue()
 
         def t(key, **kw):
             return key + ("|" + ",".join(f"{k}={v}"
@@ -54,13 +60,23 @@ class Harness:
             get_bridge=lambda: self.bridge,
             is_server_running=lambda: server,
             ensure_bridge_client=lambda timeout: bool(
-                self.bridge and self.bridge.has_client))
+                self.bridge and self.bridge.has_client),
+            events=self.events)
 
     def write_slot(self, index, obj):
         blob = savecodec.compress_base64(
             json.dumps(obj, ensure_ascii=False, separators=(",", ":")))
         self.slots.write(index, blob, 1024 * 1024)
         return blob
+
+    def next_event(self, timeout=5.0):
+        """取出后台线程产生的事件并同步给 editor（前端在 UI 线程做的事）。"""
+        try:
+            item = self.events.get(timeout=timeout)
+        except queue.Empty:
+            return None
+        self.editor.sync_event(item)
+        return item
 
     def messages(self, kind):
         return [m for m in self.ui.messages if m[0] == kind]
@@ -119,7 +135,11 @@ class TestOpen(unittest.TestCase):
         blob = savecodec.compress_base64(json.dumps(SAVE))
         with TemporaryDirectory() as tmp:
             h = Harness(tmp, bridge=FakeBridge(blob))
-            self.assertTrue(h.editor.open_live())
+            self.assertTrue(h.editor.open_live(), "应开始后台取档")
+            item = h.next_event()
+            self.assertIsNotNone(item, "后台取档未产生事件")
+            self.assertEqual(item[0], "edit_live_data")
+            self.assertEqual(item[1]["saveVersion"], 2)
             self.assertEqual(h.editor.slot, -1)
             self.assertIsNone(h.editor.path)
             self.assertTrue(any("ed.pulled" in m for _t, m in h.ui.logs))
@@ -128,7 +148,9 @@ class TestOpen(unittest.TestCase):
         blob = savecodec.compress_base64(json.dumps(SAVE))
         with TemporaryDirectory() as tmp:
             h = Harness(tmp, bridge=FakeBridge(blob, has_client=False))
-            self.assertFalse(h.editor.open_live())
+            self.assertTrue(h.editor.open_live(), "应开始后台取档")
+            item = h.next_event()
+            self.assertEqual(item, ("edit_live_data", None, "no_bridge"))
             self.assertEqual(h.messages("warn")[0][2], "ed.no_bridge")
 
 
@@ -226,10 +248,14 @@ class TestWrite(unittest.TestCase):
                 json.dumps({"a": 1})))
             h = Harness(tmp, bridge=bridge)
             self.assertTrue(h.editor.open_live())
-            self.assertTrue(h.editor.write())
+            self.assertTrue(h.next_event())
+            self.assertTrue(h.editor.write(), "应开始后台下发")
+            item = h.next_event()
+            self.assertEqual(item, ("edit_live_write", True, None))
             self.assertEqual(len(bridge.applied), 1)
             self.assertEqual(decode_to_obj(bridge.applied[0])["a"], 1)
             self.assertTrue(h.messages("notify"))
+            self.assertTrue(any("ed.sent" in m for _t, m in h.ui.logs))
 
     def test_write_live_failure_when_no_client(self):
         with TemporaryDirectory() as tmp:
@@ -239,7 +265,9 @@ class TestWrite(unittest.TestCase):
             h.editor.data = {"a": 1}
             h.editor.slot = -1
             h.editor.path = None
-            self.assertFalse(h.editor.write())
+            self.assertTrue(h.editor.write(), "应开始后台下发")
+            item = h.next_event()
+            self.assertEqual(item, ("edit_live_write", False, "no_bridge"))
             self.assertEqual(h.messages("warn")[0][2], "ed.no_bridge")
 
     def test_write_live_failure_when_apply_rejected(self):
@@ -250,8 +278,28 @@ class TestWrite(unittest.TestCase):
             h.editor.data = {"a": 1}
             h.editor.slot = -1
             h.editor.path = None
-            self.assertFalse(h.editor.write())
+            self.assertTrue(h.editor.write(), "应开始后台下发")
+            item = h.next_event()
+            self.assertEqual(item, ("edit_live_write", False, None))
             self.assertTrue(any(t == "tag.error" for t, _ in h.ui.logs))
+            self.assertEqual(h.messages("fail")[0][2], "msg.auto_load_fail")
+
+    def test_write_live_unconfirmed_warns(self):
+        """页面没确认写入：提示「已发送但未确认」，不谎报成功。"""
+        with TemporaryDirectory() as tmp:
+            bridge = FakeBridge(savecodec.compress_base64(
+                json.dumps({"a": 1})), apply_ok=None)
+            h = Harness(tmp, bridge=bridge)
+            h.editor.data = {"a": 1}
+            h.editor.slot = -1
+            h.editor.path = None
+            self.assertTrue(h.editor.write(), "应开始后台下发")
+            item = h.next_event()
+            self.assertEqual(item, ("edit_live_write", None, None))
+            self.assertEqual(h.messages("warn")[0][2],
+                             "msg.auto_load_unconfirmed")
+            self.assertIn("msg.auto_load_unconfirmed",
+                          [m for _t, m in h.ui.logs])
 
 
 if __name__ == "__main__":

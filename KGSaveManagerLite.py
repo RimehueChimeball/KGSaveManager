@@ -958,6 +958,8 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
                                  bool(item[2]) if len(item) > 2 else False)
         elif kind == "dl_canceled":
             self._handle_dl_cancel()
+        elif kind == "edit_live_data":
+            self.edit_live_changed()
         elif kind == "dl_test_start":
             self._handle_dl_test_start()
         elif kind == "dl_test_result":

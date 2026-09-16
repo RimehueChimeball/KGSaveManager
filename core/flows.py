@@ -7,14 +7,23 @@
 事件契约（前端轮询队列时使用）：
 - `("auto_save_data", slot, text)`：自动存档取到存档文本，请写入槽位
 - `("auto_save_fail", slot)`：自动存档超时/失败
+- `("auto_load_result", slot, result)`：自动读档下发结果，result 为
+  True（页面确认）/ False（页面报错或发送失败）/ None（已发送未确认）
 """
 
 import os
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 import savecodec
+
+# 浏览器/下载器还没写完的文件：不当候选，避免导入半成品
+PARTIAL_SUFFIXES = (".crdownload", ".part", ".partial", ".download",
+                    ".tmp", ".filepart", ".opdownload")
+# 候选文件长期无法稳定（仍在写入）时，重置重扫，避免无意义空转
+MANUAL_CANDIDATE_TIMEOUT = 120.0
 
 
 def snapshot_dir(folder):
@@ -70,6 +79,8 @@ class ManualSaveSession:
         self.path = None
         self.last_size = -1
         self.last_mtime = -1
+        self.candidate_at = time.time()
+        self.scanned_existing = False
         self.closed = False
 
 
@@ -78,7 +89,7 @@ class SaveFlows:
 
     def __init__(self, *, ui, slots, cfg, t, events, app_name, temp_folder,
                  max_save_size, get_bridge, is_server_running, logger=None,
-                 reconnect_timeout=6.0):
+                 backup_dir=None, reconnect_timeout=6.0):
         self.ui = ui
         self.slots = slots
         self.cfg = cfg
@@ -90,6 +101,7 @@ class SaveFlows:
         self.get_bridge = get_bridge
         self.is_server_running = is_server_running
         self.logger = logger
+        self.backup_dir = Path(backup_dir) if backup_dir else None
         self.reconnect_timeout = reconnect_timeout
 
     # ---------------- 通用 ----------------
@@ -155,7 +167,11 @@ class SaveFlows:
 
     # ---------------- 自动读档 ----------------
     def auto_load(self, slot):
-        """KGSM 侧确认一次后，把槽位存档下发给游戏页面。"""
+        """KGSM 侧确认一次后，把槽位存档下发给游戏页面。
+
+        下发与等待页面确认放到后台线程：页面确认最多要等几秒，不能冻结界面。
+        :return: True 表示已开始下发（结果经事件 `auto_load_result` 回传）
+        """
         if not self._ready():
             self.ui.warn(self.t("msg.auto_no_conn"), self.app_name)
             return False
@@ -178,13 +194,18 @@ class SaveFlows:
             self.log(self.t("msg.read_fail", e=e), self.t("tag.error"))
             self.ui.fail(str(e), self.t("err.load_fail"))
             return False
-        if self.get_bridge().apply_save(blob):
-            self.log(self.t("msg.auto_load_sent"), self.t("tag.load"))
-            self.ui.notify(self.t("msg.auto_load_sent"), self.app_name)
-            return True
-        self.log(self.t("msg.auto_load_fail"), self.t("tag.error"))
-        self.ui.fail(self.t("msg.auto_load_fail"), self.t("err.load_fail"))
-        return False
+        self.log(self.t("msg.auto_load_sending", slot=self.slots.label(slot)),
+                 self.t("tag.load"))
+        threading.Thread(target=self._auto_load_worker, args=(slot, blob),
+                         daemon=True).start()
+        return True
+
+    def _auto_load_worker(self, slot, blob):
+        try:
+            result = self.get_bridge().apply_save(blob, timeout=8.0)
+        except Exception:
+            result = False
+        self.events.put(("auto_load_result", slot, result))
 
     # ---------------- 复制存档 ----------------
     def copy_save(self, slot):
@@ -216,30 +237,44 @@ class SaveFlows:
     def poll_manual(self, session):
         """检查临时目录。
 
+        候选规则：
+        - 忽略浏览器/下载器留下的半成品（.crdownload/.part/.tmp…）；
+        - 优先"开窗后新增或被覆盖"的文件；开窗时目录里已有的文件也会被当作
+          候选（支持"先导出、再点手动存档"的顺序），并在日志里说明；
+        - 候选文件消失（被改名/删除）时重置并重新扫描，不会卡死；
+        - 候选长时间无法稳定（仍在写入）时重置重扫，避免一直空转。
+
         :return: ("waiting", None) 继续等 / ("detected", 文本) 已检测到稳定文件
                  / ("gone", None) 会话作废或读取失败（前端关闭对话框）
         """
         if session.closed:
             return ("gone", None)
         if session.path is None:
-            now = snapshot_dir(session.temp_folder)
-            changed = [name for name, meta in now.items()
-                       if session.snapshot.get(name) != meta]
-            if not changed:
-                return ("waiting", None)
-            name = max(changed, key=lambda f: now[f][0])
-            session.path = session.temp_folder / name
-            session.last_size = now[name][1]
-            session.last_mtime = now[name][0]
+            candidate = self._pick_manual_candidate(session)
+            if candidate is not None:
+                name, meta = candidate
+                session.path = session.temp_folder / name
+                session.last_size = meta[1]
+                session.last_mtime = meta[0]
+                session.candidate_at = time.time()
             return ("waiting", None)
 
         try:
             st = session.path.stat()
             size, mtime = st.st_size, st.st_mtime_ns
         except OSError:
-            session.path = None       # 文件消失，重新等待
+            # 文件被改名或删除：重置候选并重新扫描（旧逻辑会在这里卡死）
+            self.log(self.t("msg.manual_candidate_gone",
+                            name=session.path.name), self.t("tag.save"))
+            self._reset_manual_candidate(session)
             return ("waiting", None)
         if size != session.last_size or mtime != session.last_mtime or size <= 0:
+            if (time.time() - session.candidate_at
+                    > MANUAL_CANDIDATE_TIMEOUT):
+                self.log(self.t("msg.manual_candidate_busy",
+                                name=session.path.name), self.t("tag.save"))
+                self._reset_manual_candidate(session)
+                return ("waiting", None)
             session.last_size = size
             session.last_mtime = mtime
             return ("waiting", None)
@@ -251,10 +286,54 @@ class SaveFlows:
             return ("gone", None)
         return ("detected", content)
 
+    def _pick_manual_candidate(self, session):
+        """挑一个候选文件，返回 (文件名, (mtime_ns, size)) 或 None。"""
+        now = snapshot_dir(session.temp_folder)
+        changed = [name for name, meta in now.items()
+                   if session.snapshot.get(name) != meta
+                   and not self._is_partial_name(name)]
+        if changed:
+            name = max(changed, key=lambda f: now[f][0])
+            return name, now[name]
+
+        # 开窗时夹子里已有文件：只认最新那个，且要在日志里说清楚
+        if not session.scanned_existing:
+            session.scanned_existing = True
+            existing = [name for name, meta in now.items()
+                        if not self._is_partial_name(name) and meta[1] > 0]
+            if existing:
+                name = max(existing, key=lambda f: now[f][0])
+                self.log(self.t("msg.manual_using_existing", name=name),
+                         self.t("tag.save"))
+                return name, now[name]
+        return None
+
+    @staticmethod
+    def _is_partial_name(name):
+        """浏览器/下载器未完成的文件（不应当作存档导入）。"""
+        low = name.lower()
+        return any(low.endswith(suffix) for suffix in PARTIAL_SUFFIXES)
+
+    @staticmethod
+    def _reset_manual_candidate(session):
+        session.path = None
+        session.last_size = -1
+        session.last_mtime = -1
+        session.candidate_at = time.time()
+
+    @staticmethod
+    def _tidy_payload(text):
+        """只裁掉行尾换行；保留其它空白（可能是存档载荷的一部分）。
+
+        UTF-16 存档的尾部空格是载荷本身，整体 strip() 会破坏它
+        （详见 savecodec.validate 的格式判定）。
+        """
+        return (text or "").rstrip("\r\n")
+
     def submit_manual_text(self, session, text):
         """手动对话框「确定」：校验粘贴文本后写入。"""
-        content = (text or "").strip()
-        if not content:
+        content = self._tidy_payload(text)
+        if not content.strip():
             self.ui.warn(self.t("msg.paste_empty"), self.app_name)
             return False
         if len(content) > self.max_save_size:
@@ -270,6 +349,7 @@ class SaveFlows:
     def finish_manual(self, session, content, detected, source_path=None):
         """统一收尾：写入槽位 → 删除临时原文 → 记录日志 →（检测到时）提示。"""
         slot = session.slot
+        content = self._tidy_payload(content)
         ok, _ = savecodec.validate(content)
         if not ok and detected:
             if not self.ui.confirm(self.t("msg.paste_invalid_file"),
@@ -278,6 +358,7 @@ class SaveFlows:
                 session.closed = True
                 return False
 
+        self._backup_slot_file(slot)
         dest, err = self.slots.write(slot, content, self.max_save_size)
         session.closed = True
         if dest is None:
@@ -368,4 +449,38 @@ class SaveFlows:
             self.log(self.t("msg.auto_timeout"), self.t("tag.timeout"))
             self._log_warn("自动存档超时：页面未返回存档数据")
             return True
+        if kind == "auto_load_result":
+            slot, result = item[1], item[2]
+            if result is True:
+                self.log(self.t("msg.auto_load_sent"), self.t("tag.load"))
+                self.ui.notify(self.t("msg.auto_load_sent"), self.app_name)
+            elif result is None:
+                self.log(self.t("msg.auto_load_unconfirmed"),
+                         self.t("tag.timeout"))
+                self._log_warn(f"自动读档未确认: slot={slot}")
+                self.ui.warn(self.t("msg.auto_load_unconfirmed"), self.app_name)
+            else:
+                self.log(self.t("msg.auto_load_fail"), self.t("tag.error"))
+                self._log_error(f"自动读档失败: slot={slot}")
+                self.ui.fail(self.t("msg.auto_load_fail"),
+                             self.t("err.load_fail"))
+            return True
         return False
+
+    # ---------------- 槽位备份 ----------------
+    def _backup_slot_file(self, slot):
+        """覆盖槽位前备份原文件；原文件不存在或备份失败都不影响写入。"""
+        if self.backup_dir is None:
+            return
+        dest = self.slots.path(slot)
+        if dest is None or not dest.is_file():
+            return
+        try:
+            self.backup_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            bak = self.backup_dir / f"{dest.name}.{stamp}.bak"
+            bak.write_bytes(dest.read_bytes())
+            self.log(self.t("msg.slot_backup", path=bak.name),
+                     self.t("tag.save"))
+        except OSError as e:
+            self.log(self.t("msg.backup_fail", e=e), self.t("tag.error"))

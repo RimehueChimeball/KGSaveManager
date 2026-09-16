@@ -36,7 +36,30 @@ All notable changes are listed by version.
   connectivity test, settings, bilingual strings pushed from the backend.
 - The HTML frontend has its own self-test (`?selftest=1`) and the test suite
   drives it with headless Edge, so the browser UI is verified end to end.
-- Tests: 152 cases covering core (slots, flows, editor, download, server),
+- Ported the v1.2.4 fixes into this line (bug fixes only, no feature changes):
+  save payloads keep their trailing whitespace, because a UTF-16 save is padded
+  with spaces that are part of the payload and a whole-string trim corrupted it
+  (only trailing line endings are trimmed now, and the codec accepts both a raw
+  and a line-trimmed blob); the manual-save candidate scan no longer stalls
+  when the exported file is renamed or deleted, ignores half-written browser
+  downloads (`.crdownload`, `.part`, `.tmp` and friends), accepts a file that
+  was already in the temp folder before the dialog opened, and gives up on a
+  candidate that never stops growing after two minutes; overwriting a slot
+  backs the previous file up into `kgsm_data/backups/` first.
+- Bridge fixes from the same round: a second `request_save` while one is in
+  flight now waits for the first instead of failing instantly (which surfaced
+  as a bogus "timeout/decode failed"), the caller's timeout is honoured, and
+  `apply_save` waits for the page to acknowledge the write — it reports
+  confirmation, a page error, or "sent but unconfirmed" instead of assuming
+  success on send. Live reads and live writes in the editor, and loading a slot
+  into the game, run on background threads in both frontends so the window no
+  longer freezes for the seconds the page needs to answer.
+- The automatically assigned HTTP port is no longer written back to the
+  configuration (the old behaviour stored a temporary port as a fixed one, so
+  the next start failed when that port was taken); the launch log states that
+  the port was chosen for this run only. The download log's cache note now
+  reports the cached default branch instead of the raw list and source.
+- Tests: 201 cases covering core (slots, flows, editor, download, server),
   bridge protocol and keepalive, injected script, downloader, i18n across
   Python and web assets, dead-code checks, and the browser self-test run.
 - Note: pywebview was evaluated for an embedded-window variant and rejected —

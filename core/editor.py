@@ -3,10 +3,17 @@
 前端只负责把 `tree_rows()` 画出来、把用户输入交回 `set_value()`，
 以及在「源码」模式下把文本交给 `apply_source_text()` / `write(source_text=…)`。
 事件：写回成功/失败通过 `UiPort` 提示与记日志；实时模式下发往游戏页面。
+
+实时模式的取档/下发要等游戏页面回话（可能几秒），因此放在后台线程，
+结果经事件队列回传（前端渲染前调用 `sync_event()` 让本对象状态跟上）：
+- `("edit_live_data", obj, error)`：实时取到存档（obj 为 None 时看 error）
+- `("edit_live_write", result, error)`：实时下发结果
+  result 为 True（页面确认）/ False（页面报错或发送失败）/ None（未确认）
 """
 
 import json
 import os
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -61,7 +68,7 @@ class EditorController:
 
     def __init__(self, *, ui, slots, t, cfg, backup_dir, save_library,
                  max_save_size, get_bridge=None, is_server_running=None,
-                 ensure_bridge_client=None, logger=None):
+                 ensure_bridge_client=None, events=None, logger=None):
         self.ui = ui
         self.slots = slots
         self.t = t
@@ -72,6 +79,7 @@ class EditorController:
         self._get_bridge = get_bridge or (lambda: None)
         self._is_server_running = is_server_running or (lambda: False)
         self._ensure_bridge_client = ensure_bridge_client or (lambda timeout: False)
+        self.events = events
         self.logger = logger
 
         self.data = None
@@ -112,26 +120,43 @@ class EditorController:
         return True
 
     def open_live(self):
-        """从运行中的游戏页面拉取当前存档。"""
+        """从运行中的游戏页面拉取当前存档（后台线程，结果经事件回传）。
+
+        实时取档要等页面回数据（可能几秒），不能冻结界面。
+
+        :return: True 表示已开始取档（成功与否看 `edit_live_data` 事件）
+        """
         bridge = self._get_bridge()
         if not (self._is_server_running() and bridge is not None):
             self.ui.warn(self.t("ed.no_bridge"))
             return False
-        if not bridge.has_client and not self._ensure_bridge_client(6.0):
-            self.ui.warn(self.t("ed.no_bridge"))
-            return False
-        content = bridge.request_save(timeout=15)
-        obj = decode_to_obj(content or "")
-        if obj is None:
-            self.ui.fail(self.t("ed.parse_err", err="decode"),
-                         self.t("err.load_fail"))
-            return False
-        self.data = obj
-        self.slot = -1
-        self.path = None
-        self.src_touched = False
-        self.ui.log(self.t("ed.pulled"), self.t("tag.load"))
+        self.ui.log(self.t("ed.pulling"), self.t("tag.load"))
+        threading.Thread(target=self._open_live_worker, daemon=True).start()
         return True
+
+    def _open_live_worker(self):
+        """后台线程：等连接 → 向页面要存档 → 解码，结果经事件队列回 UI。"""
+        try:
+            bridge = self._get_bridge()
+            if bridge is None or (not bridge.has_client
+                                  and not self._ensure_bridge_client(6.0)):
+                self._put(("edit_live_data", None, "no_bridge"))
+                return
+            content = bridge.request_save(timeout=15)
+            obj = decode_to_obj(content or "")
+            if obj is None:
+                self._put(("edit_live_data", None, "decode"))
+                return
+            self._put(("edit_live_data", obj, None))
+        except Exception as e:
+            self._put(("edit_live_data", None, f"{type(e).__name__}: {e}"))
+
+    def _put(self, item):
+        """后台线程投递事件；没有事件队列时（单测）直接同步处理。"""
+        if self.events is None:
+            self.sync_event(item)
+            return
+        self.events.put(item)
 
     def _backup(self, path):
         if self.backup_dir is None:
@@ -283,19 +308,66 @@ class EditorController:
         return True
 
     def _write_live(self, blob):
+        """实时下发（后台线程，页面确认结果经事件回传）。
+
+        :return: True 表示已开始下发
+        """
         bridge = self._get_bridge()
         if not (self._is_server_running() and bridge is not None):
             self.ui.warn(self.t("ed.no_bridge"))
             return False
-        if not bridge.has_client and not self._ensure_bridge_client(6.0):
-            self.ui.warn(self.t("ed.no_bridge"))
-            return False
-        if bridge.apply_save(blob):
-            self.ui.log(self.t("ed.sent"), self.t("tag.done"))
-            self.ui.notify(self.t("ed.sent"))
-            return True
-        self.ui.log(self.t("msg.auto_load_fail"), self.t("tag.error"))
-        return False
+        threading.Thread(target=self._write_live_worker, args=(blob,),
+                         daemon=True).start()
+        return True
+
+    def _write_live_worker(self, blob):
+        try:
+            bridge = self._get_bridge()
+            if bridge is None or (not bridge.has_client
+                                  and not self._ensure_bridge_client(6.0)):
+                self._put(("edit_live_write", False, "no_bridge"))
+                return
+            result = bridge.apply_save(blob, timeout=8.0)
+            self._put(("edit_live_write", result, None))
+        except Exception as e:
+            self._put(("edit_live_write", False, f"{type(e).__name__}: {e}"))
+
+    # ---------------- 后台事件 ----------------
+    def sync_event(self, item):
+        """前端渲染事件之前调用：让本对象状态跟上事件，并给出提示/记日志。"""
+        kind = item[0]
+        if kind == "edit_live_data":
+            obj, error = item[1], item[2]
+            if obj is None:
+                if error == "no_bridge":
+                    self.ui.warn(self.t("ed.no_bridge"))
+                else:
+                    self.ui.fail(self.t("ed.parse_err", err=error or "decode"),
+                                 self.t("err.load_fail"))
+                return
+            self.data = obj
+            self.slot = -1
+            self.path = None
+            self.src_touched = False
+            self.ui.log(self.t("ed.pulled"), self.t("tag.load"))
+            return
+        if kind == "edit_live_write":
+            result, error = item[1], item[2]
+            if error == "no_bridge":
+                self.ui.warn(self.t("ed.no_bridge"))
+                return
+            if result is False:
+                self.ui.log(self.t("msg.auto_load_fail"), self.t("tag.error"))
+                self._log_error(f"实时下发存档失败: {error or 'page error'}")
+                self.ui.fail(self.t("msg.auto_load_fail"),
+                             self.t("err.save_fail"))
+            elif result is None:
+                self.ui.log(self.t("msg.auto_load_unconfirmed"),
+                            self.t("tag.timeout"))
+                self.ui.warn(self.t("msg.auto_load_unconfirmed"))
+            else:
+                self.ui.log(self.t("ed.sent"), self.t("tag.done"))
+                self.ui.notify(self.t("ed.sent"))
 
     def _log_error(self, msg):
         if self.logger is not None:

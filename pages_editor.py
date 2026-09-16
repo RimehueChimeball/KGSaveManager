@@ -125,15 +125,24 @@ class EditorPageMixin:
                 self._refresh_edit_slots()
                 self._edit_view_changed()
         else:
-            if self.editor.open_live():
-                self._edit_view_changed()
+            # 实时取档在后台线程进行（要等游戏页面回话），
+            # 取到后由事件 `edit_live_data` 触发界面刷新
+            self.editor.open_live()
 
     def edit_write_action(self):
         source_text = None
         if self.edit_view_var.get() == "source":
             source_text = self.edit_source.get("1.0", "end")
-        if self.editor.write(source_text=source_text):
+        if not self.editor.write(source_text=source_text):
+            return
+        # 实时模式下发与确认在后台进行，完成后由事件提示；
+        # 文件模式改的是本地数据，直接重画
+        if self.editor.path is not None or self.editor.slot >= 0:
             self._edit_view_changed()
+
+    def edit_live_changed(self):
+        """实时取档完成（core 状态已更新）后刷新编辑器视图。"""
+        self._edit_view_changed()
 
     def _selected_edit_slot(self):
         label = self.edit_slot_var.get()

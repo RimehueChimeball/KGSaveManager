@@ -312,7 +312,7 @@ class TestServerController(unittest.TestCase):
             game.mkdir()
             (game / "index.html").write_text("<html></html>",
                                              encoding="utf-8")
-            ctl, cfg, _ui = self._controller(tmp, str(game))
+            ctl, cfg, ui = self._controller(tmp, str(game))
             url = ctl.start()
             self.assertIsNotNone(url)
             self.assertTrue(ctl.running)
@@ -321,10 +321,12 @@ class TestServerController(unittest.TestCase):
             self.assertTrue(status["running"])
             self.assertEqual(status["url"], url)
             self.assertIsNotNone(status["bridge_port"])
-            # 自动端口应回写配置，且写回的是 HTTP 端口
-            http_port = url.rsplit(":", 1)[1].strip("/")
-            self.assertEqual(cfg.port, http_port)
-            self.assertTrue(cfg.updates)
+            # 自动分配的端口只用于本次运行：不能回写配置
+            # （旧行为会把临时端口存成"固定端口"，下次启动端口被占用就失败）
+            self.assertEqual(cfg.port, "")
+            self.assertFalse(cfg.updates, "自动端口不应写回配置")
+            self.assertTrue(any("msg.port_auto_used" in m
+                                for _tag, m in ui.logs), "应提示端口为本次自动分配")
             ctl.stop()
             self.assertFalse(ctl.running)
             self.assertIsNone(ctl.bridge)

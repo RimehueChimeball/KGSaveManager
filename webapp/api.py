@@ -169,6 +169,12 @@ class EventPump:
         elif kind == "dl_test_result":
             self.outbox.push({"type": "download_test_result",
                               "lines": item[1]})
+        elif kind == "edit_live_data":
+            self.outbox.push({"type": "editor_live", "ok": item[1] is not None,
+                              "error": item[2]})
+        elif kind == "edit_live_write":
+            self.outbox.push({"type": "editor_sent", "result": item[1],
+                              "error": item[2]})
 
 
 class WebApi:
@@ -380,7 +386,8 @@ class WebApi:
 
     def editor_open_live(self):
         ok = self.core.editor.open_live()
-        return {"ok": ok, "state": self.editor_state()}
+        # 取档在后台进行：页面先显示「请求中」，结果经 editor_live 事件回来
+        return {"ok": ok, "pending": ok, "state": self.editor_state()}
 
     def editor_source(self):
         return {"text": self.core.editor.source_text()}
@@ -394,7 +401,10 @@ class WebApi:
 
     def editor_write(self, source_text=None):
         ok = self.core.editor.write(source_text=source_text)
-        return {"ok": ok, "state": self.editor_state()}
+        # 实时模式下发与确认在后台进行，结果经 editor_sent 事件回页面
+        live = self.core.editor.path is None and self.core.editor.slot < 0
+        return {"ok": ok, "pending": bool(ok and live),
+                "state": self.editor_state()}
 
     # ---------------- 生命周期 ----------------
     def ping(self):

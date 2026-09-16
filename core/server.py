@@ -96,9 +96,11 @@ class ServerController:
             return None
         self.bridge = bridge
 
-        # 自动分配端口时回写实际端口
+        # 自动分配的端口只用于本次运行：不回写配置
+        # （旧行为会把临时端口存成"固定端口"，下次启动该端口被占用就直接失败）
         if not port_text:
-            self.cfg.update(port=str(actual_port))
+            self.ui.web_log(self.t("msg.port_auto_used", port=actual_port),
+                            self.t("tag.start"))
 
         self.ui.web_log(self.t("msg.server_started", url=url),
                         self.t("tag.start"))

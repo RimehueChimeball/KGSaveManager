@@ -66,6 +66,7 @@ class Harness:
         self.library.mkdir(parents=True, exist_ok=True)
         self.temp = Path(tmp) / "kgsm_temp"
         self.temp.mkdir(parents=True, exist_ok=True)
+        self.backups = Path(tmp) / "backups"
         self.ui = NullUiPort(confirm_default=confirm)
         self.bridge = FakeBridge(save_text, has_client, apply_ok)
         self.server_running = server
@@ -85,6 +86,7 @@ class Harness:
             temp_folder=self.temp, max_save_size=1024 * 1024,
             get_bridge=lambda: self.bridge,
             is_server_running=lambda: self.server_running,
+            backup_dir=self.backups,
             logger=self.logger, reconnect_timeout=0.2)
 
     # ---- 便捷断言 ----
@@ -190,10 +192,16 @@ class TestAutoLoad(unittest.TestCase):
             self.assertEqual(h.bridge.applied, [])
 
     def test_success_sends_to_page(self):
+        """下发成功：立即返回 True（已开始），结果经事件回传后再提示。"""
         with TemporaryDirectory() as tmp:
             h = Harness(tmp)
             h.slots.write(0, SAVE_TEXT, 1024 * 1024)
             self.assertTrue(h.flows.auto_load(0))
+            self.assertTrue(any(m.startswith("msg.auto_load_sending")
+                                for m in h.logs()))
+            item = h.drain()
+            self.assertEqual(item, ("auto_load_result", 0, True))
+            self.assertTrue(h.flows.handle_event(item))
             self.assertEqual(h.bridge.applied, [SAVE_TEXT])
             self.assertIn("msg.auto_load_sent", h.logs())
             self.assertEqual(h.messages("notify")[0][2], "msg.auto_load_sent")
@@ -202,8 +210,24 @@ class TestAutoLoad(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             h = Harness(tmp, apply_ok=False)
             h.slots.write(0, SAVE_TEXT, 1024 * 1024)
-            self.assertFalse(h.flows.auto_load(0))
+            self.assertTrue(h.flows.auto_load(0))
+            item = h.drain()
+            self.assertEqual(item, ("auto_load_result", 0, False))
+            self.assertTrue(h.flows.handle_event(item))
             self.assertEqual(h.messages("fail")[0][2], "msg.auto_load_fail")
+
+    def test_unconfirmed_result_warns(self):
+        """页面没确认：提示「已发送但未确认」，不谎报成功。"""
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp, apply_ok=None)
+            h.slots.write(0, SAVE_TEXT, 1024 * 1024)
+            self.assertTrue(h.flows.auto_load(0))
+            item = h.drain()
+            self.assertEqual(item, ("auto_load_result", 0, None))
+            self.assertTrue(h.flows.handle_event(item))
+            self.assertIn("msg.auto_load_unconfirmed", h.logs())
+            self.assertEqual(h.messages("warn")[0][2],
+                             "msg.auto_load_unconfirmed")
 
 
 class TestCopySave(unittest.TestCase):
@@ -317,6 +341,109 @@ class TestManualSave(unittest.TestCase):
             session = self._session(h)
             h.flows.cancel_manual(session)
             self.assertEqual(h.flows.poll_manual(session), ("gone", None))
+
+    # ---- 候选文件规则（先导出再点手动存档 / 半成品 / 卡死） ----
+    def test_pre_existing_file_becomes_candidate(self):
+        """开窗时目录里已有文件也应导入（旧逻辑只看增量，会一直等待）。"""
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            (h.temp / "export.kgsav").write_text(SAVE_TEXT, encoding="utf-8")
+            session = self._session(h)
+            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
+            self.assertEqual(session.path.name, "export.kgsav")
+            self.assertTrue(any("msg.manual_using_existing" in m
+                                for m in h.logs()))
+            state, content = h.flows.poll_manual(session)
+            self.assertEqual(state, "detected")
+            self.assertEqual(content, SAVE_TEXT)
+
+    def test_partial_download_is_ignored(self):
+        """浏览器未下载完的半成品不应当作存档导入。"""
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            session = self._session(h)
+            (h.temp / "save.kgsav.crdownload").write_text("half",
+                                                          encoding="utf-8")
+            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
+            self.assertIsNone(session.path)
+            (h.temp / "save.kgsav").write_text(SAVE_TEXT, encoding="utf-8")
+            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
+            self.assertEqual(session.path.name, "save.kgsav")
+
+    def test_candidate_gone_resets_scan(self):
+        """候选被改名/删除后重置重扫，而不是卡死在旧路径上。"""
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            session = self._session(h)
+            f = h.temp / "export.kgsav"
+            f.write_text(SAVE_TEXT, encoding="utf-8")
+            h.flows.poll_manual(session)          # 记录候选
+            f.unlink()
+            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
+            self.assertIsNone(session.path, "候选消失后应重置")
+            self.assertTrue(any("msg.manual_candidate_gone" in m
+                                for m in h.logs()))
+            (h.temp / "retry.kgsav").write_text(SAVE_TEXT, encoding="utf-8")
+            h.flows.poll_manual(session)
+            self.assertEqual(h.flows.poll_manual(session)[0], "detected")
+
+    def test_stuck_candidate_resets_after_timeout(self):
+        """文件长时间写不完：放弃该候选，重新扫描。"""
+        with TemporaryDirectory() as tmp:
+            import core.flows as flows_mod
+            h = Harness(tmp)
+            old = flows_mod.MANUAL_CANDIDATE_TIMEOUT
+            flows_mod.MANUAL_CANDIDATE_TIMEOUT = 0.0
+            try:
+                session = self._session(h)
+                f = h.temp / "stuck.kgsav"
+                f.write_text("A", encoding="utf-8")
+                h.flows.poll_manual(session)      # 记录候选
+                f.write_text("AB", encoding="utf-8")
+                self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
+                self.assertIsNone(session.path, "超时后应放弃候选")
+                self.assertTrue(any("msg.manual_candidate_busy" in m
+                                    for m in h.logs()))
+            finally:
+                flows_mod.MANUAL_CANDIDATE_TIMEOUT = old
+
+    # ---- 载荷与备份 ----
+    def test_only_line_endings_are_trimmed(self):
+        """粘贴文本只裁行尾换行：UTF-16 存档的尾部空格是载荷本身。"""
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            session = self._session(h)
+            self.assertTrue(h.flows.submit_manual_text(session,
+                                                       "PAYLOAD  \r\n"))
+            self.assertEqual(
+                (h.library / "存档1_1.kgsav").read_text(encoding="utf-8"),
+                "PAYLOAD  ", "只裁行尾换行，空格要保留")
+
+    def test_overwrite_backs_up_existing_save(self):
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            session = self._session(h)
+            self.assertTrue(h.flows.finish_manual(session, "FIRST",
+                                                  detected=False))
+            self.assertEqual(
+                (h.library / "存档1_1.kgsav").read_text(encoding="utf-8"),
+                "FIRST")
+            session2 = self._session(h)
+            self.assertTrue(h.flows.finish_manual(session2, "SECOND",
+                                                  detected=False))
+            baks = list(h.backups.glob("*.bak"))
+            self.assertEqual(len(baks), 1, "覆盖前应留一份备份")
+            self.assertEqual(baks[0].read_text(encoding="utf-8"), "FIRST")
+            self.assertTrue(any("msg.slot_backup" in m for m in h.logs()))
+
+    def test_no_backup_when_slot_empty(self):
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            session = self._session(h)
+            self.assertTrue(h.flows.finish_manual(session, "ONLY",
+                                                  detected=False))
+            self.assertEqual(list(h.backups.glob("*.bak")), [],
+                             "新槽位没有原文件，不应产生备份")
 
     def test_copy_temp_path(self):
         with TemporaryDirectory() as tmp:

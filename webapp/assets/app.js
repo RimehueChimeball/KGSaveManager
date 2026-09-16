@@ -264,6 +264,12 @@
     renderEditorTree();
   }
 
+  async function loadEditorData() {
+    await loadEditorTree();
+    const src = await call("editor_source");
+    if (src) { $("#ed-source").value = src.text; }
+  }
+
   function renderDownloadOptions() {
     const repo = $("#dl-repo");
     const keep = repo.value;
@@ -439,6 +445,20 @@
       case "download_test_result":
         $("#dl-test-result").textContent = (ev.lines || []).join("\n");
         break;
+      case "editor_live":
+        // 实时取档完成：core 已更新状态，这里刷新编辑器视图
+        if (ev.ok) {
+          await refresh();
+          await loadEditorData();
+        }
+        break;
+      case "editor_sent":
+        // 实时下发的确认结果（提示与日志由 core 推送，这里只刷新视图）
+        if (ev.result === true) {
+          await refresh();
+          await loadEditorData();
+        }
+        break;
       default:
         break;
     }
@@ -540,25 +560,27 @@
     },
     "editor-open": async () => {
       const mode = $("#ed-mode").value;
-      const res = mode === "file"
-        ? await call("editor_open_file",
-                     { slot: parseInt($("#ed-slot").value || "0", 10) })
-        : await call("editor_open_live");
-      if (res && res.ok) {
-        state.editorChoices = res.state.choices;
-        renderEditorChoices();
-        await loadEditorTree();
-        const src = await call("editor_source");
-        if (src) { $("#ed-source").value = src.text; }
+      if (mode === "file") {
+        const res = await call("editor_open_file",
+                               { slot: parseInt($("#ed-slot").value || "0", 10) });
+        if (res && res.ok) {
+          state.editorChoices = res.state.choices;
+          renderEditorChoices();
+          await loadEditorData();
+        }
+        return;
+      }
+      const live = await call("editor_open_live");
+      if (live && live.pending) {
+        // 取档在后台进行，完成后由 editor_live 事件刷新
+        pushLog("editor", t("ed.pulling"));
       }
     },
     "editor-write": async () => {
       const sourceText = state.editorView === "source" ? $("#ed-source").value : null;
       const res = await call("editor_write", { source_text: sourceText });
-      if (res && res.ok) {
-        await loadEditorTree();
-        const src = await call("editor_source");
-        if (src) { $("#ed-source").value = src.text; }
+      if (res && res.ok && !res.pending) {
+        await loadEditorData();
       }
     },
     "editor-view-tree": () => { state.editorView = "tree"; renderAll(); },

@@ -25,6 +25,25 @@ from webapp.server import AppServer, EventBuffer  # noqa: E402
 REPO = Path(__file__).resolve().parent.parent
 
 
+class _FakeBridge:
+    """替身存档桥：记录取档/下发调用，返回预设结果。"""
+
+    def __init__(self, save_text=None, apply_ok=True, has_client=True):
+        self.save_text = save_text
+        self.apply_ok = apply_ok
+        self.has_client = has_client
+        self.requested = []
+        self.applied = []
+
+    def request_save(self, timeout=15):
+        self.requested.append(timeout)
+        return self.save_text
+
+    def apply_save(self, blob, timeout=8.0):
+        self.applied.append(blob)
+        return self.apply_ok
+
+
 class WebHarness:
     def __init__(self, tmp):
         from core.app import AppCore
@@ -272,6 +291,61 @@ class TestWebApp(unittest.TestCase):
         saved = decode_to_obj(
             self.h.core.slots.path(2).read_text(encoding="utf-8"))
         self.assertEqual(saved["a"]["b"], 7)
+
+    # ---------------- 编辑器：实时模式走事件 ----------------
+    def _live_editor(self, blob=None, apply_ok=True, has_client=True):
+        """把编辑器的桥换成替身，模拟「游戏页面已连接」。"""
+        fake = _FakeBridge(blob, apply_ok=apply_ok, has_client=has_client)
+        self.h.core.editor._get_bridge = lambda: fake
+        self.h.core.editor._is_server_running = lambda: True
+        return fake
+
+    def test_editor_live_pull_pushes_event(self):
+        """实时取档在后台进行：接口先回 pending，取到后推 editor_live 事件。"""
+        import savecodec
+        blob = savecodec.compress_base64('{"a":1}')
+        fake = self._live_editor(blob)
+        res = self.h.call("editor_open_live")
+        self.assertTrue(res["ok"])
+        self.assertTrue(res["pending"], "接口应立即返回「进行中」")
+        ev, _ = self.h.wait_event("editor_live")
+        self.assertTrue(ev["ok"])
+        self.assertEqual(len(fake.requested), 1)
+        tree = self.h.call("editor_tree")
+        self.assertTrue([r for r in tree["rows"] if r["kind"] == "leaf"],
+                        "取到的存档应已进入编辑器")
+
+    def test_editor_live_pull_failure_pushes_event(self):
+        fake = self._live_editor(None)
+        res = self.h.call("editor_open_live")
+        self.assertTrue(res["pending"])
+        ev, _ = self.h.wait_event("editor_live")
+        self.assertFalse(ev["ok"])
+        self.assertTrue(fake.requested)
+
+    def test_editor_live_write_waits_for_confirmation(self):
+        """实时下发等页面确认：没确认时事件里是 None，不是谎报成功。"""
+        import savecodec
+        blob = savecodec.compress_base64('{"a":1}')
+        fake = self._live_editor(blob, apply_ok=None)
+        self.h.call("editor_open_live")
+        self.h.wait_event("editor_live")
+        res = self.h.call("editor_write", source_text=None)
+        self.assertTrue(res["pending"], "下发应回「进行中」")
+        ev, _ = self.h.wait_event("editor_sent")
+        self.assertIsNone(ev["result"])
+        self.assertEqual(len(fake.applied), 1)
+
+    def test_editor_live_write_confirmed_pushes_event(self):
+        import savecodec
+        blob = savecodec.compress_base64('{"a":1}')
+        fake = self._live_editor(blob, apply_ok=True)
+        self.h.call("editor_open_live")
+        self.h.wait_event("editor_live")
+        res = self.h.call("editor_write", source_text=None)
+        self.assertTrue(res["pending"])
+        ev, _ = self.h.wait_event("editor_sent")
+        self.assertIs(ev["result"], True)
 
     # ---------------- 下载（打桩） ----------------
     def test_download_versions_event(self):

@@ -64,6 +64,7 @@ class AppCore:
             temp_folder=self.paths.temp, max_save_size=max_save_size,
             get_bridge=lambda: self.server.bridge,
             is_server_running=lambda: self.server.running,
+            backup_dir=self.paths.backups,
             logger=self.logger)
         self.download = DownloadController(
             ui=ui, cfg=self.cfg, t=self.t, events=self.events,
@@ -75,6 +76,7 @@ class AppCore:
             get_bridge=lambda: self.server.bridge,
             is_server_running=lambda: self.server.running,
             ensure_bridge_client=self.flows.ensure_bridge_client,
+            events=self.events,
             logger=self.logger)
 
     # ---------------- 通用 ----------------
@@ -91,6 +93,7 @@ class AppCore:
         """处理一条后台事件；core 已完全消化返回 True（前端无需再渲染）。"""
         if self.flows.handle_event(item):
             return True
+        self.editor.sync_event(item)
         self.download.sync_event(item)
         return False
 

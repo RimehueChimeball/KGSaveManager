@@ -103,7 +103,8 @@ class TestReadWrite(unittest.TestCase):
             dest, err = store.write(2, "  SAVEDATA  ", 1024)
             self.assertIsNone(err)
             self.assertEqual(dest.name, "存档3_3.kgsav")
-            self.assertEqual(dest.read_text(encoding="utf-8"), "SAVEDATA")
+            # 首尾空白可能是载荷本身（UTF-16 存档尾部就是空格填充），一律保留
+            self.assertEqual(dest.read_text(encoding="utf-8"), "  SAVEDATA  ")
             self.assertTrue(store.exists(2))
             self.assertEqual(sorted(p.name for p in lib.iterdir()),
                              ["存档3_3.kgsav"])

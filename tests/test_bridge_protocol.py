@@ -166,14 +166,92 @@ class TestBridgeProtocol(unittest.TestCase):
         t.join(timeout=6)
         self.assertEqual(result.get("data"), "SAVEDATA")
 
-    def test_apply_save_is_delivered(self):
+    def test_apply_save_waits_for_page_confirmation(self):
+        """页面回 apply_ok 才算成功。"""
         page = FakePage(self.bridge.port)
         self.addCleanup(page.close)
         self._wait_client()
-        self.assertTrue(self.bridge.apply_save("BLOB"))
+
+        result = {}
+
+        def applier():
+            result["ok"] = self.bridge.apply_save("BLOB", timeout=5)
+
+        t = threading.Thread(target=applier)
+        t.start()
         msgs = page.wait_frames(1, timeout=5)
         self.assertEqual(msgs[0]["type"], "apply_save")
         self.assertEqual(msgs[0]["data"], "BLOB")
+        page.send_json({"type": "apply_ok", "id": msgs[0]["id"]})
+        t.join(timeout=6)
+        self.assertTrue(result.get("ok"), "页面确认后应返回 True")
+
+    def test_apply_save_reports_page_error(self):
+        page = FakePage(self.bridge.port)
+        self.addCleanup(page.close)
+        self._wait_client()
+
+        result = {}
+
+        def applier():
+            result["ok"] = self.bridge.apply_save("BLOB", timeout=5)
+
+        t = threading.Thread(target=applier)
+        t.start()
+        msgs = page.wait_frames(1, timeout=5)
+        page.send_json({"type": "apply_err", "id": msgs[0]["id"],
+                        "err": "storage full"})
+        t.join(timeout=6)
+        self.assertFalse(result.get("ok"), "页面报错应返回 False")
+
+    def test_apply_save_without_ack_is_unconfirmed(self):
+        """页面没确认时返回 None（已发送但结果未知），而不是谎报成功。"""
+        page = FakePage(self.bridge.port)
+        self.addCleanup(page.close)
+        self._wait_client()
+        self.assertIsNone(self.bridge.apply_save("BLOB", timeout=0.5))
+        self.assertEqual(page.wait_frames(1, timeout=3)[0]["type"], "apply_save")
+
+    def test_concurrent_request_waits_instead_of_failing_fast(self):
+        """已有请求在途时，第二个请求应等待而不是 0 秒返回 None。"""
+        page = FakePage(self.bridge.port)
+        self.addCleanup(page.close)
+        self._wait_client()
+
+        first = {}
+
+        def requester_first():
+            first["data"] = self.bridge.request_save(timeout=5)
+
+        t1 = threading.Thread(target=requester_first)
+        t1.start()
+        msgs = page.wait_frames(1, timeout=5)
+        self.assertEqual(msgs[0]["type"], "request_save")
+
+        second = {}
+        started = time.time()
+
+        def requester_second():
+            second["data"] = self.bridge.request_save(timeout=5)
+            second["elapsed"] = time.time() - started
+
+        t2 = threading.Thread(target=requester_second)
+        t2.start()
+        time.sleep(0.4)
+        page.send_json({"type": "save_data", "id": msgs[0]["id"],
+                        "data": "FIRST", "source": "engine"})
+        t1.join(timeout=6)
+        # 第二个请求接着发出，页面再回一次
+        msgs2 = page.wait_frames(2, timeout=6)
+        for msg in msgs2:
+            if msg["type"] == "request_save" and msg["id"] != msgs[0]["id"]:
+                page.send_json({"type": "save_data", "id": msg["id"],
+                                "data": "SECOND", "source": "engine"})
+        t2.join(timeout=8)
+        self.assertEqual(first.get("data"), "FIRST")
+        self.assertEqual(second.get("data"), "SECOND")
+        self.assertGreaterEqual(second.get("elapsed", 0), 0.3,
+                                "第二个请求不应立即返回 None")
 
     def test_request_save_without_client_returns_none(self):
         self.assertIsNone(self.bridge.request_save(timeout=0.2))

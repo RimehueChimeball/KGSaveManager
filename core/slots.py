@@ -131,11 +131,14 @@ class SlotStore:
     def write(self, index, text, max_size):
         """把存档文本原子写入槽位。
 
+        只裁掉行尾换行：UTF-16 存档的尾部空格是载荷本身，整体 strip()
+        会破坏它（详见 savecodec.validate 的格式判定）。
+
         :return: (路径, None) 成功；(None, (翻译键, 参数)) 失败；
                  文本为空时返回 (None, None)
         """
-        text = (text or "").strip()
-        if not text:
+        text = (text or "").rstrip("\r\n")
+        if not text.strip():
             return None, None
         if len(text) > max_size:
             return None, ("err.file_too_large", {"size": len(text)})
