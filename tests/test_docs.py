@@ -1,6 +1,7 @@
 """文档一致性测试：离线指南锚点、版本号、README 与前端资源引用。"""
 
 import re
+import struct
 import sys
 import unittest
 from pathlib import Path
@@ -62,13 +63,39 @@ class TestFrontendAssets(unittest.TestCase):
         count = int.from_bytes(raw[4:6], "little")
         self.assertGreaterEqual(count, 2, "ICO 至少应含两个尺寸")
 
-    def test_icon_generator_exists(self):
-        """图标可复现：生成脚本留在仓库里，且只用标准库。"""
-        script = ROOT / "tools" / "make_favicon.py"
-        self.assertTrue(script.is_file())
-        text = script.read_text(encoding="utf-8")
+    def test_icon_sources(self):
+        """程序图标：exe 用 assets 下的 ico，网页用同一份 ico + 转换出的 PNG。
+
+        转换脚本留在仓库里（纯标准库），换图标后重跑即可。
+        """
+        ico = ROOT / "assets" / "KGSaveManager.ico"
+        self.assertTrue(ico.is_file(), "缺少程序图标 assets/KGSaveManager.ico")
+        self.assertEqual(ico.read_bytes()[:4], b"\x00\x00\x01\x00",
+                         "assets 下的图标不是合法 ICO")
+        self.assertEqual((ASSETS / "favicon.ico").read_bytes(), ico.read_bytes(),
+                         "网页 favicon 应与程序图标一致")
+        converter = ROOT / "tools" / "ico_to_png.py"
+        self.assertTrue(converter.is_file(), "缺少 ICO→PNG 转换脚本")
+        text = converter.read_text(encoding="utf-8")
         self.assertIn("zlib", text)
         self.assertNotIn("PIL", text)
+
+    def test_ico_converter_roundtrip(self):
+        """转换脚本能真的把仓库里的图标转成 PNG。"""
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "icon.png"
+            proc = subprocess.run(
+                [sys.executable, str(ROOT / "tools" / "ico_to_png.py"),
+                 str(ROOT / "assets" / "KGSaveManager.ico"), str(out), "64"],
+                capture_output=True, encoding="utf-8", errors="replace",
+                timeout=120)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertTrue(out.is_file())
+            raw = out.read_bytes()
+        self.assertEqual(raw[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(struct.unpack(">II", raw[16:24]), (64, 64))
 
     def test_manifest_matches_app_name(self):
         import json

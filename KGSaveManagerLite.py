@@ -101,6 +101,7 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         self.editor = self.core.editor
         self.event_queue = self.core.events
         self.paths = self.core.paths
+        self._apply_window_icon()
 
         # 页面需要的基础常量
         self.base_dir = BASE_DIR
@@ -134,6 +135,21 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
     # =========================================================
     def t(self, key, **kw):
         return self.tr.t(key, **kw)
+
+    def _apply_window_icon(self):
+        """设置窗口/任务栏图标（exe 图标由 PyInstaller 的 icon= 负责）。"""
+        icon = getattr(self.paths, "icon", None)
+        if not icon:
+            return
+        try:
+            # default= 让对话框等子窗口也带上图标
+            self.root.iconbitmap(default=str(icon))
+        except Exception:
+            pass
+        try:
+            self.root.iconbitmap(str(icon))
+        except Exception:
+            pass
 
     def _on_callback_error(self, exc_type, exc_value, exc_tb):
         """界面回调里的未处理异常：绝不允许静默失败。

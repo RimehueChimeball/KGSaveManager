@@ -10,7 +10,8 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[('docs', 'docs'),
-           ('webapp/assets', 'webapp/assets')],
+           ('webapp/assets', 'webapp/assets'),
+           ('assets/KGSaveManager.ico', '.')],
     hiddenimports=['i18n', 'config_store', 'web_server', 'utils',
                    'web_bridge', 'savecodec', 'downloader', 'kgsm_logging',
                    'core', 'core.app', 'core.ui_port', 'core.slots',
@@ -41,6 +42,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/KGSaveManager.ico',
 )
 coll = COLLECT(
     exe,

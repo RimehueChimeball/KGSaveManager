@@ -11,7 +11,7 @@ a = Analysis(
     ['KGSaveManagerLite.py'],
     pathex=[],
     binaries=[],
-    datas=[('docs', 'docs')],
+    datas=[('docs', 'docs'), ('assets/KGSaveManager.ico', '.')],
     hiddenimports=['i18n', 'config_store', 'web_server', 'utils',
                    'web_bridge', 'savecodec', 'downloader', 'kgsm_logging',
                    'pages_download', 'pages_editor', 'pages_manual',
@@ -43,6 +43,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/KGSaveManager.ico',
 )
 coll = COLLECT(
     exe,

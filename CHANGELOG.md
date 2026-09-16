@@ -4,6 +4,8 @@ All notable changes are listed by version.
 
 ## v1.3.0
 
+- Both frontends now ship an application icon: the executables use `assets/KGSaveManager.ico`, the Lite window and its dialogs use the same icon, and the HTML version serves it as its favicon (`webapp/assets/favicon.ico` plus a PNG generated from it).
+
 - Ported the v1.2.3 fixes into this line (bug fixes only, no feature changes):
   the default branch is now detected reliably instead of being guessed as `main`
   (the original repository only has `master`, so guessing made every download
