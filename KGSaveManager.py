@@ -62,6 +62,10 @@ if getattr(sys, "frozen", False):
 else:
     BASE_DIR = Path(__file__).resolve().parent
 
+# 资源目录：冻结后 datas（docs/图标）随包放在 _MEIPASS 下
+RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", BASE_DIR))
+ICON_FILE = "KGSaveManager.ico"
+
 DATA_FOLDER = BASE_DIR / "kgsm_data"             # 数据总目录：备份/迁移只移动它
 SAVE_LIBRARY = DATA_FOLDER / "kittens_saves"     # 存档库文件夹
 TEMP_FOLDER = DATA_FOLDER / "kgsm_temp"          # 临时文件夹（接收游戏导出文件）
@@ -81,6 +85,7 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         # 界面回调异常不再静默：写日志 + 弹窗提示（打包版无控制台）
         self.root.report_callback_exception = self._on_callback_error
+        self._apply_window_icon()
 
         # 数据目录与配置（配置读取/首启自动创建）
         self._ensure_dirs()
@@ -144,6 +149,26 @@ class KGSaveManager(SaveFlowMixin, EditorPageMixin, DownloadPageMixin):
     def _ensure_dirs(self):
         for folder in (DATA_FOLDER, SAVE_LIBRARY, TEMP_FOLDER, BACKUP_DIR):
             folder.mkdir(parents=True, exist_ok=True)
+
+    def _apply_window_icon(self):
+        """设置窗口/任务栏图标（exe 图标由 PyInstaller 的 icon= 负责）。
+
+        冻结后图标随 datas 放在 `_MEIPASS` 下，源码运行时在程序目录。
+        """
+        for folder in (RESOURCE_DIR, BASE_DIR):
+            icon = Path(folder) / ICON_FILE
+            if not icon.is_file():
+                continue
+            try:
+                # default= 让对话框等子窗口也带上图标
+                self.root.iconbitmap(default=str(icon))
+            except Exception:
+                pass
+            try:
+                self.root.iconbitmap(str(icon))
+                return
+            except Exception:
+                continue
 
     def _on_callback_error(self, exc_type, exc_value, exc_tb):
         """界面回调里的未处理异常：绝不允许静默失败。

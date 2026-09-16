@@ -4,6 +4,10 @@ All notable changes are listed by version.
 
 ## v1.2.3
 
+- The application now ships its own icon: the executable shows it in Explorer and
+  on the taskbar, and the main window and its dialogs use the same icon at
+  runtime.
+
 - Fixed the download page failing for the original repository
   (`nuclear-unicorn/kittensgame`) with every source reporting 404, while the
   community repository worked. The default branch was guessed as `main` whenever

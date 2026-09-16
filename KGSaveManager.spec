@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 # KGSaveManager PyInstaller 配置（模块：i18n/config_store/web_server/web_bridge/savecodec/utils）
 # - console=False：GUI 程序不弹出控制台
+# - icon=KGSaveManager.ico：exe 图标；同时打进 datas，运行时用作窗口/任务栏图标
 # - hiddenimports：显式声明拆分的模块，避免“仅运行时局部导入”导致漏包
 #   （web_server.open_in_browser 在函数内 import config_store）
 # - upx=False：不依赖外部 UPX 压缩工具，避免构建告警（体积差异可忽略）
@@ -9,7 +10,7 @@ a = Analysis(
     ['KGSaveManager.py'],
     pathex=[],
     binaries=[],
-    datas=[('docs', 'docs')],
+    datas=[('docs', 'docs'), ('KGSaveManager.ico', '.')],
     hiddenimports=['i18n', 'config_store', 'web_server', 'utils',
                    'web_bridge', 'savecodec', 'downloader', 'kgsm_logging',
                    'pages_download', 'pages_editor', 'save_flows'],
@@ -38,6 +39,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='KGSaveManager.ico',
 )
 coll = COLLECT(
     exe,
