@@ -4,6 +4,9 @@ All notable changes are listed by version.
 
 ## v1.2.4
 
+- The application now ships its own icon: the executable shows it in Explorer and
+  on the taskbar, and the main window and its dialogs use the same icon at
+  runtime.
 - Fixed Manual Save getting stuck forever: once a half-finished file (for
   example a browser's `.crdownload`) had been picked as the candidate and was
   then renamed or deleted, the dialog kept polling that path and never imported
@@ -41,10 +44,6 @@ All notable changes are listed by version.
   extended the bridge tests (apply confirmation, concurrent requests).
 
 ## v1.2.3
-
-- The application now ships its own icon: the executable shows it in Explorer and
-  on the taskbar, and the main window and its dialogs use the same icon at
-  runtime.
 
 - Fixed the download page failing for the original repository
   (`nuclear-unicorn/kittensgame`) with every source reporting 404, while the
