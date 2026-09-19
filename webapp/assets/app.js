@@ -17,7 +17,6 @@
     config: {},
     selectedSlot: 0,
     eventSeq: 0,
-    manualSession: null,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -98,17 +97,41 @@
       $("#modal-message").textContent = message || "";
       const input = $("#modal-input");
       const area = $("#modal-text");
+      const file = $("#modal-file");
+      const copy = $("#modal-copy");
       input.hidden = kind !== "text";
       area.hidden = kind !== "manual";
+      file.hidden = kind !== "manual";
+      copy.hidden = kind !== "manual";
       if (kind === "text") { input.value = initial || ""; input.focus(); }
-      if (kind === "manual") { area.value = ""; area.focus(); }
+      if (kind === "manual") {
+        area.value = "";
+        file.value = "";               // 每次打开都清空上次选的文件
+        area.focus();
+      }
+      copy.onclick = () => { copyLibraryPath(); };
       $("#modal").hidden = false;
       $("#modal-ok").onclick = () => closeModal({
         ok: true,
         text: kind === "manual" ? area.value : input.value,
+        file: kind === "manual" ? (file.files[0] || null) : null,
       });
       $("#modal-cancel").onclick = () => closeModal({ ok: false, text: "" });
     });
+  }
+
+  function libraryPath() {
+    return (state.paths && state.paths.saves) || "";
+  }
+
+  async function copyLibraryPath() {
+    const path = libraryPath();
+    try {
+      await navigator.clipboard.writeText(path);
+      toast("info", t("msg.path_copied", { path: path }));
+    } catch (e) {
+      toast("warn", t("msg.clipboard_fail", { e: String(e) }));
+    }
   }
 
   async function answerDialog(id, ok, text) {
@@ -528,35 +551,26 @@
       await refresh();
     },
     "manual-save": async () => {
-      const res = await call("manual_save_start", { slot: state.selectedSlot });
-      if (!res) { return; }
-      const session = res.session;
-      state.manualSession = session;
-      const polling = (async () => {
-        for (;;) {
-          const out = await call("manual_save_poll", { session: session });
-          if (!out) { return; }
-          if (out.state === "waiting") { await sleep(800); continue; }
-          if (out.state === "detected") {
-            closeModal({ ok: false, text: "" });
-            pushLog("saves", t("msg.manual_detected_saved",
-                               { slot: state.slots[state.selectedSlot].label }));
-            await refresh();
-          }
+      const library = libraryPath();
+      const message = t("msg.manual_hint") + "\n\n" +
+        t("msg.manual_library_hint", { path: library });
+      const answer = await askDialog("manual", message,
+                                     t("msg.manual_title"), library);
+      if (!answer.ok) { return; }
+      let text = answer.text || "";
+      if (answer.file) {
+        try {
+          text = await answer.file.text();
+        } catch (e) {
+          toast("error", String(e));
           return;
         }
-      })();
-      const answer = await askDialog(
-        "manual", t("msg.manual_hint") + "\n\n" + res.temp_folder,
-        t("msg.manual_title"), res.temp_folder);
-      if (answer.ok && answer.text.trim()) {
-        await call("manual_save_submit", { session: session, text: answer.text });
-        await refresh();
-      } else {
-        await call("manual_save_cancel", { session: session });
       }
-      await polling;
-      state.manualSession = null;
+      if (!text.trim()) { return; }
+      // 成功提示与日志由后端推送；写入后 core 会发 slots_changed 刷新列表
+      await call("manual_import_text", {
+        slot: state.selectedSlot, text: text,
+      });
     },
     "editor-open": async () => {
       const mode = $("#ed-mode").value;
@@ -612,10 +626,6 @@
     },
     "dl-cancel": async () => { await call("download_cancel"); },
   };
-
-  function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
-  }
 
   document.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-action]");

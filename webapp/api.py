@@ -184,9 +184,6 @@ class WebApi:
         self.core = core
         self.ui = ui_port
         self.on_shutdown = on_shutdown
-        self._manual = {}                 # session_id -> ManualSaveSession
-        self._next_manual = 1
-        self._lock = threading.Lock()
         self._last_seen = time.time()
         self.ever_seen = False
 
@@ -316,49 +313,15 @@ class WebApi:
         self.ui.slots_changed()
         return {"ok": True, "name": path.name}
 
-    def manual_save_start(self, slot):
-        session = self.core.flows.start_manual(int(slot))
-        with self._lock:
-            sid = self._next_manual
-            self._next_manual += 1
-            self._manual[sid] = session
-        return {"session": sid, "temp_folder": str(self.core.paths.temp)}
+    def manual_import_text(self, slot, text):
+        """导入粘贴的存档文本（页面里的文件选择器也走这个接口）。"""
+        ok = self.core.flows.import_text(int(slot), text or "")
+        return {"ok": ok}
 
-    def manual_save_poll(self, session):
-        item = self._manual.get(int(session))
-        if item is None:
-            return {"state": "gone"}
-        state, content = self.core.flows.poll_manual(item)
-        if state == "detected":
-            path = item.path
-            self.core.flows.finish_manual(item, content, detected=True,
-                                          source_path=str(path) if path
-                                          else None)
-            self._close_manual(int(session))
-            return {"state": "detected"}
-        return {"state": state}
-
-    def manual_save_submit(self, session, text):
-        item = self._manual.get(int(session))
-        if item is None:
-            return {"state": "gone"}
-        ok = self.core.flows.submit_manual_text(item, text)
-        self._close_manual(int(session))
-        return {"state": "saved" if ok else "cancelled"}
-
-    def manual_save_cancel(self, session):
-        item = self._manual.pop(int(session), None)
-        if item is not None:
-            self.core.flows.cancel_manual(item)
+    def manual_copy_library(self):
+        """复制存档库文件夹路径到剪贴板（页面据此提示用户手动改名）。"""
+        self.core.flows.copy_library_path()
         return True
-
-    def manual_copy_path(self):
-        self.core.flows.copy_temp_path()
-        return True
-
-    def _close_manual(self, session):
-        with self._lock:
-            self._manual.pop(session, None)
 
     # ---------------- 下载游戏 ----------------
     def download_versions(self, repo, refresh=False):

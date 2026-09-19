@@ -39,7 +39,7 @@
   <a class="l1" href="#save-mgmt">Save Management</a>
   <a class="l2" href="#slot-model">Slot Model &amp; Filenames</a>
   <a class="l2" href="#auto-save">Auto Save</a>
-  <a class="l2" href="#manual-save">Manual Save</a>
+  <a class="l2" href="#manual-save">Manual Import</a>
   <a class="l2" href="#copy-load">Copy Save / Auto Load</a>
   <a class="l2" href="#rename-refresh">Rename &amp; Refresh</a>
   <a class="l2" href="#notes-check">Notes &amp; File Check</a>
@@ -164,25 +164,31 @@ means the engine was not reachable yet and the most recent browser
 autosave snapshot was used instead. An idle connection is kept alive with
 WebSocket ping frames, so the log does not show a periodic
 disconnect/reconnect cycle.</p>
-<h3 id="manual-save">Manual Save</h3>
-<p>Manual Save opens a dialog with two areas.</p>
+<h3 id="manual-save">Manual Import</h3>
+<p>Manual Import opens a dialog that shows the save library folder and lets
+you bring a save in from either source:</p>
 <ul>
-  <li>Top: the temp folder path and a Copy Path button. The path is not
-      copied automatically. Drop the exported save file into the folder.
-      A new file, or an existing file that is overwritten with different
-      content, is detected once its size and modification time stop
-      changing; it is then written, the window closes, and a “save
-      detected” message is shown. The consumed temp file is deleted
-      afterwards, and files older than seven days are removed at startup.</li>
-  <li>Bottom: a text area for pasting the exported save text, and an OK
-      button. Pasted text is validated. If the content may be invalid, the
-      program asks for confirmation. Closing the window cancels the
-      operation.</li>
+  <li><b>Browse for a save file</b> opens the system file dialog (the page
+      version opens the browser's file picker). The selected file is read and
+      written into the selected slot. It is validated first; if the content
+      may be invalid, the program asks for confirmation. The file you picked
+      is left untouched.</li>
+  <li>A text area for pasting the exported save text, with an OK button.
+      Closing the window cancels the operation.</li>
 </ul>
+<p>The save library folder is shown at the top of the dialog with a Copy Path
+button; the path is not copied automatically. Which slot a save belongs to is
+decided by its file name (<code>name_1.kgsav</code> …
+<code>name_10.kgsav</code>), so you can open that folder in your file manager,
+rename a file to move it to another slot, and then press Refresh to rescan the
+library. Files older than seven days in the temp folder are removed at
+startup.</p>
 <h3 id="copy-load">Copy Save / Auto Load</h3>
 <p>Copy Save copies the selected slot content to the clipboard; paste it
 into the game Import (Ctrl+V). Auto Load asks once for confirmation, then
-sends the slot content to the game page. The page stores it and reloads.</p>
+sends the slot content to the game page. The page stores it and reloads. The
+dialog reports whether the page confirmed the write, and says so explicitly if
+the page did not confirm in time.</p>
 <h3 id="rename-refresh">Rename &amp; Refresh</h3>
 <p>Rename changes the slot file name. A save must exist in the slot first.
 Renaming does not modify the configuration. Refresh rescans the library
@@ -339,7 +345,7 @@ links to the project and the author profile.</p>
 ├─ docs/guide_en.html
 └─ kgsm_data/
    ├─ kittens_saves/   save library
-   ├─ kgsm_temp/       staging folder for manual import
+   ├─ kgsm_temp/       temp folder (cleaned at startup)
    ├─ backups/         dated backups, name.kgsav.YYYYMMDD_HHMMSS.bak
    ├─ kgsm_log/        run logs, one file per launch
    └─ kgsm_config.json configuration and notes</pre>
@@ -396,7 +402,7 @@ translation key without a reference is left behind.</p>
 
 <h2 id="about">About</h2>
 <p>KGSaveManager manages Kittens Game saves on Windows. It provides save
-slots, auto and manual save, a save editor, a local web server with a save
+slots, auto save and manual import, a save editor, a local web server with a save
 bridge, and a game downloader. The interface supports Chinese and English,
 including external translation files.</p>
 <ul>

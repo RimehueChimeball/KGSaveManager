@@ -15,7 +15,7 @@ Two frontends share one logic layer and the same `kgsm_data/` folder:
 
 - Bilingual interface (Chinese / English); language is detected from the system on first run
 - Tabs in fixed order: KGSM, Launch Game, Save Management, Edit Save, Download Game, Settings
-- Save Management: 10 slots recognized from filenames (`name_1.kgsav` .. `name_10.kgsav`); auto save (WebSocket bridge), manual save (drop file or paste text), copy save, auto load, rename, refresh, per-slot notes, abnormal-file check
+- Save Management: 10 slots recognized from filenames (`name_1.kgsav` .. `name_10.kgsav`); auto save (WebSocket bridge), manual import (browse for a file or paste text), copy save, auto load, rename, refresh, per-slot notes, abnormal-file check
 - Edit Save: open a slot file or the running game; view/source modes; value editing; backup (`.bak`); write-back re-encodes to the game format
 - Launch Game: local static web server (127.0.0.1) with an injected save bridge; opens the game in a new browser window; the bridge reports whether the save came from the running game or from the browser autosave snapshot
 - Download Game: two GitHub repositories, GitHub direct or mirror sources, connectivity test, flattened extraction with `index.html` check
@@ -45,10 +45,10 @@ window closes) and `--verbose`. The page address is printed on startup; append
 ## Usage
 
 - Auto Save: requires the game launched via KGSM and connected. Writes the current game save to the selected slot; confirms on overwrite.
-- Manual Save: dialog with the temp folder path (Copy Path button) and a text area. Drop the exported file into the temp folder, or paste the save text and press OK. Pasted content is validated. A new file, or an existing file overwritten with different content, is detected; the consumed temp file is deleted afterwards.
+- Manual Import: dialog showing the save library folder (Copy Path button). Use “Browse for a save file” to pick the save file exported by the game, or paste the save text and press OK. The content is validated before writing, the file you picked is left untouched, and the previous slot content is backed up to `kgsm_data/backups/` before being overwritten.
 - Copy Save: copies the slot content to the clipboard for the game Import.
-- Auto Load: confirms once, then sends the slot content to the game page; the page reloads.
-- Rename: renames the slot file. The slot must contain a save.
+- Auto Load: confirms once, then sends the slot content to the game page; the page reloads and reports whether the page confirmed the write.
+- Rename: renames the slot file. The slot must contain a save. A save's slot comes from its file name (`name_1.kgsav` … `name_10.kgsav`), so files renamed in the file manager are picked up by Refresh.
 - Refresh: rescans the save library.
 - Edit Save: open a file or live source; edit values in view mode or edit JSON in source mode; Write saves the result.
 

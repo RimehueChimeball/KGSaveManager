@@ -1,8 +1,11 @@
-"""自动存档 / 自动读档 / 手动存档流程与后台事件处理。
+"""自动存档 / 自动读档 / 手动导入流程与后台事件处理。
 
 本模块不 import 任何 GUI 工具包：所有提示、询问、日志、刷新请求都走
 `UiPort`，后台线程只把结果放进 `events` 队列，由前端在 UI 线程取出后
 调用 `handle_event()`。
+
+手动导入由前端负责“选文件”（Tk 用系统文件对话框，HTML 用页面里的文件
+选择器），core 只做读取、校验、写入，不监控任何文件夹。
 
 事件契约（前端轮询队列时使用）：
 - `("auto_save_data", slot, text)`：自动存档取到存档文本，请写入槽位
@@ -18,34 +21,6 @@ from datetime import datetime
 from pathlib import Path
 
 import savecodec
-
-# 浏览器/下载器还没写完的文件：不当候选，避免导入半成品
-PARTIAL_SUFFIXES = (".crdownload", ".part", ".partial", ".download",
-                    ".tmp", ".filepart", ".opdownload")
-# 候选文件长期无法稳定（仍在写入）时，重置重扫，避免无意义空转
-MANUAL_CANDIDATE_TIMEOUT = 120.0
-
-
-def snapshot_dir(folder):
-    """目录快照 `{文件名: (mtime_ns, 大小)}`。
-
-    用内容快照而不是“文件名集合”做对比：游戏导出若覆盖同名文件
-    （上次导入后残留、或导出名固定），集合差为空会漏检。
-    """
-    snap = {}
-    try:
-        with os.scandir(folder) as it:
-            for entry in it:
-                try:
-                    if not entry.is_file():
-                        continue
-                    st = entry.stat()
-                except OSError:
-                    continue
-                snap[entry.name] = (st.st_mtime_ns, st.st_size)
-    except OSError:
-        return snap
-    return snap
 
 
 def clean_temp_folder(folder, keep_seconds, logger=None):
@@ -67,21 +42,6 @@ def clean_temp_folder(folder, keep_seconds, logger=None):
     if removed and logger is not None:
         logger.info(f"清理临时文件 {removed} 个（保留 {keep_seconds // 86400} 天内）")
     return removed
-
-
-class ManualSaveSession:
-    """一次手动存档的会话状态（前端负责周期性调用 `poll_manual`）。"""
-
-    def __init__(self, slot, temp_folder):
-        self.slot = slot
-        self.temp_folder = Path(temp_folder)
-        self.snapshot = snapshot_dir(self.temp_folder)
-        self.path = None
-        self.last_size = -1
-        self.last_mtime = -1
-        self.candidate_at = time.time()
-        self.scanned_existing = False
-        self.closed = False
 
 
 class SaveFlows:
@@ -229,109 +189,41 @@ class SaveFlows:
                        self.app_name)
         return True
 
-    # ---------------- 手动存档 ----------------
-    def start_manual(self, slot):
-        """开始一次手动存档会话（前端随后周期性调用 `poll_manual`）。"""
-        return ManualSaveSession(slot, self.temp_folder)
+    # ---------------- 手动导入 ----------------
+    def import_filetypes(self):
+        """文件对话框用的类型过滤器（前端传给系统对话框）。"""
+        return [(self.t("msg.filetype_save"), "*.kgsav *.txt *.json *.save"),
+                (self.t("msg.filetype_all"), "*.*")]
 
-    def poll_manual(self, session):
-        """检查临时目录。
+    def import_file(self, slot, path):
+        """导入用户选定的存档文件。
 
-        候选规则：
-        - 忽略浏览器/下载器留下的半成品（.crdownload/.part/.tmp…）；
-        - 优先"开窗后新增或被覆盖"的文件；开窗时目录里已有的文件也会被当作
-          候选（支持"先导出、再点手动存档"的顺序），并在日志里说明；
-        - 候选文件消失（被改名/删除）时重置并重新扫描，不会卡死；
-        - 候选长时间无法稳定（仍在写入）时重置重扫，避免一直空转。
-
-        :return: ("waiting", None) 继续等 / ("detected", 文本) 已检测到稳定文件
-                 / ("gone", None) 会话作废或读取失败（前端关闭对话框）
+        只读取该文件，不删除也不改名——它属于用户自己的下载目录。
         """
-        if session.closed:
-            return ("gone", None)
-        if session.path is None:
-            candidate = self._pick_manual_candidate(session)
-            if candidate is not None:
-                name, meta = candidate
-                session.path = session.temp_folder / name
-                session.last_size = meta[1]
-                session.last_mtime = meta[0]
-                session.candidate_at = time.time()
-            return ("waiting", None)
-
+        p = Path(path)
         try:
-            st = session.path.stat()
-            size, mtime = st.st_size, st.st_mtime_ns
-        except OSError:
-            # 文件被改名或删除：重置候选并重新扫描（旧逻辑会在这里卡死）
-            self.log(self.t("msg.manual_candidate_gone",
-                            name=session.path.name), self.t("tag.save"))
-            self._reset_manual_candidate(session)
-            return ("waiting", None)
-        if size != session.last_size or mtime != session.last_mtime or size <= 0:
-            if (time.time() - session.candidate_at
-                    > MANUAL_CANDIDATE_TIMEOUT):
-                self.log(self.t("msg.manual_candidate_busy",
-                                name=session.path.name), self.t("tag.save"))
-                self._reset_manual_candidate(session)
-                return ("waiting", None)
-            session.last_size = size
-            session.last_mtime = mtime
-            return ("waiting", None)
-        try:
-            content = session.path.read_text(encoding="utf-8",
-                                             errors="replace")
+            size = p.stat().st_size
+            if size <= 0:
+                raise ValueError(self.t("err.file_empty"))
+            if size > self.max_save_size:
+                raise ValueError(self.t("err.file_too_large", size=size))
+            content = p.read_text(encoding="utf-8", errors="replace")
         except OSError as e:
             self.log(self.t("msg.read_fail", e=e), self.t("tag.error"))
-            return ("gone", None)
-        return ("detected", content)
+            self._log_error(f"读取存档文件失败: {p.name} {e}")
+            self.ui.fail(str(e), self.t("err.load_fail"))
+            return False
+        except ValueError as e:
+            self.ui.fail(str(e), self.t("err.load_fail"))
+            return False
+        return self.import_text(slot, content, source_name=p.name)
 
-    def _pick_manual_candidate(self, session):
-        """挑一个候选文件，返回 (文件名, (mtime_ns, size)) 或 None。"""
-        now = snapshot_dir(session.temp_folder)
-        changed = [name for name, meta in now.items()
-                   if session.snapshot.get(name) != meta
-                   and not self._is_partial_name(name)]
-        if changed:
-            name = max(changed, key=lambda f: now[f][0])
-            return name, now[name]
+    def import_text(self, slot, text, source_name=None):
+        """校验文本后写入槽位（「选择文件」与「粘贴文本」共用）。
 
-        # 开窗时夹子里已有文件：只认最新那个，且要在日志里说清楚
-        if not session.scanned_existing:
-            session.scanned_existing = True
-            existing = [name for name, meta in now.items()
-                        if not self._is_partial_name(name) and meta[1] > 0]
-            if existing:
-                name = max(existing, key=lambda f: now[f][0])
-                self.log(self.t("msg.manual_using_existing", name=name),
-                         self.t("tag.save"))
-                return name, now[name]
-        return None
-
-    @staticmethod
-    def _is_partial_name(name):
-        """浏览器/下载器未完成的文件（不应当作存档导入）。"""
-        low = name.lower()
-        return any(low.endswith(suffix) for suffix in PARTIAL_SUFFIXES)
-
-    @staticmethod
-    def _reset_manual_candidate(session):
-        session.path = None
-        session.last_size = -1
-        session.last_mtime = -1
-        session.candidate_at = time.time()
-
-    @staticmethod
-    def _tidy_payload(text):
-        """只裁掉行尾换行；保留其它空白（可能是存档载荷的一部分）。
-
-        UTF-16 存档的尾部空格是载荷本身，整体 strip() 会破坏它
-        （详见 savecodec.validate 的格式判定）。
+        :param source_name: 选中文件的文件名（仅用于提示文案）
+        :return: True 表示已写入槽位
         """
-        return (text or "").rstrip("\r\n")
-
-    def submit_manual_text(self, session, text):
-        """手动对话框「确定」：校验粘贴文本后写入。"""
         content = self._tidy_payload(text)
         if not content.strip():
             self.ui.warn(self.t("msg.paste_empty"), self.app_name)
@@ -344,56 +236,38 @@ class SaveFlows:
         if not ok and not self.ui.confirm(self.t("msg.invalid_ask"),
                                           self.app_name):
             return False
-        return self.finish_manual(session, content, detected=False)
-
-    def finish_manual(self, session, content, detected, source_path=None):
-        """统一收尾：写入槽位 → 删除临时原文 → 记录日志 →（检测到时）提示。"""
-        slot = session.slot
-        content = self._tidy_payload(content)
-        ok, _ = savecodec.validate(content)
-        if not ok and detected:
-            if not self.ui.confirm(self.t("msg.paste_invalid_file"),
-                                   self.app_name):
-                self.log(self.t("msg.invalid_skip"), self.t("tag.save"))
-                session.closed = True
-                return False
 
         self._backup_slot_file(slot)
         dest, err = self.slots.write(slot, content, self.max_save_size)
-        session.closed = True
         if dest is None:
             if err is not None:
                 self.log(self.t(err[0], **err[1]), self.t("tag.save"))
                 self._log_error(f"写入存档失败: slot={slot} {err[0]}")
             return False
         self.log(self.t("msg.saved_to", dest=dest.name), self.t("tag.done"))
-        if source_path:
-            self._remove_temp_file(source_path)
+        if source_name:
+            self.ui.notify(self.t("msg.manual_imported", name=source_name,
+                                  slot=self.slots.label(slot)), self.app_name)
+        else:
+            self.ui.notify(self.t("msg.saved_to", dest=dest.name),
+                           self.app_name)
         self.ui.slots_changed()
-        if detected:
-            self.ui.notify(
-                self.t("msg.manual_detected_saved",
-                       slot=self.slots.label(slot)), self.app_name)
         return True
 
-    def cancel_manual(self, session):
-        if session is not None:
-            session.closed = True
+    @staticmethod
+    def _tidy_payload(text):
+        """只裁掉行尾换行；保留其它空白（可能是存档载荷的一部分）。
 
-    def _remove_temp_file(self, path):
-        """导入成功后删除临时文件夹里的原文，避免下次同名覆盖漏检。"""
-        try:
-            name = os.path.basename(path)
-            os.remove(path)
-        except OSError:
-            return
-        self.log(self.t("msg.temp_cleaned", name=name), self.t("tag.save"))
+        UTF-16 存档的尾部空格是载荷本身，整体 strip() 会破坏它
+        （详见 savecodec.validate 的格式判定）。
+        """
+        return (text or "").rstrip("\r\n")
 
-    def copy_temp_path(self):
-        """复制临时目录路径到剪贴板。"""
-        self.ui.set_clipboard(str(self.temp_folder.resolve()))
-        self.log(self.t("msg.path_copied", path=self.temp_folder),
-                 self.t("tag.save"))
+    def copy_library_path(self):
+        """复制存档库文件夹路径到剪贴板。"""
+        library = self.slots.library
+        self.ui.set_clipboard(str(library.resolve()))
+        self.log(self.t("msg.path_copied", path=library), self.t("tag.save"))
 
     # ---------------- 存档库检查 ----------------
     def check_library(self):

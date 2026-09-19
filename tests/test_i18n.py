@@ -16,7 +16,6 @@ DYNAMIC_KEYS = {
     "tab.kgsm", "tab.game", "tab.saves", "tab.editor", "tab.download",
     "tab.settings",
     "kgsm.step_doc", "kgsm.step_dl", "kgsm.step_cfg", "kgsm.step_run",
-    "msg.paste_invalid_file",
 }
 # 允许存在但当前不由代码直接引用的键（保留给外部/未来用）
 ALLOWED_UNUSED = set()

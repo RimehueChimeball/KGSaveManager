@@ -199,6 +199,34 @@ class TestWebApp(unittest.TestCase):
                                          "params": {}})
         self.assertEqual(status, 400)
 
+    # ---------------- 手动导入（页面文件选择器走同一个接口） ----------------
+    def test_manual_import_text_writes_slot(self):
+        import savecodec
+        blob = savecodec.compress_base64('{"a":5}')
+        out = self.h.call("manual_import_text", slot=4, text=blob)
+        self.assertTrue(out["ok"])
+        self.assertIn("存档5_5.kgsav",
+                      [p.name for p in self.h.core.paths.saves.iterdir()])
+        # 写入后 core 会发 slots_changed，页面据此刷新列表
+        ev, _ = self.h.wait_event("slots_changed")
+        self.assertEqual(ev["type"], "slots_changed")
+
+    def test_manual_import_text_rejects_empty(self):
+        out = self.h.call("manual_import_text", slot=0, text="   ")
+        self.assertFalse(out["ok"])
+        self.assertEqual(list(self.h.core.paths.saves.iterdir()), [])
+
+    def test_manual_copy_library_pushes_clipboard(self):
+        self.assertTrue(self.h.call("manual_copy_library"))
+        ev, _ = self.h.wait_event("clipboard")
+        self.assertEqual(ev["text"], str(self.h.core.paths.saves.resolve()))
+
+    def test_state_exposes_save_library_path(self):
+        """页面要用存档库路径拼“手动改名”的说明文字。"""
+        out = self.h.call("refresh")
+        self.assertEqual(out["paths"]["saves"],
+                         str(self.h.core.paths.saves))
+
     # ---------------- 存档动作 ----------------
     def test_save_note_and_refresh(self):
         self.assertTrue(self.h.call("save_note", index=3, text="钢铁"))

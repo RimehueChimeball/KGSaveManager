@@ -107,26 +107,29 @@ _ZH = {
 
     # ---- 存档（自动/手动） ----
     "sv.btn_auto_save": "自动存档",
-    "sv.btn_manual_save": "手动存档",
+    "sv.btn_manual_save": "手动导入",
     "msg.auto_no_conn": "自动存档需要先用 KGSM 启动游戏（需要本地服务与存档桥）。",
     "msg.auto_no_page": "游戏页面尚未连接，请确认已在浏览器打开游戏后重试。",
     "msg.auto_overwrite": "自动存档到 {slot}？将覆盖现有存档。",
     "msg.auto_saved": "已自动存档: {dest}",
     "msg.auto_timeout": "自动存档超时：游戏页面没有响应。",
-    "msg.manual_title": "手动存档",
-    "msg.manual_tip": "把存档文件导入此文件夹",
-    "msg.manual_hint": "上方：把游戏导出的存档文件放入临时文件夹，检测到存档后自动保存并关闭窗口。\n下方：也可以直接把存档文本粘贴进输入框，点「确定」保存；关闭窗口表示取消操作。",
-    "msg.manual_detected_saved": "检测到存档，已保存到 {slot}。",
+    "msg.manual_title": "手动导入存档",
+    "msg.manual_tip": "手动导入",
+    "msg.manual_pick": "浏览选择存档文件…",
+    "msg.manual_pick_title": "选择要导入的存档文件",
+    "msg.manual_hint": "点左侧按钮选择游戏导出的存档文件；也可以把存档文本直接粘贴到下面的输入框，再点「确定」。",
+    "msg.manual_library_hint": "存档属于哪个槽位由文件名决定（名字_槽位号.kgsav）。如需调整，可在文件管理器中打开存档库文件夹 {path} 手动改名，然后点界面上的「刷新」按钮刷新存档列表。",
+    "msg.library_folder": "存档库文件夹:",
+    "msg.manual_imported": "已把 {name} 导入到 {slot}。",
+    "msg.filetype_save": "存档文件",
+    "msg.filetype_all": "所有文件",
     "msg.btn_ok": "确定",
     "msg.btn_close": "关闭",
     "msg.btn_copy_path": "复制路径",
     "msg.path_copied": "已复制路径到剪贴板: {path}",
-    "msg.paste_empty": "请先粘贴存档内容，或把存档文件放入临时文件夹。",
+    "msg.paste_empty": "请先粘贴存档内容，或点「浏览选择存档文件」选一个文件。",
     "msg.saved_to": "已写入存档: {dest}",
-    "msg.temp_cleaned": "已清理临时文件: {name}",
     "msg.invalid_ask": "存档可能/疑似不合法，仍要保存吗？",
-    "msg.invalid_skip": "已取消写入（存档疑似不合法）。",
-    "msg.paste_invalid_file": "放入的存档可能/疑似不合法，仍要保存吗？",
 
     # ---- 自动读档 / 存档编辑 ----
     "sv.btn_auto_load": "自动读档",
@@ -217,9 +220,6 @@ _ZH = {
     "msg.process_fail": "处理存档失败: {e}",
     "msg.crash_hint": "详细信息已写入运行日志: {path}",
     "msg.port_auto_used": "本次使用自动分配的端口: {port}（不写入配置）",
-    "msg.manual_using_existing": "临时文件夹里已有文件，按候选处理: {name}",
-    "msg.manual_candidate_gone": "候选文件已消失，重新扫描: {name}",
-    "msg.manual_candidate_busy": "文件长时间未写入完成，重新扫描: {name}",
     "msg.slot_backup": "覆盖前已备份原存档: {path}",
     "msg.backup_fail": "备份原存档失败: {e}",
     "msg.auto_load_sending": "正在把 {slot} 发送到游戏页面，等待确认……",
@@ -337,7 +337,7 @@ _EN = {
 
     # ---- Save (auto / manual) ----
     "sv.btn_auto_save": "Auto Save",
-    "sv.btn_manual_save": "Manual Save",
+    "sv.btn_manual_save": "Manual Import",
     "msg.auto_no_conn": "Auto-save requires the game to be launched via "
                         "KGSM (local server and save bridge needed).",
     "msg.auto_no_page": "The game page is not connected yet. Open the game "
@@ -346,26 +346,30 @@ _EN = {
                           "overwritten.",
     "msg.auto_saved": "Auto-saved: {dest}",
     "msg.auto_timeout": "Auto-save timed out: no response from the game.",
-    "msg.manual_title": "Manual Save",
-    "msg.manual_tip": "Import the save file into this folder",
-    "msg.manual_hint": "Top: drop the exported save file into the temp "
-                       "folder; once detected it will be saved and this "
-                       "window closes.\nBottom: alternatively paste the save "
-                       "text into the box and click OK; closing the window "
-                       "cancels the operation.",
-    "msg.manual_detected_saved": "Save detected and stored to {slot}.",
+    "msg.manual_title": "Import a Save",
+    "msg.manual_tip": "Manual import",
+    "msg.manual_pick": "Browse for a save file...",
+    "msg.manual_pick_title": "Select the save file to import",
+    "msg.manual_hint": "Use the button on the left to pick the save file "
+                       "exported by the game, or paste the save text into the "
+                       "box below and click OK.",
+    "msg.manual_library_hint": "Which slot a save belongs to is decided by its "
+                               "file name (name_slotnumber.kgsav). To change "
+                               "it, open the save library folder {path} in your "
+                               "file manager, rename the file, then press "
+                               "Refresh in the interface.",
+    "msg.library_folder": "Save library folder:",
+    "msg.manual_imported": "Imported {name} into {slot}.",
+    "msg.filetype_save": "Save files",
+    "msg.filetype_all": "All files",
     "msg.btn_ok": "OK",
     "msg.btn_close": "Close",
     "msg.btn_copy_path": "Copy Path",
     "msg.path_copied": "Path copied to clipboard: {path}",
-    "msg.paste_empty": "Paste the save text first, or drop a save file into "
-                       "the temp folder.",
+    "msg.paste_empty": "Paste the save text first, or use “Browse for a save "
+                       "file” to pick one.",
     "msg.saved_to": "Save written: {dest}",
-    "msg.temp_cleaned": "Temp file removed: {name}",
     "msg.invalid_ask": "The save may/might be invalid. Save anyway?",
-    "msg.invalid_skip": "Write cancelled (the save looks invalid).",
-    "msg.paste_invalid_file": "The dropped save may/might be invalid. "
-                              "Save anyway?",
 
     # ---- Auto load / save editor ----
     "sv.btn_auto_load": "Auto Load",
@@ -466,12 +470,6 @@ _EN = {
     "msg.crash_hint": "Details were written to the run log: {path}",
     "msg.port_auto_used": "Using an automatically assigned port for this run: "
                           "{port} (not written to the configuration)",
-    "msg.manual_using_existing": "A file is already in the temp folder, using "
-                                 "it as the candidate: {name}",
-    "msg.manual_candidate_gone": "Candidate file disappeared, rescanning: "
-                                 "{name}",
-    "msg.manual_candidate_busy": "File did not finish writing for a long time, "
-                                 "rescanning: {name}",
     "msg.slot_backup": "Existing save backed up before overwrite: {path}",
     "msg.backup_fail": "Failed to back up the existing save: {e}",
     "msg.auto_load_sending": "Sending {slot} to the game page, waiting for "

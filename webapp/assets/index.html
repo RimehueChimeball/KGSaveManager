@@ -235,8 +235,10 @@
     <h3 id="modal-title"></h3>
     <p id="modal-message"></p>
     <input type="text" id="modal-input" hidden>
+    <input type="file" id="modal-file" accept=".kgsav,.txt,.json,.save" hidden>
     <textarea id="modal-text" rows="8" spellcheck="false" hidden></textarea>
     <div class="row buttons">
+      <button id="modal-copy" data-i18n="msg.btn_copy_path" hidden></button>
       <button class="primary" id="modal-ok" data-i18n="msg.btn_ok"></button>
       <button id="modal-cancel" data-i18n="msg.btn_close"></button>
     </div>

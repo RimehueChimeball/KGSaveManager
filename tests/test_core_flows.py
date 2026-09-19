@@ -1,4 +1,4 @@
-"""core.flows 测试：自动存档/读档、手动存档、事件处理（零 GUI、零真实桥）。"""
+"""core.flows 测试：自动存档/读档、手动导入、事件处理（零 GUI、零真实桥）。"""
 
 import json
 import queue
@@ -10,8 +10,7 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.flows import (ManualSaveSession, SaveFlows, clean_temp_folder,  # noqa: E402
-                        snapshot_dir)
+from core.flows import SaveFlows, clean_temp_folder  # noqa: E402
 from core.slots import SlotStore  # noqa: E402
 from core.ui_port import NullUiPort  # noqa: E402
 
@@ -248,189 +247,111 @@ class TestCopySave(unittest.TestCase):
             self.assertTrue(h.messages("notify"))
 
 
-class TestManualSave(unittest.TestCase):
-    def _session(self, h, slot=0):
-        return h.flows.start_manual(slot)
+class TestManualImport(unittest.TestCase):
+    """手动导入：选文件 / 粘贴文本 → 校验 → 写槽位（不再监控文件夹）。"""
 
-    def test_waiting_when_nothing_changes(self):
+    # ---- 选文件导入 ----
+    def test_import_file_writes_slot_and_keeps_source(self):
         with TemporaryDirectory() as tmp:
             h = Harness(tmp)
-            session = self._session(h)
-            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
-
-    def test_detects_new_stable_file(self):
-        with TemporaryDirectory() as tmp:
-            h = Harness(tmp)
-            session = self._session(h)
-            (h.temp / "export.kgsav").write_text(SAVE_TEXT, encoding="utf-8")
-            # 第一次轮询记录候选文件，第二次大小稳定后判定完成
-            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
-            state, content = h.flows.poll_manual(session)
-            self.assertEqual(state, "detected")
-            self.assertEqual(content, SAVE_TEXT)
-
-    def test_detects_same_name_overwrite(self):
-        with TemporaryDirectory() as tmp:
-            h = Harness(tmp)
-            old = h.temp / "export.kgsav"
-            old.write_text("OLD", encoding="utf-8")
-            session = self._session(h)
-            time.sleep(0.01)
-            old.write_text(SAVE_TEXT, encoding="utf-8")
-            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
-            state, content = h.flows.poll_manual(session)
-            self.assertEqual(state, "detected")
-            self.assertEqual(content, SAVE_TEXT)
-
-    def test_waits_while_file_grows(self):
-        with TemporaryDirectory() as tmp:
-            h = Harness(tmp)
-            session = self._session(h)
-            f = h.temp / "big.kgsav"
-            f.write_text("A", encoding="utf-8")
-            h.flows.poll_manual(session)          # 记录候选
-            f.write_text("AB", encoding="utf-8")  # 仍在写入
-            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
-            self.assertEqual(h.flows.poll_manual(session)[0], "detected")
-
-    def test_finish_writes_removes_temp_and_notifies(self):
-        with TemporaryDirectory() as tmp:
-            h = Harness(tmp)
-            session = self._session(h)
-            src = h.temp / "export.kgsav"
+            src = Path(tmp) / "我的导出.kgsav"
             src.write_text(SAVE_TEXT, encoding="utf-8")
-            self.assertTrue(h.flows.finish_manual(session, SAVE_TEXT,
-                                                  detected=True,
-                                                  source_path=str(src)))
-            self.assertTrue((h.library / "存档1_1.kgsav").is_file())
-            self.assertFalse(src.exists())
+            self.assertTrue(h.flows.import_file(0, src))
+            self.assertEqual(
+                (h.library / "存档1_1.kgsav").read_text(encoding="utf-8"),
+                SAVE_TEXT)
+            self.assertTrue(src.exists(), "不能删除用户自己选的文件")
             self.assertTrue(h.messages("notify"))
-            self.assertTrue(session.closed)
+            self.assertEqual(h.messages("notify")[0][2],
+                             "msg.manual_imported|name=我的导出.kgsav,"
+                             "slot=sv.slot_prefix01.存档1")
+            self.assertTrue(any(t == "slots_changed" for t, _ in h.ui.logs))
 
-    def test_submit_text_empty_and_oversize(self):
+    def test_import_file_missing_path_reports(self):
         with TemporaryDirectory() as tmp:
             h = Harness(tmp)
-            session = self._session(h)
-            self.assertFalse(h.flows.submit_manual_text(session, "   "))
+            self.assertFalse(h.flows.import_file(0, Path(tmp) / "nope.kgsav"))
+            self.assertEqual(h.messages("fail")[0][0], "fail")
+            self.assertFalse((h.library / "存档1_1.kgsav").exists())
+
+    def test_import_file_empty_reports(self):
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            empty = Path(tmp) / "empty.kgsav"
+            empty.write_text("", encoding="utf-8")
+            self.assertFalse(h.flows.import_file(0, empty))
+            self.assertEqual(h.messages("fail")[0][2], "err.file_empty")
+
+    def test_import_file_too_large_reports(self):
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            big = Path(tmp) / "big.kgsav"
+            big.write_text("x" * 40, encoding="utf-8")
+            h.flows.max_save_size = 8
+            self.assertFalse(h.flows.import_file(0, big))
+            self.assertTrue(h.messages("fail")[0][2].startswith(
+                "err.file_too_large"))
+
+    def test_import_file_reads_growing_file_without_waiting(self):
+        """选文件是即时导入：不再等待文件“写稳定”（旧监控逻辑会一直等）。"""
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            src = Path(tmp) / "half.kgsav"
+            src.write_text(SAVE_TEXT, encoding="utf-8")
+            self.assertTrue(h.flows.import_file(3, src))
+            self.assertTrue((h.library / "存档4_4.kgsav").is_file())
+
+    def test_import_filetypes_for_dialog(self):
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            types = h.flows.import_filetypes()
+            self.assertEqual(types[0][0], "msg.filetype_save")
+            self.assertIn(".kgsav", types[0][1])
+            self.assertEqual(types[-1], ("msg.filetype_all", "*.*"))
+
+    # ---- 粘贴文本导入 ----
+    def test_import_text_empty_and_oversize(self):
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            self.assertFalse(h.flows.import_text(0, "   "))
             self.assertEqual(h.messages("warn")[0][2], "msg.paste_empty")
             h.flows.max_save_size = 8
-            self.assertFalse(h.flows.submit_manual_text(session, "x" * 20))
+            self.assertFalse(h.flows.import_text(0, "x" * 20))
             self.assertEqual(h.messages("fail")[0][2],
                              "err.file_too_large|size=20")
             self.assertFalse((h.library / "存档1_1.kgsav").exists())
 
-    def test_submit_text_invalid_requires_confirmation(self):
+    def test_import_text_invalid_requires_confirmation(self):
         with TemporaryDirectory() as tmp:
             h = Harness(tmp, confirm=False)
-            session = self._session(h)
-            self.assertFalse(h.flows.submit_manual_text(session, "不是存档"))
+            self.assertFalse(h.flows.import_text(0, "不是存档"))
             self.assertFalse((h.library / "存档1_1.kgsav").exists())
-            self.assertFalse(session.closed)
+            self.assertEqual(h.messages("confirm")[0][2], "msg.invalid_ask")
 
-    def test_submit_text_valid_writes(self):
+    def test_import_text_valid_writes(self):
         with TemporaryDirectory() as tmp:
             h = Harness(tmp)
-            session = self._session(h)
-            self.assertTrue(h.flows.submit_manual_text(session, SAVE_TEXT))
+            self.assertTrue(h.flows.import_text(0, SAVE_TEXT))
             self.assertTrue((h.library / "存档1_1.kgsav").is_file())
-            self.assertTrue(session.closed)
 
-    def test_cancel_marks_session_closed(self):
-        with TemporaryDirectory() as tmp:
-            h = Harness(tmp)
-            session = self._session(h)
-            h.flows.cancel_manual(session)
-            self.assertEqual(h.flows.poll_manual(session), ("gone", None))
-
-    # ---- 候选文件规则（先导出再点手动存档 / 半成品 / 卡死） ----
-    def test_pre_existing_file_becomes_candidate(self):
-        """开窗时目录里已有文件也应导入（旧逻辑只看增量，会一直等待）。"""
-        with TemporaryDirectory() as tmp:
-            h = Harness(tmp)
-            (h.temp / "export.kgsav").write_text(SAVE_TEXT, encoding="utf-8")
-            session = self._session(h)
-            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
-            self.assertEqual(session.path.name, "export.kgsav")
-            self.assertTrue(any("msg.manual_using_existing" in m
-                                for m in h.logs()))
-            state, content = h.flows.poll_manual(session)
-            self.assertEqual(state, "detected")
-            self.assertEqual(content, SAVE_TEXT)
-
-    def test_partial_download_is_ignored(self):
-        """浏览器未下载完的半成品不应当作存档导入。"""
-        with TemporaryDirectory() as tmp:
-            h = Harness(tmp)
-            session = self._session(h)
-            (h.temp / "save.kgsav.crdownload").write_text("half",
-                                                          encoding="utf-8")
-            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
-            self.assertIsNone(session.path)
-            (h.temp / "save.kgsav").write_text(SAVE_TEXT, encoding="utf-8")
-            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
-            self.assertEqual(session.path.name, "save.kgsav")
-
-    def test_candidate_gone_resets_scan(self):
-        """候选被改名/删除后重置重扫，而不是卡死在旧路径上。"""
-        with TemporaryDirectory() as tmp:
-            h = Harness(tmp)
-            session = self._session(h)
-            f = h.temp / "export.kgsav"
-            f.write_text(SAVE_TEXT, encoding="utf-8")
-            h.flows.poll_manual(session)          # 记录候选
-            f.unlink()
-            self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
-            self.assertIsNone(session.path, "候选消失后应重置")
-            self.assertTrue(any("msg.manual_candidate_gone" in m
-                                for m in h.logs()))
-            (h.temp / "retry.kgsav").write_text(SAVE_TEXT, encoding="utf-8")
-            h.flows.poll_manual(session)
-            self.assertEqual(h.flows.poll_manual(session)[0], "detected")
-
-    def test_stuck_candidate_resets_after_timeout(self):
-        """文件长时间写不完：放弃该候选，重新扫描。"""
-        with TemporaryDirectory() as tmp:
-            import core.flows as flows_mod
-            h = Harness(tmp)
-            old = flows_mod.MANUAL_CANDIDATE_TIMEOUT
-            flows_mod.MANUAL_CANDIDATE_TIMEOUT = 0.0
-            try:
-                session = self._session(h)
-                f = h.temp / "stuck.kgsav"
-                f.write_text("A", encoding="utf-8")
-                h.flows.poll_manual(session)      # 记录候选
-                f.write_text("AB", encoding="utf-8")
-                self.assertEqual(h.flows.poll_manual(session), ("waiting", None))
-                self.assertIsNone(session.path, "超时后应放弃候选")
-                self.assertTrue(any("msg.manual_candidate_busy" in m
-                                    for m in h.logs()))
-            finally:
-                flows_mod.MANUAL_CANDIDATE_TIMEOUT = old
-
-    # ---- 载荷与备份 ----
-    def test_only_line_endings_are_trimmed(self):
+    def test_import_text_only_line_endings_are_trimmed(self):
         """粘贴文本只裁行尾换行：UTF-16 存档的尾部空格是载荷本身。"""
         with TemporaryDirectory() as tmp:
             h = Harness(tmp)
-            session = self._session(h)
-            self.assertTrue(h.flows.submit_manual_text(session,
-                                                       "PAYLOAD  \r\n"))
+            self.assertTrue(h.flows.import_text(0, "PAYLOAD  \r\n"))
             self.assertEqual(
                 (h.library / "存档1_1.kgsav").read_text(encoding="utf-8"),
                 "PAYLOAD  ", "只裁行尾换行，空格要保留")
 
+    # ---- 覆盖前备份 ----
     def test_overwrite_backs_up_existing_save(self):
         with TemporaryDirectory() as tmp:
             h = Harness(tmp)
-            session = self._session(h)
-            self.assertTrue(h.flows.finish_manual(session, "FIRST",
-                                                  detected=False))
+            self.assertTrue(h.flows.import_text(0, "FIRST"))
             self.assertEqual(
                 (h.library / "存档1_1.kgsav").read_text(encoding="utf-8"),
                 "FIRST")
-            session2 = self._session(h)
-            self.assertTrue(h.flows.finish_manual(session2, "SECOND",
-                                                  detected=False))
+            self.assertTrue(h.flows.import_text(0, "SECOND"))
             baks = list(h.backups.glob("*.bak"))
             self.assertEqual(len(baks), 1, "覆盖前应留一份备份")
             self.assertEqual(baks[0].read_text(encoding="utf-8"), "FIRST")
@@ -439,17 +360,17 @@ class TestManualSave(unittest.TestCase):
     def test_no_backup_when_slot_empty(self):
         with TemporaryDirectory() as tmp:
             h = Harness(tmp)
-            session = self._session(h)
-            self.assertTrue(h.flows.finish_manual(session, "ONLY",
-                                                  detected=False))
+            self.assertTrue(h.flows.import_text(0, "ONLY"))
             self.assertEqual(list(h.backups.glob("*.bak")), [],
                              "新槽位没有原文件，不应产生备份")
 
-    def test_copy_temp_path(self):
+    # ---- 存档库路径（改名说明用） ----
+    def test_copy_library_path(self):
         with TemporaryDirectory() as tmp:
             h = Harness(tmp)
-            h.flows.copy_temp_path()
-            self.assertEqual(h.messages("clipboard")[0][2], str(h.temp.resolve()))
+            h.flows.copy_library_path()
+            self.assertEqual(h.messages("clipboard")[0][2],
+                             str(h.library.resolve()))
             self.assertTrue(any("msg.path_copied" in m for m in h.logs()))
 
 
@@ -480,17 +401,6 @@ class TestCheckLibrary(unittest.TestCase):
 
 
 class TestHelpers(unittest.TestCase):
-    def test_snapshot_reports_files(self):
-        with TemporaryDirectory() as tmp:
-            p = Path(tmp) / "a.kgsav"
-            p.write_text("x", encoding="utf-8")
-            snap = snapshot_dir(tmp)
-            self.assertEqual(snap["a.kgsav"][1], 1)
-
-    def test_snapshot_missing_folder(self):
-        with TemporaryDirectory() as tmp:
-            self.assertEqual(snapshot_dir(Path(tmp) / "nope"), {})
-
     def test_clean_temp_folder_removes_only_old(self):
         import os
         with TemporaryDirectory() as tmp:
@@ -507,16 +417,6 @@ class TestHelpers(unittest.TestCase):
             self.assertFalse(old.exists())
             self.assertTrue(fresh.exists())
             self.assertEqual(logger.records[0][0], "INFO")
-
-
-class TestSessionModel(unittest.TestCase):
-    def test_session_snapshot_is_taken_at_start(self):
-        with TemporaryDirectory() as tmp:
-            folder = Path(tmp)
-            (folder / "exists.kgsav").write_text("x", encoding="utf-8")
-            session = ManualSaveSession(0, folder)
-            self.assertIn("exists.kgsav", session.snapshot)
-            self.assertFalse(session.closed)
 
 
 if __name__ == "__main__":

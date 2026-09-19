@@ -4,6 +4,19 @@ All notable changes are listed by version.
 
 ## v1.3.0
 
+- Manual import replaced the temp-folder monitoring with an explicit file
+  choice. The dialog no longer watches a folder: it offers “Browse for a save
+  file” (system file dialog in the Tkinter frontend, the browser's file picker
+  in the HTML frontend) and keeps the text area for pasting a save. The file you
+  pick is read and written into the selected slot, is validated first, and is
+  left untouched — the old behaviour deleted the consumed temp file. The
+  previous slot content is still backed up to `kgsm_data/backups/` before being
+  overwritten, and the whole candidate/polling state machine (candidate reset,
+  half-written download suffixes, two-minute give-up, folder snapshots) is gone.
+- The dialog now explains the save library: it shows the library folder with a
+  Copy Path button and states that a save's slot comes from its file name
+  (`name_1.kgsav` … `name_10.kgsav`), so files can be renamed in the file
+  manager and picked up with Refresh.
 - Both frontends now ship an application icon: the executables use `assets/KGSaveManager.ico`, the Lite window and its dialogs use the same icon, and the HTML version serves it as its favicon (`webapp/assets/favicon.ico` plus a PNG generated from it).
 
 - Ported the v1.2.3 fixes into this line (bug fixes only, no feature changes):
@@ -59,7 +72,7 @@ All notable changes are listed by version.
   the next start failed when that port was taken); the launch log states that
   the port was chosen for this run only. The download log's cache note now
   reports the cached default branch instead of the raw list and source.
-- Tests: 201 cases covering core (slots, flows, editor, download, server),
+- Tests: 198 cases covering core (slots, flows, editor, download, server),
   bridge protocol and keepalive, injected script, downloader, i18n across
   Python and web assets, dead-code checks, and the browser self-test run.
 - Note: pywebview was evaluated for an embedded-window variant and rejected —

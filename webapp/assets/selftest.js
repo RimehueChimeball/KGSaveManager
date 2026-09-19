@@ -114,6 +114,29 @@
     const events = await fetch("/api/events?since=0").then((r) => r.json());
     check("事件接口可用", events && events.ok === true);
 
+    // 手动导入对话框：浏览选择文件 + 存档库路径说明（只开不写）
+    const manualBtn = document.querySelector('[data-action="manual-save"]');
+    if (manualBtn) {
+      manualBtn.click();
+      await sleep(300);
+      const modal = document.getElementById("modal");
+      const fileInput = document.getElementById("modal-file");
+      const message = document.getElementById("modal-message");
+      const copyBtn = document.getElementById("modal-copy");
+      const library = (state.paths && state.paths.saves) || "";
+      check("手动导入弹出对话框", modal && !modal.hidden);
+      check("对话框提供文件选择器", fileInput && !fileInput.hidden);
+      check("对话框提供复制存档库路径按钮", copyBtn && !copyBtn.hidden);
+      check("对话框说明含存档库路径与刷新提示",
+            !!library && !!message &&
+            message.textContent.indexOf(library) >= 0);
+      document.getElementById("modal-cancel").click();
+      await sleep(150);
+      check("取消后对话框关闭", document.getElementById("modal").hidden);
+    } else {
+      check("存在手动导入按钮", false);
+    }
+
     const failures = results.filter((r) => !r.ok && r.fatal).length;
     box.textContent += "\nSELFTEST " + (failures ? "FAILED " + failures
                                                  : "OK");
