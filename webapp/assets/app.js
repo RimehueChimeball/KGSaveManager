@@ -17,6 +17,7 @@
     config: {},
     selectedSlot: 0,
     eventSeq: 0,
+    page: "kgsm",
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -168,9 +169,17 @@
   }
 
   function showPage(key) {
+    if (state.tabOrder.indexOf(key) < 0) { key = "kgsm"; }
+    state.page = key;
     $$(".page").forEach((p) => p.classList.toggle("active", p.id === "page-" + key));
     $$("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.page === key));
     if (key === "editor") { loadEditorTree(); }
+    // 记到地址栏：刷新/深链（?page=saves）都回到同一页
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("page", key);
+      window.history.replaceState(null, "", url);
+    } catch (e) { /* file:// 等环境忽略 */ }
   }
 
   function renderSlots() {
@@ -651,7 +660,8 @@
       init = await fetch("/api/state").then((r) => r.json());
     } catch (e) { /* 首次加载失败时下面的轮询会重试 */ }
     if (init && init.ok) { applyState(init.result); }
-    showPage("kgsm");
+    const want = new URLSearchParams(window.location.search).get("page");
+    showPage(want || "kgsm");
     await call("download_versions", { repo: "author" });
     pollEvents();
     heartbeat();

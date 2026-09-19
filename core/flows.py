@@ -14,7 +14,6 @@
   True（页面确认）/ False（页面报错或发送失败）/ None（已发送未确认）
 """
 
-import os
 import threading
 import time
 from datetime import datetime
@@ -23,31 +22,10 @@ from pathlib import Path
 import savecodec
 
 
-def clean_temp_folder(folder, keep_seconds, logger=None):
-    """删除临时目录中超过保留期的文件，返回删除数量。"""
-    cutoff = time.time() - keep_seconds
-    removed = 0
-    try:
-        entries = list(Path(folder).iterdir())
-    except OSError:
-        return 0
-    for p in entries:
-        try:
-            if not p.is_file() or p.stat().st_mtime >= cutoff:
-                continue
-            p.unlink()
-            removed += 1
-        except OSError:
-            continue
-    if removed and logger is not None:
-        logger.info(f"清理临时文件 {removed} 个（保留 {keep_seconds // 86400} 天内）")
-    return removed
-
-
 class SaveFlows:
     """存档流程。依赖：槽位存储、配置、界面端口、事件队列、运行日志。"""
 
-    def __init__(self, *, ui, slots, cfg, t, events, app_name, temp_folder,
+    def __init__(self, *, ui, slots, cfg, t, events, app_name,
                  max_save_size, get_bridge, is_server_running, logger=None,
                  backup_dir=None, reconnect_timeout=6.0):
         self.ui = ui
@@ -56,7 +34,6 @@ class SaveFlows:
         self.t = t
         self.events = events
         self.app_name = app_name
-        self.temp_folder = Path(temp_folder)
         self.max_save_size = max_save_size
         self.get_bridge = get_bridge
         self.is_server_running = is_server_running
@@ -195,6 +172,13 @@ class SaveFlows:
         return [(self.t("msg.filetype_save"), "*.kgsav *.txt *.json *.save"),
                 (self.t("msg.filetype_all"), "*.*")]
 
+    def default_import_dir(self):
+        """选文件对话框的默认打开位置：系统的下载文件夹，其次存档库。"""
+        downloads = Path.home() / "Downloads"
+        if downloads.is_dir():
+            return downloads
+        return self.slots.library
+
     def import_file(self, slot, path):
         """导入用户选定的存档文件。
 
@@ -274,10 +258,6 @@ class SaveFlows:
         """检查异常文件并写入日志（合规 = 文件名可解析为 名字_槽位号.kgsav）。"""
         self.log(self.t("msg.check_start"), self.t("tag.check"))
         result = self.slots.check()
-        try:
-            temp_files = sorted(os.listdir(self.temp_folder))
-        except OSError:
-            temp_files = []
 
         self.log("=" * 50, self.t("tag.check"))
         if result['invalid']:
@@ -291,13 +271,6 @@ class SaveFlows:
             self.log(self.t("msg.lib_empty"), self.t("tag.check"))
             for f in result['empty']:
                 self.log(self.t("msg.item", f=f), self.t("tag.check"))
-
-        if temp_files:
-            self.log(self.t("msg.temp_files"), self.t("tag.check"))
-            for f in temp_files:
-                self.log(self.t("msg.item", f=f), self.t("tag.check"))
-        else:
-            self.log(self.t("msg.temp_clean"), self.t("tag.check"))
 
         self.log(self.t("msg.check_tail"), self.t("tag.check"))
         self.log("=" * 50, self.t("tag.check"))

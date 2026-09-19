@@ -49,9 +49,11 @@ class TestBrowserSelftest(unittest.TestCase):
         self.addCleanup(self.h.close)
 
     def test_page_selftest_passes(self):
-        # 自检需要一点真实时间（备注往返、事件轮询）
+        # 自检需要一点真实时间（备注往返、事件轮询）；窗口尺寸按应用窗口给，
+        # 这样布局检查（宽屏分列）才在真实条件下执行。
         proc = subprocess.run(
             [self.browser, "--headless=new", "--disable-gpu", "--no-first-run",
+             "--window-size=1280,860",
              "--virtual-time-budget=20000", "--dump-dom",
              self.h.url.rstrip("/") + "/?selftest=1"],
             capture_output=True, encoding="utf-8", errors="replace",
@@ -65,6 +67,10 @@ class TestBrowserSelftest(unittest.TestCase):
         self.assertNotIn("FAIL", report, "浏览器自检存在失败项:\n" + report)
         self.assertNotIn("ERROR", report, "浏览器自检异常:\n" + report)
         self.assertIn("SELFTEST OK", report, report)
+        # 新布局的关键结论要真的跑过（不是被跳过）
+        self.assertIn("PASS 宽屏下卡片横向分列", report, report)
+        self.assertIn("PASS 页面不出现横向滚动", report, report)
+        self.assertIn("PASS 卡片分成多行排布", report, report)
 
     def test_page_serves_state_to_browser(self):
         """页面加载后应拿到真实数据（不依赖自检脚本）。"""

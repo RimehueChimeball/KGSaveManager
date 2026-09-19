@@ -85,11 +85,8 @@ class ManualSaveMixin:
 
     def _manual_pick_file(self):
         """用系统文件对话框选存档文件并导入（不删除用户的原文件）。"""
-        try:
-            initial = str(self.flows.temp_folder)
-        except Exception:
-            initial = ""
-        path = self.ui.ask_file(self.t("msg.manual_pick_title"), initial,
+        path = self.ui.ask_file(self.t("msg.manual_pick_title"),
+                                str(self.flows.default_import_dir()),
                                 filetypes=self.flows.import_filetypes())
         if not path:
             return

@@ -114,6 +114,64 @@
     const events = await fetch("/api/events?since=0").then((r) => r.json());
     check("事件接口可用", events && events.ok === true);
 
+    // 布局：宽屏横向分列 + 内容纵向滚动（不出现横向滚动条）
+    const main = document.getElementById("main");
+    const viewport = window.innerWidth;
+    if (viewport >= 1180) {
+      const grid = getComputedStyle(document.querySelector(".page.active"))
+        .gridTemplateColumns;
+      const cols = grid.split(" ").filter((s) => s && s !== "none").length;
+      check("宽屏下卡片横向分列（" + cols + " 列）", cols >= 2);
+    } else {
+      check("窄窗口保持单列（" + viewport + "px）",
+            getComputedStyle(document.querySelector(".page.active"))
+              .gridTemplateColumns.split(" ").length === 1, false);
+    }
+    check("页面不出现横向滚动",
+          document.documentElement.scrollWidth <= viewport + 1);
+    check("内容区自己纵向滚动（scrollHeight > clientHeight）",
+          main.scrollHeight > main.clientHeight ||
+          document.querySelectorAll(".page.active .card").length <= 2, false);
+
+    // 存档管理页：卡片分列且在窗口内，横向可读
+    for (const btn of nav) {
+      if (btn.dataset.page === "saves") { btn.click(); }
+    }
+    await sleep(200);
+    const cards = Array.from(document.querySelectorAll("#page-saves .card"));
+    const rects = cards.map((c) => c.getBoundingClientRect());
+    check("存档管理页有卡片", cards.length >= 3);
+    check("卡片未超出内容区右边界",
+          rects.every((r) => r.right <= viewport + 1), false);
+    check("卡片宽度充分利用横向空间",
+          rects.every((r) => r.width >= 300), false);
+    const cardTops = Array.from(rects.map((r) => Math.round(r.top)));
+    const distinctRows = new Set(cardTops).size;
+    check("卡片分成多行排布（" + distinctRows + " 行）", distinctRows >= 2);
+
+    // 新样式是否真的生效（计算值，不看截图）
+    const css = (el, prop) => getComputedStyle(el).getPropertyValue(prop);
+    const card = cards[0];
+    check("卡片有圆角与阴影",
+          parseFloat(css(card, "border-radius")) >= 10 &&
+          css(card, "box-shadow") !== "none");
+    check("卡片为白色面板", css(card, "background-color") === "rgb(255, 255, 255)");
+    check("侧栏用深色渐变",
+          /gradient/.test(css(document.getElementById("sidebar"),
+                              "background-image")), false);
+    check("主按钮用强调色",
+          css(document.querySelector("button.primary"), "background-image")
+            .indexOf("gradient") >= 0, false);
+    const brandIcon = document.querySelector("#brand img.brand-icon");
+    check("侧栏品牌图标已加载",
+          !!brandIcon && brandIcon.complete && brandIcon.naturalWidth > 0);
+    const logPanel = document.querySelector(".log");
+    check("日志面板为深色底",
+          /rgb\((\d+), (\d+), (\d+)\)/.test(css(logPanel, "background-color")) &&
+          css(logPanel, "background-color") !== "rgb(255, 255, 255)", false);
+    if (nav.length) { nav[0].click(); }
+    await sleep(120);
+
     // 手动导入对话框：浏览选择文件 + 存档库路径说明（只开不写）
     const manualBtn = document.querySelector('[data-action="manual-save"]');
     if (manualBtn) {

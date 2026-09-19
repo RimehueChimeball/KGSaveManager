@@ -16,8 +16,11 @@
 <div id="app">
   <aside id="sidebar">
     <div id="brand">
-      <div class="brand-name">KGSaveManager</div>
-      <div class="brand-version" id="version"></div>
+      <img class="brand-icon" src="/assets/icon-192.png" alt="">
+      <div class="brand-text">
+        <div class="brand-name">KGSaveManager</div>
+        <div class="brand-version" id="version"></div>
+      </div>
     </div>
     <nav id="nav"></nav>
     <div class="sidebar-foot">
@@ -85,51 +88,50 @@
 
     <section class="page" id="page-saves">
       <h1 data-i18n="tab.saves"></h1>
-      <div class="split">
-        <div class="side">
-          <button class="primary wide" data-action="auto-save"
-                  data-i18n="sv.btn_auto_save"></button>
-          <button class="wide" data-action="manual-save"
-                  data-i18n="sv.btn_manual_save"></button>
-          <button class="wide" data-action="auto-load"
-                  data-i18n="sv.btn_auto_load"></button>
-          <button class="wide" data-action="copy-save"
-                  data-i18n="sv.btn_load"></button>
-          <button class="wide" data-action="rename-slot"
-                  data-i18n="sv.btn_rename"></button>
-          <button class="wide" data-action="refresh"
-                  data-i18n="sv.btn_refresh"></button>
-          <hr>
-          <button class="wide" data-action="check-library"
-                  data-i18n="sv.btn_check"></button>
-          <p class="hint" data-i18n="sv.help"></p>
-        </div>
-        <div class="content">
-          <div class="card">
-            <h2 data-i18n="sv.title_slots"></h2>
-            <table class="slots">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th data-i18n="ed.slot"></th>
-                  <th data-i18n="sv.col_time"></th>
-                  <th data-i18n="sv.col_note"></th>
-                </tr>
-              </thead>
-              <tbody id="slot-rows"></tbody>
-            </table>
-          </div>
-          <div class="card">
-            <h2 data-i18n="sv.title_log"></h2>
-            <pre class="log" id="log-saves"></pre>
-          </div>
-        </div>
+      <div class="card side">
+        <button class="primary wide" data-action="auto-save"
+                data-i18n="sv.btn_auto_save"></button>
+        <button class="wide" data-action="manual-save"
+                data-i18n="sv.btn_manual_save"></button>
+        <button class="wide" data-action="auto-load"
+                data-i18n="sv.btn_auto_load"></button>
+        <button class="wide" data-action="copy-save"
+                data-i18n="sv.btn_load"></button>
+        <button class="wide" data-action="rename-slot"
+                data-i18n="sv.btn_rename"></button>
+        <button class="wide" data-action="refresh"
+                data-i18n="sv.btn_refresh"></button>
+        <hr>
+        <button class="wide" data-action="check-library"
+                data-i18n="sv.btn_check"></button>
+      </div>
+      <div class="card">
+        <h2 data-i18n="sv.title_help"></h2>
+        <p class="hint" data-i18n="sv.help"></p>
+      </div>
+      <div class="card wide">
+        <h2 data-i18n="sv.title_slots"></h2>
+        <table class="slots">
+          <thead>
+            <tr>
+              <th></th>
+              <th data-i18n="ed.slot"></th>
+              <th data-i18n="sv.col_time"></th>
+              <th data-i18n="sv.col_note"></th>
+            </tr>
+          </thead>
+          <tbody id="slot-rows"></tbody>
+        </table>
+      </div>
+      <div class="card wide">
+        <h2 data-i18n="sv.title_log"></h2>
+        <pre class="log" id="log-saves"></pre>
       </div>
     </section>
 
     <section class="page" id="page-editor">
       <h1 data-i18n="tab.editor"></h1>
-      <div class="card form">
+      <div class="card form wide">
         <label data-i18n="ed.source"></label>
         <div class="row">
           <select id="ed-mode">
@@ -145,7 +147,7 @@
           <button data-action="editor-view-source" data-i18n="ed.view_source"></button>
         </div>
       </div>
-      <div class="card">
+      <div class="card wide">
         <div id="ed-tree-wrap" class="tree-wrap"></div>
         <textarea id="ed-source" spellcheck="false" hidden></textarea>
       </div>

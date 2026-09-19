@@ -47,7 +47,6 @@ from web_server import open_in_browser
 SLOT_COUNT = 10                                  # 存档位数量
 MAX_NOTE_LEN = 200                               # 单条备注最大长度
 MAX_SAVE_SIZE = 64 * 1024 * 1024                 # 单个存档最大体积（字节）
-TEMP_KEEP_SECONDS = 7 * 24 * 3600                # 临时目录文件保留时长（秒）
 
 # 关于页链接（固定文案，不随语言翻译）
 REPO_URL = "https://github.com/RimehueChimeball/KGSaveManager"
@@ -61,7 +60,6 @@ else:
 
 DATA_FOLDER = BASE_DIR / "kgsm_data"             # 数据总目录：备份/迁移只移动它
 SAVE_LIBRARY = DATA_FOLDER / "kittens_saves"     # 存档库文件夹
-TEMP_FOLDER = DATA_FOLDER / "kgsm_temp"          # 临时文件夹（接收游戏导出文件）
 CONFIG_FILE = DATA_FOLDER / "kgsm_config.json"   # 配置/备注持久化文件
 BACKUP_DIR = DATA_FOLDER / "backups"             # 存档备份目录（编辑前备份）
 
@@ -87,8 +85,7 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
                             app_name=self.app_name,
                             app_version=APP_VERSION,
                             slot_count=SLOT_COUNT,
-                            max_save_size=MAX_SAVE_SIZE,
-                            temp_keep_seconds=TEMP_KEEP_SECONDS)
+                            max_save_size=MAX_SAVE_SIZE)
 
         # 前端直接使用的引用（视图只读这些、不越过它们做事）
         self.cfg = self.core.cfg
@@ -108,7 +105,6 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         self.tab_order = TAB_ORDER
         self.save_library = SAVE_LIBRARY
         self.max_save_size = MAX_SAVE_SIZE
-        self.temp_folder = TEMP_FOLDER
         self.backup_dir = BACKUP_DIR
 
         # 当前选中的存档位索引（0-based）：默认取配置页指定的存档位
@@ -560,7 +556,6 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         if self._first_build:
             self.log(self.t("msg.app_start"))
             self.log(self.t("msg.library_path", path=SAVE_LIBRARY))
-            self.log(self.t("msg.temp_path", path=TEMP_FOLDER))
 
     # ---------- 配置页 ----------
     def build_settings_tab(self, parent, button_font, log_font):

@@ -13,7 +13,7 @@ from kgsm_logging import AppLogger
 
 from .download import DownloadController
 from .editor import EditorController
-from .flows import SaveFlows, clean_temp_folder
+from .flows import SaveFlows
 from .paths import AppPaths
 from .server import ServerController
 from .slots import SlotStore
@@ -23,7 +23,6 @@ APP_VERSION = "v1.3.0"
 SLOT_COUNT = 10
 MAX_NOTE_LEN = 200
 MAX_SAVE_SIZE = 64 * 1024 * 1024          # 单个存档最大体积（字节）
-TEMP_KEEP_SECONDS = 7 * 24 * 3600         # 临时目录文件保留时长（秒）
 
 
 class AppCore:
@@ -31,8 +30,7 @@ class AppCore:
 
     def __init__(self, ui, *, base_dir=None, app_name=APP_NAME,
                  app_version=APP_VERSION, slot_count=SLOT_COUNT,
-                 max_save_size=MAX_SAVE_SIZE,
-                 temp_keep_seconds=TEMP_KEEP_SECONDS):
+                 max_save_size=MAX_SAVE_SIZE):
         self.ui = ui
         self.app_name = app_name
         self.app_version = app_version
@@ -52,8 +50,6 @@ class AppCore:
                           f"配置: {self.paths.config}",
                           f"日志目录: {self.paths.logs}"])
 
-        clean_temp_folder(self.paths.temp, temp_keep_seconds, self.logger)
-
         self.events = queue.Queue()
         self.slots = SlotStore(self.paths.saves, self.t, slot_count)
         self.server = ServerController(ui=ui, cfg=self.cfg, t=self.t,
@@ -61,7 +57,7 @@ class AppCore:
         self.flows = SaveFlows(
             ui=ui, slots=self.slots, cfg=self.cfg, t=self.t,
             events=self.events, app_name=app_name,
-            temp_folder=self.paths.temp, max_save_size=max_save_size,
+            max_save_size=max_save_size,
             get_bridge=lambda: self.server.bridge,
             is_server_running=lambda: self.server.running,
             backup_dir=self.paths.backups,

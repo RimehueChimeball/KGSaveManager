@@ -18,7 +18,6 @@ class AppPaths:
         self.resources = Path(getattr(sys, "_MEIPASS", self.base))
         self.data = self.base / "kgsm_data"
         self.saves = self.data / "kittens_saves"
-        self.temp = self.data / "kgsm_temp"
         self.backups = self.data / "backups"
         self.logs = self.data / "kgsm_log"
         self.config = self.data / "kgsm_config.json"
@@ -39,7 +38,7 @@ class AppPaths:
         return None
 
     def ensure_dirs(self):
-        for folder in (self.data, self.saves, self.temp, self.backups):
+        for folder in (self.data, self.saves, self.backups):
             folder.mkdir(parents=True, exist_ok=True)
 
     def as_dict(self):
@@ -47,7 +46,6 @@ class AppPaths:
             "base": str(self.base),
             "data": str(self.data),
             "saves": str(self.saves),
-            "temp": str(self.temp),
             "backups": str(self.backups),
             "logs": str(self.logs),
             "config": str(self.config),

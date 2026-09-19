@@ -4,6 +4,20 @@ All notable changes are listed by version.
 
 ## v1.3.0
 
+- The temp folder (`kgsm_data/kgsm_temp`) is gone: it is no longer created,
+  cleaned at startup or listed by the library check, because manual import now
+  takes a file the user picks. Existing folders are left on disk untouched.
+- HTML interface redesign: the pages are now a wide multi-column grid (two
+  columns from 1180px, three from 1720px) with the content area scrolling on
+  its own, so cards spread horizontally instead of stacking in one narrow
+  column. The visual style was rewritten as well: gradient sidebar with the
+  application icon, cards with rounded corners and soft shadows, section
+  headers with an accent bar, consistent button sizes with a primary gradient,
+  zebra/hover rows and a sticky header in the slot table, dark log panels and
+  themed scrollbars. Text colours were checked against WCAG AA contrast
+  (the muted grey was darkened to reach 4.9:1 on soft panels).
+- The HTML page keeps the current tab in the address bar and accepts
+  `?page=<kgsm|game|saves|editor|download|settings>` for deep links.
 - Manual import replaced the temp-folder monitoring with an explicit file
   choice. The dialog no longer watches a folder: it offers “Browse for a save
   file” (system file dialog in the Tkinter frontend, the browser's file picker
@@ -72,7 +86,7 @@ All notable changes are listed by version.
   the next start failed when that port was taken); the launch log states that
   the port was chosen for this run only. The download log's cache note now
   reports the cached default branch instead of the raw list and source.
-- Tests: 198 cases covering core (slots, flows, editor, download, server),
+- Tests: 199 cases covering core (slots, flows, editor, download, server),
   bridge protocol and keepalive, injected script, downloader, i18n across
   Python and web assets, dead-code checks, and the browser self-test run.
 - Note: pywebview was evaluated for an embedded-window variant and rejected —

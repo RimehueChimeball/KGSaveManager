@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.flows import SaveFlows, clean_temp_folder  # noqa: E402
+from core.flows import SaveFlows  # noqa: E402
 from core.slots import SlotStore  # noqa: E402
 from core.ui_port import NullUiPort  # noqa: E402
 
@@ -63,8 +63,6 @@ class Harness:
                  has_client=True, server=True, apply_ok=True):
         self.library = Path(tmp) / "kittens_saves"
         self.library.mkdir(parents=True, exist_ok=True)
-        self.temp = Path(tmp) / "kgsm_temp"
-        self.temp.mkdir(parents=True, exist_ok=True)
         self.backups = Path(tmp) / "backups"
         self.ui = NullUiPort(confirm_default=confirm)
         self.bridge = FakeBridge(save_text, has_client, apply_ok)
@@ -82,7 +80,7 @@ class Harness:
         self.flows = SaveFlows(
             ui=self.ui, slots=self.slots, cfg=FakeConfig(), t=t,
             events=self.events, app_name="APP",
-            temp_folder=self.temp, max_save_size=1024 * 1024,
+            max_save_size=1024 * 1024,
             get_bridge=lambda: self.bridge,
             is_server_running=lambda: self.server_running,
             backup_dir=self.backups,
@@ -381,14 +379,12 @@ class TestCheckLibrary(unittest.TestCase):
             (h.library / "好_1.kgsav").write_text("DATA", encoding="utf-8")
             (h.library / "空_2.kgsav").write_text("", encoding="utf-8")
             (h.library / "乱名.kgsav").write_text("X", encoding="utf-8")
-            (h.temp / "残留.kgsav").write_text("X", encoding="utf-8")
             h.flows.check_library()
             logs = "\n".join(h.logs())
             self.assertIn("msg.check_start", logs)
             self.assertIn("msg.lib_abnormal", logs)
             self.assertIn("msg.item|f=乱名.kgsav", logs)
             self.assertIn("msg.lib_empty", logs)
-            self.assertIn("msg.temp_files", logs)
             self.assertIn("msg.check_tail", logs)
 
     def test_clean_library(self):
@@ -397,26 +393,27 @@ class TestCheckLibrary(unittest.TestCase):
             h.flows.check_library()
             logs = "\n".join(h.logs())
             self.assertIn("msg.lib_clean", logs)
-            self.assertIn("msg.temp_clean", logs)
 
 
-class TestHelpers(unittest.TestCase):
-    def test_clean_temp_folder_removes_only_old(self):
-        import os
+class TestExportDefaults(unittest.TestCase):
+    def test_default_import_dir_is_downloads_or_library(self):
+        """选文件对话框的默认位置：系统下载文件夹（存在时），否则存档库。"""
+        from pathlib import Path as _P
         with TemporaryDirectory() as tmp:
-            folder = Path(tmp)
-            old = folder / "old.kgsav"
-            fresh = folder / "fresh.kgsav"
-            old.write_text("x", encoding="utf-8")
-            fresh.write_text("y", encoding="utf-8")
-            past = time.time() - 10 * 86400
-            os.utime(old, (past, past))
-            logger = FakeLogger()
-            removed = clean_temp_folder(folder, 7 * 86400, logger)
-            self.assertEqual(removed, 1)
-            self.assertFalse(old.exists())
-            self.assertTrue(fresh.exists())
-            self.assertEqual(logger.records[0][0], "INFO")
+            h = Harness(tmp)
+            chosen = h.flows.default_import_dir()
+            downloads = _P.home() / "Downloads"
+            if downloads.is_dir():
+                self.assertEqual(chosen, downloads)
+            else:
+                self.assertEqual(chosen, h.library)
+
+    def test_import_filetypes_for_dialog(self):
+        with TemporaryDirectory() as tmp:
+            h = Harness(tmp)
+            types = h.flows.import_filetypes()
+            self.assertEqual(types[0][0], "msg.filetype_save")
+            self.assertIn(".kgsav", types[0][1])
 
 
 if __name__ == "__main__":

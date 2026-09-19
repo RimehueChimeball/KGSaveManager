@@ -68,7 +68,7 @@ python KGSaveManagerLite.py   # Lite 版（Tkinter 界面）
 ├─ tests/                单元测试（仅标准库）
 └─ kgsm_data/
    ├─ kittens_saves/
-   ├─ kgsm_temp/
+   ├─ backups/
    ├─ kgsm_log/
    └─ kgsm_config.json
 ```

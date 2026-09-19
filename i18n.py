@@ -63,6 +63,7 @@ _ZH = {
 
     # ---- 存档管理页 ----
     "sv.title_slots": "存档位",
+    "sv.title_help": "使用提示",
     "sv.title_log": "输出日志",
     "sv.col_time": "时间",
     "sv.col_note": "备注",
@@ -76,10 +77,9 @@ _ZH = {
         "【自动存档】\n"
         "用 KGSM 启动游戏（页面已连接）后，点「自动存档」\n"
         "即可把游戏当前存档直接写入选中槽位。\n\n"
-        "【手动存档】\n"
-        "弹窗上部：把游戏导出的存档文件放入临时文件夹，\n"
-        "检测到后自动保存并关闭；\n"
-        "下部：粘贴存档文本后点「确定」。\n\n"
+        "【手动导入】\n"
+        "点「浏览选择存档文件」选游戏导出的存档文件，\n"
+        "或把存档文本粘贴到输入框后点「确定」。\n\n"
         "【读档】\n"
         "1. 选中一个存档位\n"
         "2. 点击「读档」\n"
@@ -212,7 +212,6 @@ _ZH = {
     "msg.browser_fail": "打开浏览器失败，请手动访问: {url}",
     "msg.app_start": "程序启动",
     "msg.library_path": "存档库: {path}",
-    "msg.temp_path": "临时文件夹: {path}",
     "msg.file_renamed": "存档文件已改名: {old} → {new}",
     "msg.refreshed": "已刷新存档库。",
     "msg.user_cancel": "用户取消存档操作",
@@ -231,8 +230,6 @@ _ZH = {
     "msg.lib_abnormal": "【存档库】发现以下不合规文件（程序不会处理）：",
     "msg.lib_clean": "【存档库】没有不合规文件。",
     "msg.lib_empty": "【存档库】以下存档文件内容为空：",
-    "msg.temp_files": "【临时文件夹】发现以下文件（程序不会处理）：",
-    "msg.temp_clean": "【临时文件夹】为空。",
     "msg.check_tail": "这些文件不会被程序管理，请自行判断是否转移或删除。",
     "msg.item": "  - {f}",
     "err.file_empty": "存档文件为空",
@@ -292,6 +289,7 @@ _EN = {
 
     # ---- Save Management page ----
     "sv.title_slots": "Save Slots",
+    "sv.title_help": "Usage Notes",
     "sv.title_log": "Output Log",
     "sv.col_time": "Time",
     "sv.col_note": "Note",
@@ -306,10 +304,9 @@ _EN = {
         "Launch the game via KGSM (page connected), then click "
         "\u201cAuto Save\u201d to write the game's current save directly "
         "into the selected slot.\n\n"
-        "[Manual Save]\n"
-        "Top: drop the exported save file into the temp folder; it is saved "
-        "automatically and the window closes when detected.\n"
-        "Bottom: paste the save text and click OK.\n\n"
+        "[Manual Import]\n"
+        "Click \u201cBrowse for a save file\u201d to pick the save file exported "
+        "by the game, or paste the save text and click OK.\n\n"
         "[Load]\n"
         "1. Select a slot\n"
         "2. Click \u201cLoad\u201d\n"
@@ -461,7 +458,6 @@ _EN = {
     "msg.browser_fail": "Failed to open the browser; visit manually: {url}",
     "msg.app_start": "Application started",
     "msg.library_path": "Save library: {path}",
-    "msg.temp_path": "Temp folder: {path}",
     "msg.file_renamed": "Save file renamed: {old} → {new}",
     "msg.refreshed": "Save library refreshed.",
     "msg.user_cancel": "Save operation cancelled by the user",
@@ -486,9 +482,6 @@ _EN = {
                         "(not managed by the program):",
     "msg.lib_clean": "[Save library] no abnormal files.",
     "msg.lib_empty": "[Save library] the following save files are empty:",
-    "msg.temp_files": "[Temp folder] files found (not managed by the "
-                      "program):",
-    "msg.temp_clean": "[Temp folder] is empty.",
     "msg.check_tail": "These files are not managed by the program; decide "
                       "whether to move or delete them.",
     "msg.item": "  - {f}",

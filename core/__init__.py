@@ -10,7 +10,7 @@ Tkinter 前端、接 pywebview/HTML 前端，也可以在测试里接替身。
 - `flows`：自动存档 / 自动读档 / 手动导入流程与事件处理。
 """
 
-from .flows import SaveFlows, clean_temp_folder
+from .flows import SaveFlows
 from .slots import SlotStore, parse_filename
 from .ui_port import NullUiPort, UiPort
 
@@ -19,6 +19,5 @@ __all__ = [
     "SaveFlows",
     "SlotStore",
     "UiPort",
-    "clean_temp_folder",
     "parse_filename",
 ]

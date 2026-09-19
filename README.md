@@ -71,7 +71,7 @@ program/
 ├─ tests/                unit tests (standard library only)
 └─ kgsm_data/
    ├─ kittens_saves/
-   ├─ kgsm_temp/
+   ├─ backups/
    ├─ kgsm_log/
    └─ kgsm_config.json
 ```
