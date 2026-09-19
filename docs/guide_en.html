@@ -269,7 +269,10 @@ folder is flattened; <code>index.html</code> must exist at the root. The
   <li><b>Game directory</b>: the folder that contains <code>index.html</code>.
       It is used by the local web server and by the downloader.</li>
   <li><b>Port</b>: fixed port for the local server. Empty means an automatic
-      port; the actual port is written back to the field.</li>
+      port; the actual port is written back to the field and reused from then
+      on. If that port is occupied at a later start (another program, or a
+      second copy of this program), the run falls back to an automatically
+      assigned port, says so in the launch log and records the new port.</li>
   <li><b>Default Save Slot</b>: the slot selected by default at startup.</li>
   <li><b>Browser</b>: executable used for the game page and for external
       links. Empty means the system default browser.</li>

@@ -38,6 +38,28 @@ def make_t():
     return t
 
 
+class FakeLogger:
+    """只记录调用，用于断言"运行日志里有没有留痕"。"""
+
+    def __init__(self):
+        self.records = []
+
+    def info(self, msg):
+        self.records.append(("INFO", msg))
+
+    def warn(self, msg):
+        self.records.append(("WARN", msg))
+
+    def error(self, msg):
+        self.records.append(("ERROR", msg))
+
+    def action(self, action, detail):
+        self.records.append(("ACTION", f"{action} {detail}"))
+
+    def close(self):
+        pass
+
+
 class DownloadHarness:
     def __init__(self, tmp, *, confirm=True):
         self.tmp = Path(tmp)
@@ -276,12 +298,13 @@ class TestServerController(unittest.TestCase):
     def tearDown(self):
         web_server.open_in_browser = self.orig_open
 
-    def _controller(self, tmp, game_dir=""):
+    def _controller(self, tmp, game_dir="", logger=None):
         cfg = FakeConfig()
         cfg.game_dir = game_dir
         ui = NullUiPort(confirm_default=True)
         events = queue.Queue()
-        ctl = ServerController(ui=ui, cfg=cfg, t=make_t(), events=events)
+        ctl = ServerController(ui=ui, cfg=cfg, t=make_t(), events=events,
+                               logger=logger)
         return ctl, cfg, ui
 
     def test_start_without_directory(self):
@@ -321,16 +344,49 @@ class TestServerController(unittest.TestCase):
             self.assertTrue(status["running"])
             self.assertEqual(status["url"], url)
             self.assertIsNotNone(status["bridge_port"])
-            # 自动分配的端口只用于本次运行：不能回写配置
-            # （旧行为会把临时端口存成"固定端口"，下次启动端口被占用就失败）
-            self.assertEqual(cfg.port, "")
-            self.assertFalse(cfg.updates, "自动端口不应写回配置")
-            self.assertTrue(any("msg.port_auto_used" in m
-                                for _tag, m in ui.logs), "应提示端口为本次自动分配")
+            # 没配固定端口时，本次自动分配的端口会被记为固定端口
+            http_port = url.rsplit(":", 1)[1].strip("/")
+            self.assertEqual(cfg.port, http_port, "自动端口应记为固定端口")
+            self.assertTrue(cfg.updates)
+            self.assertTrue(any("msg.port_auto_saved" in m
+                                for _tag, m in ui.logs),
+                            "应提示端口已记为固定端口")
             ctl.stop()
             self.assertFalse(ctl.running)
             self.assertIsNone(ctl.bridge)
             self.assertFalse(ctl.status()["running"])
+
+    def test_busy_fixed_port_falls_back_to_auto(self):
+        """配置的固定端口被占用时改用自动端口，并把新端口记进配置。"""
+        import socket as _socket
+        with TemporaryDirectory() as tmp:
+            game = Path(tmp) / "game"
+            game.mkdir()
+            (game / "index.html").write_text("<html></html>",
+                                             encoding="utf-8")
+            blocker = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+            blocker.bind(("127.0.0.1", 0))
+            blocker.listen(1)
+            busy_port = blocker.getsockname()[1]
+            self.addCleanup(blocker.close)
+            logger = FakeLogger()
+            try:
+                ctl, cfg, ui = self._controller(tmp, str(game), logger)
+                cfg.port = str(busy_port)
+                url = ctl.start()
+                self.assertIsNotNone(url, "占用端口应退回自动端口而不是失败")
+                used = int(url.rsplit(":", 1)[1].strip("/"))
+                self.assertNotEqual(used, busy_port)
+                self.assertEqual(cfg.port, str(used))
+                self.assertTrue(any("msg.port_busy_fallback" in m
+                                    for _tag, m in ui.logs),
+                                "应提示固定端口被占用")
+                self.assertTrue(any(r[0] == "WARN"
+                                    for r in logger.records),
+                                f"运行日志应留下告警: {logger.records}")
+                ctl.stop()
+            finally:
+                blocker.close()
 
     def test_open_game_window_uses_browser(self):
         calls = []

@@ -226,7 +226,8 @@ _ZH = {
     "msg.save_start": "开始对 {slot} 进行存档操作",
     "msg.process_fail": "处理存档失败: {e}",
     "msg.crash_hint": "详细信息已写入运行日志: {path}",
-    "msg.port_auto_used": "本次使用自动分配的端口: {port}（不写入配置）",
+    "msg.port_auto_saved": "本次使用自动分配的端口: {port}（已记为固定端口）",
+    "msg.port_busy_fallback": "固定端口 {port} 已被占用，本次改用自动分配的端口",
     "msg.slot_backup": "覆盖前已备份原存档: {path}",
     "msg.backup_fail": "备份原存档失败: {e}",
     "msg.auto_load_sending": "正在把 {slot} 发送到游戏页面，等待确认……",
@@ -480,8 +481,10 @@ _EN = {
     "msg.save_start": "Saving to {slot}...",
     "msg.process_fail": "Failed to process the save: {e}",
     "msg.crash_hint": "Details were written to the run log: {path}",
-    "msg.port_auto_used": "Using an automatically assigned port for this run: "
-                          "{port} (not written to the configuration)",
+    "msg.port_auto_saved": "Using an automatically assigned port for this run: "
+                           "{port} (saved as the fixed port)",
+    "msg.port_busy_fallback": "The fixed port {port} is already in use; using "
+                              "an automatically assigned port for this run",
     "msg.slot_backup": "Existing save backed up before overwrite: {path}",
     "msg.backup_fail": "Failed to back up the existing save: {e}",
     "msg.auto_load_sending": "Sending {slot} to the game page, waiting for "

@@ -88,12 +88,18 @@ All notable changes are listed by version.
   success on send. Live reads and live writes in the editor, and loading a slot
   into the game, run on background threads in both frontends so the window no
   longer freezes for the seconds the page needs to answer.
-- The automatically assigned HTTP port is no longer written back to the
-  configuration (the old behaviour stored a temporary port as a fixed one, so
-  the next start failed when that port was taken); the launch log states that
-  the port was chosen for this run only. The download log's cache note now
-  reports the cached default branch instead of the raw list and source.
-- Tests: 200 cases covering core (slots, flows, editor, download, server),
+- The port field keeps filling itself in: when no fixed port is configured, the
+  automatically assigned HTTP port is written into the configuration and used as
+  the fixed port from then on. A port that is already taken no longer breaks the
+  next start — the port is probed first (Windows allows binding a busy port
+  because of `SO_REUSEADDR`, so a bind test is not enough), and in that case the
+  run falls back to an automatically assigned port, warns in the launch log and
+  records the new port. The download log's cache note now reports the cached
+  default branch instead of the raw list and source.
+- HTML page headers were trimmed: every page keeps the small bilingual eyebrow
+  label as its title, and only the home page keeps the large serif heading, so
+  the duplicated title no longer takes vertical space away from the content.
+- Tests: 201 cases covering core (slots, flows, editor, download, server),
   bridge protocol and keepalive, injected script, downloader, i18n across
   Python and web assets, dead-code checks, and the browser self-test run.
 - Note: pywebview was evaluated for an embedded-window variant and rejected —

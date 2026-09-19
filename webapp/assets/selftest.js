@@ -245,9 +245,14 @@
     check("页面底色为冰白但不纯白（" +
           rgb(pageBg).join(",") + "）",
           rgb(pageBg).every((v) => v >= 242 && v < 255), false);
-    const h1 = document.querySelector(".page.active h1");
-    check("大标题使用衬线字体",
-          /serif|Songti|SimSun|Georgia|Noto Serif/i.test(css(h1, "font-family")));
+    const h1 = document.querySelector("#page-kgsm h1");
+    check("首页保留衬线大标题",
+          !!h1 && /serif|Songti|SimSun|Georgia|Noto Serif/i.test(
+            css(h1, "font-family")));
+    const extraH1 = ["game", "saves", "editor", "download", "settings"]
+      .filter((key) => document.querySelector("#page-" + key + " h1"));
+    check("其余页面只有眉题、没有重复大标题（多余 " + extraH1.length + " 个）",
+          extraH1.length === 0);
     const eyebrow = document.querySelector(".page.active .eyebrow");
     check("每页有等宽大写眉题",
           !!eyebrow && /mono|Consolas|Menlo/i.test(css(eyebrow, "font-family")) &&
@@ -256,8 +261,7 @@
     check("眉题与主按钮同用强调色（" +
           rgb(css(eyebrow, "color")).join(",") + "）",
           rgb(css(eyebrow, "color")).join(",") ===
-          rgb(css(accentBtn, "background-color")).join(","));
-    const activeNav = document.querySelector("#nav button.active");
+          rgb(css(accentBtn, "background-color")).join(","));    const activeNav = document.querySelector("#nav button.active");
     check("侧栏当前项为强调色填充药丸",
           !!activeNav && !!activeNav.querySelector(".side-no") &&
           parseFloat(css(activeNav, "border-radius")) >= 40);
