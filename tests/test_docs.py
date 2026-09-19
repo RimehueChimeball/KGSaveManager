@@ -5,6 +5,7 @@ import struct
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -67,6 +68,50 @@ class TestGuide(unittest.TestCase):
         self.assertTrue(GUIDE_ZH.is_file())
         self.assertTrue(CHANGELOG.is_file())
         self.assertTrue(CHANGELOG_ZH.is_file())
+
+    def test_localized_doc_follows_language(self):
+        """按语言挑文档：zh 取中文版，其余取英文版；外部 i18n/ 同名文件优先。"""
+        from core.paths import AppPaths
+        with TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / "docs").mkdir()
+            (base / "docs" / "guide_zh.html").write_text("zh", encoding="utf-8")
+            (base / "docs" / "guide_en.html").write_text("en", encoding="utf-8")
+            (base / "docs" / "guide_fr.html").write_text("fr", encoding="utf-8")
+            (base / "CHANGELOG.md").write_text("en", encoding="utf-8")
+            paths = AppPaths(base)
+            self.assertEqual(paths.localized_doc("guide", "zh").name,
+                             "guide_zh.html")
+            self.assertEqual(paths.localized_doc("guide", "en").name,
+                             "guide_en.html")
+            # 未知语言退回英文版（不会挑到 fr）
+            self.assertEqual(paths.localized_doc("guide", "fr").name,
+                             "guide_en.html")
+            self.assertEqual(paths.localized_doc("changelog", "zh").name,
+                             "CHANGELOG.md", "只有英文版时退回英文版")
+            self.assertIsNone(paths.localized_doc("nope", "zh"))
+            # 外部 i18n/ 里的同名文件优先
+            (base / "i18n").mkdir()
+            (base / "i18n" / "guide_zh.html").write_text("custom",
+                                                         encoding="utf-8")
+            (base / "i18n" / "CHANGELOG_zh.md").write_text("custom",
+                                                           encoding="utf-8")
+            self.assertEqual(paths.localized_doc("guide", "zh"),
+                             base / "i18n" / "guide_zh.html")
+            self.assertEqual(paths.localized_doc("changelog", "zh"),
+                             base / "i18n" / "CHANGELOG_zh.md")
+
+    def test_repo_docs_resolve_by_language(self):
+        from core.paths import AppPaths
+        paths = AppPaths(ROOT)
+        self.assertEqual(paths.localized_doc("guide", "zh").name,
+                         "guide_zh.html")
+        self.assertEqual(paths.localized_doc("guide", "en").name,
+                         "guide_en.html")
+        self.assertEqual(paths.localized_doc("changelog", "zh").name,
+                         "CHANGELOG_zh.md")
+        self.assertEqual(paths.localized_doc("changelog", "en").name,
+                         "CHANGELOG.md")
 
 
 class TestReadme(unittest.TestCase):

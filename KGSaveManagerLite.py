@@ -310,15 +310,13 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
                   foreground="#888888", wraplength=560).pack(anchor="w")
 
     def open_offline_doc(self):
-        """打开内置离线文档（按界面语言选中/英文版单页 HTML）。"""
-        lang = "zh" if self.cfg.language == "zh" else "en"
-        for name in (f"guide_{lang}.html", "guide_en.html"):
-            doc = BASE_DIR / "docs" / name
-            if doc.is_file():
-                open_in_browser(doc.as_uri(), browser_path=self.cfg.browser,
-                                new_window=False)
-                return
-        self.ui.fail(f"offline doc not found: {BASE_DIR / 'docs'}",
+        """打开内置离线文档（按界面语言选中/英文版，外部 i18n/ 同名文件优先）。"""
+        doc = self.paths.localized_doc("guide", self.cfg.language)
+        if doc is not None:
+            open_in_browser(doc.as_uri(), browser_path=self.cfg.browser,
+                            new_window=False)
+            return
+        self.ui.fail(f"offline doc not found: {self.paths.docs}",
                      self.t("err.launch_fail"))
 
     def _make_link(self, parent, text, command):
@@ -658,7 +656,7 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
             command=lambda: self._open_external(PROFILE_URL))
         profile_link.grid(row=0, column=1, sticky="e")
         doc_link = self._make_link(
-            about, "Offline Guide (docs/guide_en.html)",
+            about, self.t("kgsm.link_doc"),
             command=self.open_offline_doc)
         doc_link.grid(row=1, column=0, sticky="w", pady=(4, 0))
 

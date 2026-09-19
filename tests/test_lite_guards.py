@@ -72,6 +72,52 @@ class TestLiteGuards(unittest.TestCase):
         self.assertIn("boom", dialogs[0][1])
         self.assertIn(str(app.paths.logs), dialogs[0][1])
 
+    def test_editor_slot_dropdown_is_filled_at_startup(self):
+        """启动后「修改存档」页的槽位下拉必须已经列出存档。
+
+        曾经下拉是空的，用户直接点「打开」只会得到「请先选择一个有存档的槽位」。
+        """
+        import savecodec
+        tmp = Path(self.tmp.name)
+        library = tmp / "kgsm_data" / "kittens_saves"
+        library.mkdir(parents=True)
+        blob = savecodec.compress_base64('{"a":1}')
+        (library / "自检_3.kgsav").write_text(blob, encoding="utf-8")
+        # 让程序数据与存档库落在临时目录里，避免污染仓库
+        saved = (self.lite.BASE_DIR, self.lite.SAVE_LIBRARY,
+                 self.lite.BACKUP_DIR)
+        self.lite.BASE_DIR = tmp
+        self.lite.SAVE_LIBRARY = library
+        self.lite.BACKUP_DIR = tmp / "kgsm_data" / "backups"
+
+        def restore():
+            (self.lite.BASE_DIR, self.lite.SAVE_LIBRARY,
+             self.lite.BACKUP_DIR) = saved
+        self.addCleanup(restore)
+
+        app, root = self._build()
+        root.update()
+        values = list(app.edit_slot_combo.cget("values"))
+        self.assertTrue(values, "启动后编辑器槽位下拉不应为空")
+        self.assertTrue(app.edit_slot_var.get(), "启动后应默认选中一个槽位")
+        app.edit_slot_var.set(values[0])
+        self.assertEqual(app._selected_edit_slot(), 2,
+                         "下拉里的条目应能解析回槽位号")
+
+    def test_editor_toolbar_rows_do_not_stretch(self):
+        """「视图/源码」那一行不该被拉高（否则与上下控件间距过大）。"""
+        app, root = self._build()
+        root.update()
+        page = app.notebook.nametowidget(
+            app.notebook.tabs()[self.lite.TAB_ORDER.index("editor")])
+        rows = sorted(page.winfo_children(), key=lambda w: w.winfo_y())
+        view_row = rows[1] if len(rows) > 1 else None
+        self.assertIsNotNone(view_row)
+        root.update_idletasks()
+        self.assertLessEqual(
+            view_row.winfo_height(), 40,
+            f"视图/源码行被撑高了: {view_row.winfo_height()}px")
+
     def test_poll_job_is_cancelled_on_close(self):
         app, _root = self._build()
         self.assertIsNotNone(getattr(app, "_poll_job", None),

@@ -321,6 +321,14 @@ program:</p>
 </table>
 <p>To confirm the exact key for a visible text, open <code>i18n.py</code>
 and search for the text value in <code>_ZH</code>.</p>
+<p>The offline documentation follows the interface language: the About box opens
+<code>docs/guide_zh.html</code> when the interface is Chinese and
+<code>docs/guide_en.html</code> otherwise; the changelog link picks
+<code>CHANGELOG_zh.md</code> or <code>CHANGELOG.md</code> the same way. A file
+with the same name placed in <code>i18n/</code> takes precedence over the
+bundled one, so a translated guide or changelog can be shipped without touching
+the program (for example <code>i18n/guide_en.html</code> or
+<code>i18n/CHANGELOG_en.md</code>).</p>
 <h3 id="browser-cfg">Browser</h3>
 <p>The browser is detected on first start. Use Browse to select an
 executable, or reset to system default.</p>

@@ -259,7 +259,7 @@
     check("配置改动触发自动保存（set_config）",
           seenMethods.indexOf("set_config") >= 0);
 
-    // 关于板块：离线文档 + 更新日志两个入口
+    // 关于板块：离线文档 + 更新日志两个入口（只在首页）
     await gotoTab("kgsm");
     const docs = Array.from(
       document.querySelectorAll('#page-kgsm .link-list [data-action="doc"]'));
@@ -267,6 +267,12 @@
           docs.length === 2 &&
           docs[0].dataset.doc === "guide" &&
           docs[1].dataset.doc === "changelog");
+    check("配置页不再重复放文档入口/关于标题",
+          document.querySelectorAll('#page-settings [data-action="doc"]')
+            .length === 0 &&
+          !Array.from(document.querySelectorAll("#page-settings h2"))
+            .some((h) => h.textContent === (state.strings["st.about"] || "关于")),
+          false);
 
     // 槽位列表与下拉框使用同一格式（存档NN-名字）
     await gotoTab("saves");

@@ -142,7 +142,21 @@ All notable changes are listed by version.
 - Slot labels use the same text everywhere (“存档NN-名字” / “Save NN-name”, the
   separator is now a hyphen instead of a dot) and the slot table no longer
   appends the file name.
-- Tests: 204 cases covering core (slots, flows, editor, download, server),
+- Offline documentation follows the interface language, and external
+  translations can replace it: the About box opens
+  `docs/guide_zh.html` on a Chinese UI and `docs/guide_en.html` otherwise (the
+  changelog link picks `CHANGELOG_zh.md` / `CHANGELOG.md`), and a file with the
+  same name in `i18n/` wins over the bundled one, so a translated guide or
+  changelog can be shipped without touching the program. The Lite version used
+  to label its guide link with a hard-coded English file name.
+- The document entries live on the home page only; the Settings page keeps a
+  “Paths” card for the data folder instead of a second “About” block.
+- Lite editor fixes: its slot dropdown was empty at startup, so pressing Open
+  only produced “please select a slot that contains a save” even with saves in
+  the library — the list is now filled while the page is built; and the
+  view/source row no longer stretches vertically (two rows shared the extra
+  height, leaving ~66px above and below it; now the content area takes it all).
+- Tests: 208 cases covering core (slots, flows, editor, download, server),
   bridge protocol and keepalive, injected script, downloader, i18n across
   Python and web assets, dead-code checks, and the browser self-test run.
 - Note: pywebview was evaluated for an embedded-window variant and rejected —

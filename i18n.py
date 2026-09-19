@@ -106,6 +106,7 @@ _ZH = {
     "st.browser_auto": "未检测到（将使用系统关联打开）",
     "st.hint": "所有修改自动保存到：{path}",
     "st.saved": "配置已自动保存。",
+    "st.paths_title": "数据目录",
 
     # ---- 眉题（等宽大写，参考设计里的 editorial 标记） ----
     "eb.kgsm": "KGSM · 开始使用",
@@ -347,6 +348,7 @@ _EN = {
     "st.browser_auto": "not detected (will open via OS association)",
     "st.hint": "All changes are saved automatically to: {path}",
     "st.saved": "Configuration saved automatically.",
+    "st.paths_title": "Paths",
 
     # ---- Eyebrows (mono uppercase labels from the reference design) ----
     "eb.kgsm": "KGSM · Getting started",

@@ -14,7 +14,9 @@ class EditorPageMixin:
 
     def build_editor_tab(self, parent, button_font, log_font):
         parent.columnconfigure(0, weight=1)
-        parent.rowconfigure(1, weight=1)
+        # 只让内容区（第 2 行）吃掉多余高度；否则第 1 行的「视图/源码」
+        # 也会被撑高，导致它与上下控件的间距过大
+        parent.rowconfigure(2, weight=1)
 
         bar = ttk.LabelFrame(parent, text=self.t("ed.source"), padding="10")
         bar.grid(row=0, column=0, sticky="ew", pady=(0, 6))
@@ -91,6 +93,9 @@ class EditorPageMixin:
         self._edit_src_frame.rowconfigure(0, weight=1)
 
         self._edit_view_changed()
+        # 建好控件后立刻填一次槽位下拉：否则启动后下拉是空的，
+        # 用户直接点「打开」会报「请先选择一个有存档的槽位」
+        self._refresh_edit_slots()
 
     # ---------------- 视图状态 ----------------
     def _edit_mode_changed(self):

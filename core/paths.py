@@ -41,6 +41,27 @@ class AppPaths:
         for folder in (self.data, self.saves, self.backups):
             folder.mkdir(parents=True, exist_ok=True)
 
+    def localized_doc(self, name, lang):
+        """按界面语言找离线文档；外部 i18n/ 里的同名文件优先（可自行翻译）。
+
+        :param name: "guide"（使用指南）或 "changelog"（更新日志）
+        :param lang: 界面语言代码（"zh" 取中文版，其余取英文版）
+        :return: 存在的文件路径；都不存在返回 None
+        """
+        lang = "zh" if lang == "zh" else "en"
+        if name == "guide":
+            names = [f"guide_{lang}.html", "guide_en.html"]
+        elif name == "changelog":
+            names = [f"CHANGELOG_{lang}.md", "CHANGELOG.md"]
+        else:
+            return None
+        for folder in (self.i18n, self.docs, self.base):
+            for fname in names:
+                candidate = Path(folder) / fname
+                if candidate.is_file():
+                    return candidate
+        return None
+
     def as_dict(self):
         return {
             "base": str(self.base),

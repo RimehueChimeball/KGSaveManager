@@ -267,6 +267,11 @@ msgstr "Auto Save"</pre>
 </table>
 <p>想确认某个界面文字对应的键，打开 <code>i18n.py</code>，在 <code>_ZH</code> 里
 搜这段文字即可。</p>
+<p>离线文档跟界面语言一致：中文界面下“关于”打开
+<code>docs/guide_zh.html</code>，否则打开 <code>docs/guide_en.html</code>；
+更新日志同理取 <code>CHANGELOG_zh.md</code> 或 <code>CHANGELOG.md</code>。把同名
+文件放进 <code>i18n/</code> 会优先于随包文档，因此可以不改程序就替换成自己的翻译版
+（例如 <code>i18n/guide_zh.html</code> 或 <code>i18n/CHANGELOG_zh.md</code>）。</p>
 <h3 id="browser-cfg">浏览器</h3>
 <p>首次启动会自动检测浏览器；可以用「浏览」选择可执行文件，也可以重置为系统默认。</p>
 <h3 id="paths">路径与引号</h3>
