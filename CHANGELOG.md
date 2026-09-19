@@ -106,6 +106,12 @@ All notable changes are listed by version.
   triangle toggles a node, the state is kept per node path so it survives a
   re-render after editing a value (the root node's `path` is null, which is why
   the first attempt did nothing).
+- The editor tree now starts like the Tkinter one: only the root level is
+  expanded (both the synthetic `(root)` row and the save object itself), every
+  nested container is collapsed, and the toggles are larger. The checkbox row
+  keeps equal spacing above and below (16px each, it used to be 0 above and 22
+  below, which read as "stuck to the top"), and selects use a drawn chevron with
+  a 38px right padding instead of the browser arrow that sits against the edge.
 - The editor toolbar mirrors the Tkinter layout again: view/source as a
   segmented switch on the left with a visible selection, open/write on the
   right.

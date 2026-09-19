@@ -235,6 +235,30 @@
     check("复选框标签用 flex 排布（" +
           boxInfo.map((b) => b.display).join(" / ") + "）",
           boxInfo.every((b) => b.display === "flex"), false);
+    // 复选框行上下间距要均衡（曾出现上方 0、下方 22 的"上对齐"观感）
+    const dlCard = document.querySelector("#page-download .card.form");
+    const dlRows = Array.from(dlCard.children).filter(
+      (el) => el.classList.contains("row") || el.tagName === "PROGRESS");
+    const checkRow = dlCard.querySelector(".check-row");
+    const nextEl = checkRow ? checkRow.nextElementSibling : null;
+    const prevEl = checkRow ? checkRow.previousElementSibling : null;
+    if (checkRow && nextEl && prevEl) {
+      const gapAbove = Math.round(checkRow.getBoundingClientRect().top -
+                                  prevEl.getBoundingClientRect().bottom);
+      const gapBelow = Math.round(nextEl.getBoundingClientRect().top -
+                                 checkRow.getBoundingClientRect().bottom);
+      check("复选框行上下间距均衡（上 " + gapAbove + "px / 下 " +
+            gapBelow + "px）", Math.abs(gapAbove - gapBelow) <= 4);
+    } else {
+      check("下载页复选框行结构完整", !!checkRow && !!nextEl, false);
+    }
+    // 下拉框箭头右侧要有间距（原生箭头贴边，已改为自绘箭头 + 右侧内边距）
+    const sel = document.getElementById("dl-mirror");
+    const selStyle = getComputedStyle(sel);
+    const padRight = parseFloat(selStyle.paddingRight);
+    check("下拉框右侧留出箭头间距（padding-right " + padRight + "px）",
+          selStyle.appearance === "none" && padRight >= 30);
+    void dlRows;
 
     // 修改存档页：视图/源码在左、打开/写入在右，且可折叠
     await gotoTab("editor");
@@ -251,30 +275,51 @@
           segBtns.filter((b) => b.classList.contains("active")).length === 1);
     check("默认选中「视图」", segBtns[0].classList.contains("active"));
 
-    // 折叠功能：编辑器树能收起/展开（按"可见节点数"判断，收起靠 CSS 隐藏）
+    // 折叠功能的默认状态：只展开根节点，其余全部收起
+    // （每次点击后 DOM 会整体重建，所以每次都要重新查询节点，不能用旧引用）
+    const treeBranches = () => Array.from(
+      document.querySelectorAll("#ed-tree-wrap .tree li.branch"));
     const visibleNodes = () => Array.from(
       document.querySelectorAll("#ed-tree-wrap .tree li"))
       .filter((li) => li.getClientRects().length > 0).length;
-    const branch = document.querySelector("#ed-tree-wrap .tree li.branch");
-    if (branch) {
-      const before = visibleNodes();
-      const glyphBefore = branch.querySelector(".toggle").textContent;
-      branch.querySelector(".toggle").click();
-      await sleep(80);
-      const afterCollapsed = visibleNodes();
-      const collapsedBranch = document.querySelector(
-        "#ed-tree-wrap .tree li.branch");
-      const glyphAfter = collapsedBranch.querySelector(".toggle").textContent;
-      collapsedBranch.querySelector(".toggle").click();
-      await sleep(80);
-      const afterExpand = visibleNodes();
-      check("编辑器树可折叠（可见节点 " + before + " → " + afterCollapsed +
-            " → " + afterExpand + "，" + glyphBefore + glyphAfter + "，" +
-            collapsedBranch.className + "）",
-            afterCollapsed < before && afterExpand === before);
-    } else {
-      check("存在可折叠的树节点（跳过后需先打开一个存档）", true, false);
+    const clickToggle = async (el) => {
+      el.querySelector(".toggle").click();
+      await sleep(90);
+    };
+    const branches = treeBranches();
+    const expandedBranches = branches.filter(
+      (li) => !li.classList.contains("collapsed"));
+    const collapsedCount = branches.length - expandedBranches.length;
+    check("默认只展开根那一层（分支 " + branches.length + " 个，收起 " +
+          collapsedCount + " 个；节点 " +
+          document.querySelectorAll("#ed-tree-wrap .tree li").length +
+          " 个，可见 " + visibleNodes() + " 个）",
+          branches.length >= 3 && expandedBranches.length === 2 &&
+          expandedBranches[0] === branches[0] &&
+          expandedBranches[1] === branches[1]);
+    void collapsedCount;
+
+    // 展开一个非根分支 → 可见节点变多；再收起 → 回到原样
+    if (branches.length >= 3) {
+      const base = visibleNodes();
+      await clickToggle(treeBranches()[2]);
+      const expanded = visibleNodes();
+      await clickToggle(treeBranches()[2]);
+      const restored = visibleNodes();
+      check("非根分支可展开/收起（可见节点 " + base + " → " + expanded +
+            " → " + restored + "）",
+            expanded > base && restored === base);
     }
+
+    // 根节点收起 → 只剩根自己；再展开 → 回到原样
+    const rootBefore = visibleNodes();
+    await clickToggle(treeBranches()[0]);
+    const rootCollapsed = visibleNodes();
+    await clickToggle(treeBranches()[0]);
+    const rootRestored = visibleNodes();
+    check("根节点可收起/展开（可见节点 " + rootBefore + " → " + rootCollapsed +
+          " → " + rootRestored + "）",
+          rootCollapsed === 1 && rootRestored === rootBefore);
 
     // 新样式是否真的生效（计算值，不看截图）
     await gotoTab("saves");

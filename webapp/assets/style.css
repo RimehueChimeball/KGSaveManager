@@ -283,7 +283,7 @@ h2 {
 }
 .form label:first-child { margin-top: 0; }
 .form .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.form .row.buttons { margin-top: 22px; }
+.form .row.buttons { margin-top: 16px; }
 
 input[type="text"], select, textarea {
   width: 100%;
@@ -296,6 +296,15 @@ input[type="text"], select, textarea {
   font-size: 15px;
   min-width: 180px;
   transition: border-color .15s ease, box-shadow .15s ease;
+}
+/* 下拉框：用自绘箭头，右侧留出固定间距（浏览器原生箭头是贴边的） */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%235c6678' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
 }
 input[type="text"]:focus, select:focus, textarea:focus {
   outline: none;
@@ -503,13 +512,16 @@ button.link:hover { color: var(--accent); border-color: var(--accent); backgroun
 .tree li.branch > .key:hover { color: var(--accent); border-bottom-color: var(--accent-soft); }
 .tree .toggle {
   display: inline-block;
-  width: 14px;
+  width: 18px;
   margin-right: 4px;
   color: var(--accent);
   cursor: pointer;
   user-select: none;
-  font-size: 11px;
+  font-size: 15px;
+  line-height: 1.2;
+  text-align: center;
 }
+.tree .toggle:hover { color: var(--accent-fill-hover); }
 .tree .kind {
   margin-left: 6px;
   font-family: var(--font-mono);
@@ -571,12 +583,14 @@ progress::-moz-progress-bar { background: var(--accent-fill); }
   font-size: 13px;
   color: var(--muted);
 }
-/* 复选框行：顶端对齐（不用 center），文字换行时也不会出现"高低肩" */
+/* 复选框行：顶端对齐（不用 center），文字换行时也不会出现"高低肩"；
+   上下留出相同的间距，避免看起来"贴着上面、离下面远" */
 .check-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 10px 28px;
+  margin: 16px 0;
 }
 
 #dl-test-result {

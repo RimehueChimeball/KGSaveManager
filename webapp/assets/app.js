@@ -13,7 +13,7 @@
     versionItems: {},
     editorRows: [],
     editorView: "tree",
-    editorCollapsed: {},
+    editorExpanded: {},
     paths: {},
     config: {},
     selectedSlot: 0,
@@ -289,14 +289,20 @@
     return li;
   }
 
-  // 折叠状态按节点路径记录，重新渲染（例如改完一个值）后仍保持展开/收起
-  function setCollapsed(path, collapsed) {
-    const key = JSON.stringify(path);
-    if (collapsed) {
-      state.editorCollapsed[key] = true;
-    } else {
-      delete state.editorCollapsed[key];
+  // 展开状态按节点路径记录；默认只展开"根那一层"，其余全部收起（对齐原 Tk 版的树）。
+  // 记录"展开"而不是"收起"，这样新出现的节点默认是收起的。
+  // 根那一层有两个节点：逻辑层的 (root) 行（path 为 null）与存档对象本身（path 为 []），
+  // 两个都展开才能立刻看到存档的顶层字段。
+  function isRootLevelPath(nodePath) {
+    return !nodePath || (Array.isArray(nodePath) && nodePath.length === 0);
+  }
+
+  function isNodeExpanded(nodePath, isRoot) {
+    const key = JSON.stringify(nodePath);
+    if (Object.prototype.hasOwnProperty.call(state.editorExpanded, key)) {
+      return !!state.editorExpanded[key];
     }
+    return isRoot || isRootLevelPath(nodePath);
   }
 
   function renderEditorTree() {
@@ -314,15 +320,15 @@
     rows.forEach((row) => {
       const li = row.kind === "leaf" ? leafNode(row) : document.createElement("li");
       if (row.kind !== "leaf") {
-        // 可折叠节点：三角标 + 键名，点键名切换展开/收起（对齐原 Tk 版的树）
+        // 可折叠节点：三角标 + 键名，点三角或键名都能收起/展开
         // 注意根节点的 path 是 null，键统一按 (path || []) 归一化，否则点了没用
         const nodePath = row.path || [];
         const key = JSON.stringify(nodePath);
-        const collapsed = !!state.editorCollapsed[key];
-        li.className = "branch" + (collapsed ? " collapsed" : "");
+        const expanded = isNodeExpanded(nodePath, row.parent === null);
+        li.className = "branch" + (expanded ? "" : " collapsed");
         const toggle = document.createElement("span");
         toggle.className = "toggle";
-        toggle.textContent = collapsed ? "▸" : "▾";
+        toggle.textContent = expanded ? "▾" : "▸";
         const keyEl = document.createElement("span");
         keyEl.className = "key";
         keyEl.textContent = row.label === "" ? "/" : row.label;
@@ -332,7 +338,7 @@
         const onToggle = (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
-          setCollapsed(nodePath, !collapsed);
+          state.editorExpanded[key] = !expanded;
           renderEditorTree();
         };
         toggle.onclick = onToggle;
@@ -656,6 +662,8 @@
     },
     "editor-open": async () => {
       const mode = $("#ed-mode").value;
+      // 打开新的存档：折叠状态清零（默认只展开根节点）
+      state.editorExpanded = {};
       if (mode === "file") {
         const res = await call("editor_open_file",
                                { slot: parseInt($("#ed-slot").value || "0", 10) });
