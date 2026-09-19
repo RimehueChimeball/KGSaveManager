@@ -11,6 +11,9 @@ a = Analysis(
     binaries=[],
     datas=[('docs', 'docs'),
            ('webapp/assets', 'webapp/assets'),
+           # 更新日志也随包分发（页面里的「更新日志」入口会打开它）
+           ('CHANGELOG.md', '.'),
+           ('CHANGELOG_zh.md', '.'),
            ('assets/KGSaveManager.ico', '.')],
     hiddenimports=['i18n', 'config_store', 'web_server', 'utils',
                    'web_bridge', 'savecodec', 'downloader', 'kgsm_logging',

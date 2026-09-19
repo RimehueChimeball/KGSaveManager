@@ -88,8 +88,8 @@ class TestLabels(unittest.TestCase):
                 return table.get(key, key)
 
             store.t = t
-            self.assertEqual(store.label(0), "存档01.钢铁")
-            self.assertEqual(store.label(1), "存档02.（空）")
+            self.assertEqual(store.label(0), "存档01-钢铁")
+            self.assertEqual(store.label(1), "存档02-（空）")
             self.assertEqual(store.default_base(0), "存档1")
             self.assertEqual(store.base_for_write(0), "钢铁")
             self.assertEqual(store.base_for_write(1), "存档2")

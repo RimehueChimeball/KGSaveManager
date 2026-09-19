@@ -64,7 +64,8 @@ python KGSaveManagerLite.py   # Lite 版（Tkinter 界面）
 ├─ webapp/                       HTML 版后端（api.py、server.py）
 │   └─ assets/                   index.html / app.js / style.css / selftest.js
 ├─ kgsm_logging.py / utils.py
-├─ docs/guide_en.html
+├─ docs/guide_en.html / docs/guide_zh.html
+├─ CHANGELOG.md / CHANGELOG_zh.md
 ├─ tests/                单元测试（仅标准库）
 └─ kgsm_data/
    ├─ kittens_saves/

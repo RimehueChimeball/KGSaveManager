@@ -67,7 +67,8 @@ program/
 ├─ webapp/                       HTML backend (api.py, server.py)
 │   └─ assets/                   index.html / app.js / style.css / selftest.js
 ├─ kgsm_logging.py / utils.py
-├─ docs/guide_en.html
+├─ docs/guide_en.html / docs/guide_zh.html
+├─ CHANGELOG.md / CHANGELOG_zh.md
 ├─ tests/                unit tests (standard library only)
 └─ kgsm_data/
    ├─ kittens_saves/

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KGSaveManager — 离线文档</title>
+<style>
+  :root { --accent: #2c6e49; --line: #dcdcdc; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+         color: #222; display: flex; min-height: 100vh; }
+  nav { width: 250px; flex: none; background: #f7f8fa;
+        border-right: 1px solid var(--line); overflow-y: auto;
+        position: sticky; top: 0; height: 100vh; padding: 14px 8px; }
+  nav a { display: block; color: #333; text-decoration: none;
+          padding: 4px 10px; border-radius: 4px; font-size: 13px; }
+  nav a:hover { background: #e8ecef; }
+  nav .l1 { font-weight: 600; margin-top: 10px; }
+  nav .l2 { padding-left: 20px; font-size: 12.5px; }
+  main { flex: 1; padding: 22px 34px 60px; max-width: 880px; }
+  h1 { margin-top: 0; }
+  h2 { border-bottom: 1px solid var(--line); padding-bottom: 5px;
+       margin-top: 30px; }
+  code { background: #f0f0f0; padding: 1px 5px; border-radius: 4px; }
+  pre { background: #f6f6f6; border: 1px solid var(--line); padding: 10px;
+        border-radius: 6px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid var(--line); padding: 6px 9px;
+           text-align: left; font-size: 13.5px; }
+</style>
+</head>
+<body>
+<nav>
+  <a class="l1" href="#html-ui">主版本（HTML 界面）</a>
+  <a class="l1" href="#quick-start">快速开始</a>
+  <a class="l1" href="#interface">界面结构</a>
+  <a class="l2" href="#home">首页（KGSM）</a>
+  <a class="l2" href="#tabs">标签页</a>
+  <a class="l1" href="#save-mgmt">存档管理</a>
+  <a class="l2" href="#slot-model">槽位模型与文件名</a>
+  <a class="l2" href="#auto-save">自动存档</a>
+  <a class="l2" href="#manual-save">手动导入</a>
+  <a class="l2" href="#copy-load">复制存档 / 自动读档</a>
+  <a class="l2" href="#rename-refresh">改名与刷新</a>
+  <a class="l2" href="#manual-add">手动添加存档</a>
+  <a class="l2" href="#notes-check">备注与异常检查</a>
+  <a class="l1" href="#editor">修改存档</a>
+  <a class="l2" href="#ed-sources">数据来源</a>
+  <a class="l2" href="#ed-views">视图与源码</a>
+  <a class="l2" href="#ed-write">写入与备份</a>
+  <a class="l1" href="#launch">启动游戏与本地服务</a>
+  <a class="l2" href="#server">服务与存档桥</a>
+  <a class="l2" href="#browser">浏览器使用</a>
+  <a class="l1" href="#download">下载游戏</a>
+  <a class="l2" href="#dl-sources">仓库与下载源</a>
+  <a class="l2" href="#dl-versions">版本列表</a>
+  <a class="l2" href="#dl-test">连通性测试</a>
+  <a class="l2" href="#dl-flow">下载流程</a>
+  <a class="l1" href="#settings">配置</a>
+  <a class="l2" href="#settings-fields">各项说明</a>
+  <a class="l2" href="#language">语言</a>
+  <a class="l2" href="#external-i18n">外部翻译文件</a>
+  <a class="l2" href="#browser-cfg">浏览器</a>
+  <a class="l2" href="#paths">路径与引号</a>
+  <a class="l2" href="#other-cfg">端口与默认存档位</a>
+  <a class="l1" href="#data">数据与日志</a>
+  <a class="l2" href="#kgsm-data">目录结构</a>
+  <a class="l2" href="#logs">运行日志</a>
+  <a class="l1" href="#trouble">常见问题</a>
+  <a class="l1" href="#build">打包 EXE</a>
+  <a class="l1" href="#tests">测试</a>
+  <a class="l1" href="#about">关于</a>
+</nav>
+<main>
+<h1>KGSaveManager — 离线文档</h1>
+<p>KGSaveManager 是 Windows 上的 Kittens Game 存档管理工具，用 Python 编写，界面中英双语，不依赖任何第三方库。版本：v1.3.0。</p>
+<p>两套前端共用同一份数据目录与配置文件：主版本是 HTML 界面
+（<code>KGSaveManager.py</code>），在系统浏览器里显示；Lite 版是传统 Tkinter
+窗口（<code>KGSaveManagerLite.py</code>）。本文档描述的行为两者一致（界面差异会单独说明）。</p>
+
+<h2 id="html-ui">主版本（HTML 界面）</h2>
+<p>启动方式：</p>
+<pre>python KGSaveManager.py [--port N] [--no-browser] [--serve] [--verbose]</pre>
+<ul>
+  <li>程序在 <code>127.0.0.1</code> 上提供界面，并以浏览器“应用窗口”方式打开
+      （Edge/Chrome 的 <code>--app=</code>，没有地址栏与标签页）。启动时会打印
+      地址，也可以在本机手动打开。</li>
+  <li>窗口标题与图标由页面决定：<code>&lt;title&gt;</code> 与
+      <code>webapp/assets/favicon.ico</code>、<code>manifest.webmanifest</code>。
+      但它仍然是浏览器进程，因此在资源管理器与任务栏里归在 Edge/Chrome 名下。</li>
+  <li>界面数据全部来自本地 JSON 接口（<code>/api/state</code>、
+      <code>/api/call</code>、<code>/api/events</code>），前端只使用标准库，不需要
+      任何第三方包。</li>
+  <li>窗口尺寸：应用窗口的尺寸由浏览器按配置记住，命令行 <code>--window-size</code>
+      只在首次（干净配置）生效，因此页面会在加载时自行把窗口调整成横向并居中；
+      如果你已经手动调整过窗口，程序不会再改动它。</li>
+  <li>界面本身是网页，所以“选择文件夹”是文本输入：粘贴路径后确认（Lite 版则是
+      系统文件对话框）。</li>
+  <li><code>--serve</code> 表示窗口关闭后程序继续常驻（之后可以重新打开页面）。
+      默认情况下，页面停止响应几秒后程序自动退出。</li>
+  <li>在地址后加 <code>?selftest=1</code> 可运行页面自检：导航、槽位表、备注、
+      下载选项、编辑器树与事件通道。地址还支持 <code>?page=saves</code>
+      这类深链，直接打开某一页。</li>
+</ul>
+<p>两套前端共用同一个 <code>kgsm_data/</code>，请不要同时运行：本地端口与配置
+文件是共享的。</p>
+
+<h2 id="quick-start">快速开始</h2>
+<p>Lite 版用 <code>python KGSaveManagerLite.py</code> 启动，页面与行为相同，
+只是窗口是 Tkinter 的。</p>
+<ol>
+  <li>先读这份文档。</li>
+  <li>打开「下载游戏」页：保持默认仓库与版本，下载源先选
+      <code>github.com</code>，失败再换镜像；选择目标文件夹（默认
+      <code>程序目录\KittensGame</code>）后开始下载。需要的话勾选“下载完成后把
+      该目录设为服务目录”。</li>
+  <li>打开「配置」页：确认游戏目录指向含 <code>index.html</code> 的文件夹，
+      按需要设置语言与浏览器。配置改完即自动保存，没有单独的保存按钮。</li>
+  <li>打开「启动游戏」页，或首页的「启动游戏」链接：本地服务启动，游戏在新窗口
+      打开，游戏页面会自动连上存档桥。</li>
+</ol>
+
+<h2 id="interface">界面结构</h2>
+<h3 id="home">首页（KGSM）</h3>
+<p>左侧是导航（编号药丸按钮），右侧是主要内容。首页给出上手流程：下载游戏 →
+配置程序 → 启动游戏，每一步都是可点击的链接；“关于”板块里有项目链接、离线文档
+与更新日志入口。除首页外，各页顶部只保留一行小标题（眉题），不再重复显示大标题。</p>
+<h3 id="tabs">标签页</h3>
+<p>固定顺序：KGSM、启动游戏、存档管理、修改存档、下载游戏、配置。日志按归属显示：
+存档相关在「存档管理」，服务与桥的事件在「启动游戏」，下载事件在「下载游戏」；
+首页不显示日志。</p>
+
+<h2 id="save-mgmt">存档管理</h2>
+<h3 id="slot-model">槽位模型与文件名</h3>
+<p>共 10 个槽位。槽位由扫描存档库决定，不写在配置里。文件名格式为
+<code>名字_1.kgsav</code> 到 <code>名字_10.kgsav</code>；新槽位的默认名字是
+<code>存档N</code>。文件名不做翻译。槽位显示格式为
+“<code>存档NN-名字</code>”（英文界面是 <code>Save NN-name</code>）——列表与
+下拉框使用同一格式；空槽位显示 <code>（空）</code>。同一槽位有多个文件时取最新的
+那个。删除配置文件不会影响识别。</p>
+<h3 id="auto-save">自动存档</h3>
+<p>用 KGSM 启动游戏，让页面连上 WebSocket 存档桥；选中槽位后点「自动存档」。
+若该槽位已有存档，会先确认覆盖。游戏当前存档通过桥取回并写入槽位文件。</p>
+<p>桥会在服务日志里标注数据来源：<code>engine</code> 表示读到了运行中游戏的数据，
+<code>localStorage</code> 表示引擎尚未就绪、使用的是浏览器最近一次自动保存快照。
+空闲连接用 WebSocket ping 保活，所以日志里不会出现周期性断开/重连。</p>
+<p>覆盖槽位前，原文件会先备份到 <code>kgsm_data/backups/</code>。</p>
+<h3 id="manual-save">手动导入</h3>
+<p>「手动导入」弹窗顶部显示存档库文件夹（带「复制路径」按钮），可以从两条途径导入：</p>
+<ul>
+  <li><b>浏览选择存档文件</b>：调起系统文件对话框（HTML 版是浏览器的文件选择器），
+      选中文件后读取并写入当前槽位。写入前会校验内容，疑似不合法时会先询问；
+      被选中的文件本身不会被删除或改动。</li>
+  <li>下方文本框可直接粘贴存档文本，点「确定」写入。关闭窗口即取消。</li>
+</ul>
+<p>存档归属哪个槽位由文件名决定（<code>名字_1.kgsav</code> …
+<code>名字_10.kgsav</code>），所以也可以在文件管理器里打开这个文件夹，给文件
+改名来换槽位，然后点界面上的「刷新」重新扫描。</p>
+<h3 id="copy-load">复制存档 / 自动读档</h3>
+<p>「复制存档」把槽位内容复制到剪贴板，再到游戏里 Import 处粘贴（Ctrl+V）。
+「自动读档」确认一次后把槽位内容发送到游戏页面，页面写入并自动刷新载入；弹窗会
+报告页面是否确认写入，未能确认时会明确提示“已发送但未确认”，不会谎报成功。</p>
+<h3 id="rename-refresh">改名与刷新</h3>
+<p>「改名」修改槽位文件名，前提是该槽位已有存档；改名不写配置。「刷新」在程序外
+新增或改名文件后重新扫描存档库。</p>
+<h3 id="manual-add">手动添加存档</h3>
+<p>不走游戏导出流程时，可以手动放进一个存档：</p>
+<ol>
+  <li>把导出的存档文本保存为文件，命名规则
+      <code>任意名_槽位号.kgsav</code>（例如槽位 3 用
+      <code>存档3_3.kgsav</code>）。最后一个下划线前面的部分就是槽位名。</li>
+  <li>把文件放进存档库 <code>kgsm_data/kittens_saves/</code>。</li>
+  <li>打开程序，在「存档管理」点「刷新」（或切到该标签页）即可看到。</li>
+</ol>
+<h3 id="notes-check">备注与异常检查</h3>
+<p>备注按槽位保存在配置文件里。「检查异常文件」会列出不符合命名规则的文件与内容
+为空的存档文件。</p>
+
+<h2 id="editor">修改存档</h2>
+<h3 id="ed-sources">数据来源</h3>
+<p>可以打开槽位文件，也可以读取运行中的游戏（实时模式经存档桥取档）。打开文件时
+会先在 <code>backups/</code> 里生成一份 <code>.bak</code> 备份再进入编辑。</p>
+<h3 id="ed-views">视图与源码</h3>
+<p>编辑器用两种视图显示同一份数据，工具栏左侧的分段开关切换（视图/源码），右侧是
+打开/写入。视图模式是键值树：对象键显示原名；数组元素带下标，元素是对象时会附上
+它的第一个键值（例如 <code>0 · name: Ironworks</code>），标量元素只显示下标与值。
+节点前的三角标或键名可以折叠/展开——默认只展开根那一层，其余全部收起，编辑后
+重新渲染仍保持折叠状态。点叶子节点的值可以修改，JSON 类型自动识别，无法解析的按
+字符串保存。源码模式显示带缩进的 JSON，保持键序、不做排序。</p>
+<h3 id="ed-write">写入与备份</h3>
+<p>「写入」把数据重新编码成游戏使用的 lz-string Base64 格式，并原子替换槽位文件。
+实时模式下「写入」把存档下发给游戏页面，页面刷新后载入。</p>
+
+<h2 id="launch">启动游戏与本地服务</h2>
+<h3 id="server">服务与存档桥</h3>
+<p>服务把配置的游戏目录发布在 <code>127.0.0.1</code> 上；HTML 响应会在内存里插入
+<code>bridge.js</code>，磁盘上的游戏文件不会被修改。存档桥在另一个端口上监听，
+页面刷新后会自动重连。</p>
+<h3 id="browser">浏览器使用</h3>
+<p>只有「启动游戏」会新开一个浏览器窗口；超链接在当前浏览器中打开。所有链接都使用
+配置里指定的浏览器；“使用系统默认”会在运行时解析系统默认浏览器。</p>
+
+<h2 id="download">下载游戏</h2>
+<h3 id="dl-sources">仓库与下载源</h3>
+<p>可选两个 GitHub 仓库：作者原版（<code>nuclear-unicorn/kittensgame</code>）与
+社区版（<code>kitten-science/kittensgame</code>）。下载源有
+<code>github.com</code>（直连）与镜像代理（<code>ghproxy.net</code>、
+<code>ghfast.top</code>、<code>gh-proxy.com</code>），镜像返回的是同一个文件。</p>
+<h3 id="dl-versions">版本列表</h3>
+<p>这些仓库没有发布 release 标签，因此版本列表给出的是仓库默认分支（即最新版）以及
+真实存在的 release 标签；开发分支不列出。</p>
+<h3 id="dl-test">连通性测试</h3>
+<p>「测试连通性」会并行检查所有下载源（短超时），逐个给出 OK 或 FAIL。</p>
+<h3 id="dl-flow">下载流程</h3>
+<p>zip 先下载到目标文件夹下的 <code>.temp</code>；若目标文件夹里有文件，会先确认
+并清空。解压后摊平唯一的顶层目录，并要求根目录存在 <code>index.html</code>。
+完成时会删除 <code>.temp</code>，除非取消勾选“下载完成后删除临时下载文件”。</p>
+
+<h2 id="settings">配置</h2>
+<h3 id="settings-fields">各项说明</h3>
+<ul>
+  <li><b>Language</b>：中文或英文，标签本身始终显示为英文。</li>
+  <li><b>游戏目录</b>：含 <code>index.html</code> 的文件夹，本地服务与下载器都用它。</li>
+  <li><b>固定端口</b>：本地服务使用的端口。留空表示自动分配——自动分配到的端口会
+      写回这一项并在之后沿用；如果下次启动时该端口被占用（被别的程序或另一份本程序
+      占用），本次会退回自动端口，在启动日志里说明，并把新端口记下来。</li>
+  <li><b>默认存档位</b>：程序启动时默认选中的槽位。</li>
+  <li><b>浏览器</b>：打开游戏页面与外部链接使用的可执行文件；留空表示系统默认。</li>
+</ul>
+<p>配置页不需要点保存：「游戏目录」「固定端口」「浏览器」「默认存档位」改动后
+自动写入配置文件，界面左下角提示的路径就是配置文件位置。</p>
+<h3 id="language">语言</h3>
+<p>界面支持中文与英文；没有配置文件时按系统语言选择。Language 标签本身始终显示为
+英文。</p>
+<h3 id="external-i18n">外部翻译文件</h3>
+<p>不改程序也能加翻译：把文件放到程序旁边的 <code>i18n/</code> 文件夹即可，支持
+两种格式。</p>
+<p>JSON，推荐结构：</p>
+<pre>{
+  "zh": { "tab.saves": "存档管理" },
+  "en": { "tab.saves": "My Custom Saves" }
+}</pre>
+<p>也接受单语言的 JSON，语言由文件名推断（<code>zh*</code> 为中文，其余为英文）。
+例如 <code>zh.json</code>：</p>
+<pre>{ "sv.btn_auto_save": "自动存档" }</pre>
+<p>PO 文件使用 msgid/msgstr 配对，例如 <code>en.po</code>：</p>
+<pre>msgid "sv.btn_auto_save"
+msgstr "Auto Save"</pre>
+<p>英文示例（<code>en.json</code>）：</p>
+<pre>{ "sv.btn_auto_save": "Auto Save", "dl.btn_download": "Fetch Game" }</pre>
+<p>内置表中没有的键会被新增，已有的键会被覆盖。</p>
+<p>键来自哪里：内置中英文字符串定义在 <code>i18n.py</code> 的
+<code>STRINGS</code> 里，分别是 <code>_ZH</code> 与 <code>_EN</code>。想改任何
+界面文字，用同一个键在外部文件里覆盖即可。程序使用的键前缀：</p>
+<table>
+<tr><th>前缀</th><th>位置</th><th>示例</th></tr>
+<tr><td>tab.*</td><td>标签页标题</td><td>tab.saves, tab.settings</td></tr>
+<tr><td>eb.*</td><td>页面眉题（等宽小标题）</td><td>eb.saves, eb.settings</td></tr>
+<tr><td>kgsm.*</td><td>首页</td><td>kgsm.guide_title, kgsm.step_doc</td></tr>
+<tr><td>sv.*</td><td>存档管理</td><td>sv.btn_auto_save, sv.btn_load</td></tr>
+<tr><td>la.*</td><td>启动游戏</td><td>la.btn_start, la.log_title</td></tr>
+<tr><td>st.*</td><td>配置</td><td>st.game_dir, st.home_slot</td></tr>
+<tr><td>ed.*</td><td>修改存档</td><td>ed.btn_open, ed.value_title</td></tr>
+<tr><td>dl.*</td><td>下载游戏</td><td>dl.mirror, dl.btn_test</td></tr>
+<tr><td>dlg.* / err.* / msg.*</td><td>对话框、提示、日志</td><td>dlg.no_file, err.no_dir</td></tr>
+<tr><td>tag.*</td><td>日志标签</td><td>tag.start, tag.done</td></tr>
+</table>
+<p>想确认某个界面文字对应的键，打开 <code>i18n.py</code>，在 <code>_ZH</code> 里
+搜这段文字即可。</p>
+<h3 id="browser-cfg">浏览器</h3>
+<p>首次启动会自动检测浏览器；可以用「浏览」选择可执行文件，也可以重置为系统默认。</p>
+<h3 id="paths">路径与引号</h3>
+<p>保存时会规范化路径：去掉首尾引号、分隔符统一成反斜杠，所以
+<code>"C:/Games/KG"</code> 与 <code>C:\Games\KG</code> 都能用。</p>
+<h3 id="other-cfg">端口与默认存档位</h3>
+<p>端口可留空，留空即自动分配（并在首次使用后记为固定端口）。默认存档位是程序启动
+时选中的槽位，「存档管理」与该页的存档操作都从它开始。“关于”板块提供项目链接、
+离线文档与更新日志入口。</p>
+
+<h2 id="data">数据与日志</h2>
+<h3 id="kgsm-data">目录结构</h3>
+<pre>程序目录/
+├─ KGSaveManager.py
+├─ i18n.py / config_store.py / web_server.py / web_bridge.py
+├─ savecodec.py / downloader.py
+├─ pages_download.py / pages_editor.py / pages_manual.py  （视图）
+├─ ui_tk.py                     （Tkinter 界面端口实现）
+├─ core/                        （与界面无关的逻辑：ui_port / slots / flows）
+├─ kgsm_logging.py / utils.py
+├─ docs/guide_zh.html / docs/guide_en.html
+├─ CHANGELOG_zh.md / CHANGELOG.md
+└─ kgsm_data/
+   ├─ kittens_saves/   存档库
+   ├─ backups/         带日期的备份，名字.kgsav.YYYYMMDD_HHMMSS.bak
+   ├─ kgsm_log/        运行日志，每次启动一个文件
+   └─ kgsm_config.json 配置与备注</pre>
+<p>运行数据都在 <code>kgsm_data/</code> 里，备份时复制这个文件夹即可。每次在编辑器
+里打开槽位文件，都会在 <code>backups/</code> 里写一份带日期的备份
+（<code>名字.kgsav.日期.bak</code>）。</p>
+<h3 id="logs">运行日志</h3>
+<p>每次启动新建一个日志：<code>kgsm_log/YYYYMMDD_HHMMSS.log</code>，记录程序版本、
+平台、Python 版本、配置摘要、服务与桥的启停、存档与下载操作，以及错误。</p>
+
+<h2 id="trouble">常见问题</h2>
+<ul>
+  <li>浏览器一栏为空：表示“使用系统默认”，“配置”页的提示会显示检测到的浏览器。</li>
+  <li>提示“游戏页面尚未连接”：请用 KGSM 启动游戏；必要时刷新游戏页面。</li>
+  <li>下载失败：换一个下载源，或先做连通性测试。也可以启用加速器并使用
+      <code>github.com</code>。若某个源返回 HTTP 5xx，换其他源即可——镜像之间是
+      相互独立的第三方代理，会各自失败。</li>
+  <li>下载日志出现“GitHub API 不可用（可能触发限流），已实测默认分支：…”：
+      未登录的 GitHub API 每 IP 每小时 60 次，因此版本列表退回实测分支的方式，
+      下载不受影响。</li>
+  <li>提示“处理存档失败”并给出运行日志路径：界面内部出现了未预期的错误，弹窗与
+      <code>kgsm_data/kgsm_log/</code> 里有详细信息。</li>
+  <li>提示“存档可能/疑似不合法”：这段文本无法按 Kittens Game 存档解码，确认内容
+      正确时再继续。</li>
+  <li>退出：侧栏左下角的「退出」会先确认，然后停止本地服务并关闭程序（应用窗口会
+      一并关闭；如果是在普通浏览器标签页里打开的，页面会提示可以手动关闭）。</li>
+</ul>
+
+<h2 id="build">打包 EXE</h2>
+<pre>pip install pyinstaller
+pyinstaller KGSaveManager.spec</pre>
+<p>产物：<code>dist/KGSaveManager/KGSaveManager.exe</code>。spec 里声明了全部模块，
+并把 <code>docs/</code> 一起打包。</p>
+
+<h2 id="tests">测试</h2>
+<pre>python -m unittest discover -s tests -t .</pre>
+<p>测试只用标准库，不访问网络、不启动真实浏览器。覆盖范围：存档编解码（在本地有
+Node.js 与游戏源码时，会与游戏自带的 <code>lib/lz-string.js</code> 做一致性校验）、
+下载器解压与镜像配置、WebSocket 桥协议与保活、注入脚本（DOM 元素误判、延迟绑定
+引擎、存档来源标注）、配置备注、槽位写入、翻译表，以及 HTML 页面在真实无头浏览器里
+的自检（布局、样式、手动导入弹窗、编辑器折叠等）。静态检查会在遗留未使用的 import、
+未被引用的函数或没有引用的翻译键时让测试失败。</p>
+
+<h2 id="about">关于</h2>
+<p>KGSaveManager 用于在 Windows 上管理 Kittens Game 存档，提供存档槽位、自动存档与
+手动导入、存档编辑器、带存档桥的本地 Web 服务，以及游戏下载器。界面支持中文与英文，
+并支持外部翻译文件。</p>
+<ul>
+  <li>项目：<a href="https://github.com/RimehueChimeball/KGSaveManager">KGSaveManager - Github</a></li>
+  <li>作者：<a href="https://github.com/RimehueChimeball">霁绣凇铃RimehueChimeball - Github</a></li>
+</ul>
+<p>© 2026 RimehueChimeball</p>
+</main>
+</body>
+</html>

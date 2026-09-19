@@ -12,6 +12,9 @@ sys.path.insert(0, str(ROOT))
 from core.app import APP_VERSION  # noqa: E402
 
 GUIDE = ROOT / "docs" / "guide_en.html"
+GUIDE_ZH = ROOT / "docs" / "guide_zh.html"
+CHANGELOG = ROOT / "CHANGELOG.md"
+CHANGELOG_ZH = ROOT / "CHANGELOG_zh.md"
 ASSETS = ROOT / "webapp" / "assets"
 
 
@@ -32,6 +35,38 @@ class TestGuide(unittest.TestCase):
     def test_mentions_both_frontends(self):
         self.assertIn("KGSaveManager.py", self.html)
         self.assertIn("KGSaveManagerLite.py", self.html)
+
+    def test_chinese_guide_mirrors_structure(self):
+        """中文指南必须存在，锚点与英文版一一对应，且带上当前版本号。"""
+        self.assertTrue(GUIDE_ZH.is_file(), "缺少中文指南 docs/guide_zh.html")
+        zh = GUIDE_ZH.read_text(encoding="utf-8")
+        self.assertIn(f"版本：{APP_VERSION}", zh)
+        zh_nav = set(re.findall(r'href="#([a-z0-9-]+)"', zh))
+        zh_anchors = set(re.findall(r'id="([a-z0-9-]+)"', zh))
+        self.assertEqual(sorted(zh_nav - zh_anchors), [],
+                         "中文指南导航指向了不存在的锚点")
+        self.assertEqual(sorted(zh_anchors - self.anchors), [],
+                         "中文指南出现了英文版没有的锚点（结构不对应）")
+        self.assertEqual(sorted(self.anchors - zh_anchors), [],
+                         "中文指南缺少英文版里的锚点（结构不对应）")
+        self.assertIn("KGSaveManager.py", zh)
+        self.assertIn("KGSaveManagerLite.py", zh)
+
+    def test_chinese_changelog_exists(self):
+        self.assertTrue(CHANGELOG_ZH.is_file(), "缺少中文更新日志 CHANGELOG_zh.md")
+        zh = CHANGELOG_ZH.read_text(encoding="utf-8")
+        en = CHANGELOG.read_text(encoding="utf-8")
+        # 中文版要覆盖英文版提到的每个版本段
+        versions = re.findall(r"^## (v[0-9.]+)", en, re.M)
+        for version in versions:
+            self.assertIn(f"## {version}", zh, f"中文更新日志缺少 {version}")
+
+    def test_open_doc_targets_exist(self):
+        """程序里“离线文档/更新日志”入口指向的文件必须存在。"""
+        self.assertTrue(GUIDE.is_file())
+        self.assertTrue(GUIDE_ZH.is_file())
+        self.assertTrue(CHANGELOG.is_file())
+        self.assertTrue(CHANGELOG_ZH.is_file())
 
 
 class TestReadme(unittest.TestCase):

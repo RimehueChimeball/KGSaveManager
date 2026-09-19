@@ -45,6 +45,9 @@
 
 * { box-sizing: border-box; }
 
+/* hidden 属性必须压过按钮等元素自带的 display（否则 hidden 的按钮照样显示） */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; }
 
 body {
@@ -601,7 +604,27 @@ progress::-moz-progress-bar { background: var(--accent-fill); }
   font-size: 12.5px;
 }
 
-/* ---------------- 提示条 ---------------- */
+/* 退出后的遮罩：应用窗口里 window.close() 会直接关窗，这里只在关不掉时可见 */
+#exit-tip {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+}
+.exit-box { text-align: center; }
+.exit-box h3 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--fg);
+}
+.exit-box p { margin: 0; color: var(--muted); }
+body.exited #exit-tip { display: grid !important; }
+
+/* 提示条 */
 #toasts {
   position: fixed;
   right: 26px;

@@ -269,11 +269,24 @@ class WebApi:
                               new_window=False)
         return bool(how)
 
-    def open_doc(self):
-        doc = self.core.paths.docs / "guide_en.html"
-        if not doc.is_file():
+    def open_doc(self, name="guide"):
+        """打开随程序分发的离线文档（按界面语言选中文/英文版）。
+
+        :param name: "guide"（使用指南）或 "changelog"（更新日志）
+        """
+        lang = "zh" if self.core.cfg.language == "zh" else "en"
+        candidates = {
+            "guide": [self.core.paths.docs / f"guide_{lang}.html",
+                      self.core.paths.docs / "guide_en.html"],
+            "changelog": [self.core.paths.base / f"CHANGELOG_{lang}.md",
+                          self.core.paths.base / "CHANGELOG.md"],
+        }.get(name)
+        if not candidates:
             return False
-        return self.open_url(doc.as_uri())
+        for doc in candidates:
+            if doc.is_file():
+                return self.open_url(doc.as_uri())
+        return False
 
     # ---------------- 启动游戏 ----------------
     def start_server(self, open_browser=True):

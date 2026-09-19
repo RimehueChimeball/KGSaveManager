@@ -310,14 +310,16 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
                   foreground="#888888", wraplength=560).pack(anchor="w")
 
     def open_offline_doc(self):
-        """打开内置英文离线文档（单页 HTML）。"""
-        doc = BASE_DIR / "docs" / "guide_en.html"
-        if doc.is_file():
-            open_in_browser(doc.as_uri(), browser_path=self.cfg.browser,
-                            new_window=False)
-        else:
-            self.ui.fail(f"offline doc not found: {doc}",
-                         self.t("err.launch_fail"))
+        """打开内置离线文档（按界面语言选中/英文版单页 HTML）。"""
+        lang = "zh" if self.cfg.language == "zh" else "en"
+        for name in (f"guide_{lang}.html", "guide_en.html"):
+            doc = BASE_DIR / "docs" / name
+            if doc.is_file():
+                open_in_browser(doc.as_uri(), browser_path=self.cfg.browser,
+                                new_window=False)
+                return
+        self.ui.fail(f"offline doc not found: {BASE_DIR / 'docs'}",
+                     self.t("err.launch_fail"))
 
     def _make_link(self, parent, text, command):
         lbl = ttk.Label(parent, text=text, foreground="#0645AD", cursor="hand2")

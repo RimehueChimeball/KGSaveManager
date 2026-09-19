@@ -119,7 +119,30 @@ All notable changes are listed by version.
   rgb(73,109,177)) than the text accent (`oklch(46% 0.105 262)`): the darker
   tone read as too heavy as a fill, while white text on the lighter fill still
   measures 5.1:1.
-- Tests: 201 cases covering core (slots, flows, editor, download, server),
+- Documentation now ships in Chinese as well: `docs/guide_zh.html` (same
+  structure and anchors as the English guide) and `CHANGELOG_zh.md` (mirrors
+  this file section by section). The in-app entries pick the language: the
+  about box offers “Offline guide” and “Changelog”, and the Lite version's
+  guide button opens the Chinese guide when the interface is Chinese. Both
+  changelogs are bundled by the PyInstaller specs.
+- Settings are saved as you edit them: the “Write” button is gone and changes to
+  game directory, port, browser and default slot are written on change/blur
+  (matching the existing “all changes are saved automatically” hint). The
+  sidebar button is now “Exit” with its own confirmation text, and the download
+  page's dismiss button is “Cancel” instead of “Close”.
+- Exiting no longer leaves an error behind. The page used to await the
+  `shutdown` call, so the closed server produced
+  `ERROR TypeError: Failed to fetch` in the log; the request is now
+  fire-and-forget, the app window closes itself and a plain browser tab shows
+  “the program has exited; this page can be closed”.
+- A button that should have been hidden showed up in every dialog: the
+  “Copy Path” button appeared in the exit confirmation because
+  `button { display: inline-flex }` out-specified the `hidden` attribute. A
+  global `[hidden] { display: none !important }` fixes it for every element.
+- Slot labels use the same text everywhere (“存档NN-名字” / “Save NN-name”, the
+  separator is now a hyphen instead of a dot) and the slot table no longer
+  appends the file name.
+- Tests: 204 cases covering core (slots, flows, editor, download, server),
   bridge protocol and keepalive, injected script, downloader, i18n across
   Python and web assets, dead-code checks, and the browser self-test run.
 - Note: pywebview was evaluated for an embedded-window variant and rejected —

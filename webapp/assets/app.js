@@ -234,7 +234,7 @@
       tr.appendChild(radioTd);
 
       const nameTd = document.createElement("td");
-      nameTd.textContent = slot.label + (slot.exists ? " · " + slot.filename : "");
+      nameTd.textContent = slot.label;      // 与下拉框同一格式，不再附加文件名
       tr.appendChild(nameTd);
 
       const timeTd = document.createElement("td");
@@ -581,29 +581,61 @@
   }
 
   // ---------------- 动作 ----------------
+  let settingsTimer = null;
+
+  function collectSettings() {
+    return {
+      game_dir: $("#set-game-dir").value.trim(),
+      port: $("#set-port").value.trim(),
+      browser: $("#set-browser").value.trim(),
+      home_slot: parseInt($("#set-home-slot").value || "0", 10),
+    };
+  }
+
+  // 配置页是"改完即存"：输入框失焦/回车/下拉改变后合并成一次写入
+  function saveSettingsSoon() {
+    if (settingsTimer) { clearTimeout(settingsTimer); }
+    settingsTimer = setTimeout(async () => {
+      settingsTimer = null;
+      await call("set_config", collectSettings());
+      pushLog("saves", t("st.saved"));
+    }, 350);
+  }
+
+  function bindSettingsAutoSave() {
+    ["#set-game-dir", "#set-port", "#set-browser", "#set-home-slot"]
+      .forEach((sel) => {
+        const el = $(sel);
+        el.addEventListener("change", saveSettingsSoon);
+        el.addEventListener("blur", saveSettingsSoon);
+      });
+  }
+
   const actions = {
     goto: (btn) => showPage(btn.dataset.page),
-    doc: async () => { await call("open_doc"); },
+    doc: async (btn) => {
+      await call("open_doc", { name: (btn && btn.dataset.doc) || "guide" });
+    },
     extlink: async (btn) => { await call("open_url", { url: btn.dataset.url }); },
     "pick-dir": async (btn) => {
       const target = document.getElementById(btn.dataset.target);
       const res = await askDialog("text", t("dl.dir"), t("ui.browse"), target.value);
-      if (res.ok && res.text.trim()) { target.value = res.text.trim(); }
+      if (res.ok && res.text.trim()) {
+        target.value = res.text.trim();
+        if (btn.dataset.target.startsWith("set-")) { saveSettingsSoon(); }
+      }
     },
     "pick-file": async (btn) => {
       const target = document.getElementById(btn.dataset.target);
       const res = await askDialog("text", t("st.browser"), t("ui.browse"), target.value);
-      if (res.ok && res.text.trim()) { target.value = res.text.trim(); }
+      if (res.ok && res.text.trim()) {
+        target.value = res.text.trim();
+        if (btn.dataset.target.startsWith("set-")) { saveSettingsSoon(); }
+      }
     },
-    "browser-default": () => { $("#set-browser").value = ""; },
-    "save-settings": async () => {
-      await call("set_config", {
-        game_dir: $("#set-game-dir").value.trim(),
-        port: $("#set-port").value.trim(),
-        browser: $("#set-browser").value.trim(),
-        home_slot: parseInt($("#set-home-slot").value || "0", 10),
-      });
-      await refresh();
+    "browser-default": () => {
+      $("#set-browser").value = "";
+      saveSettingsSoon();
     },
     "start-server": async () => {
       await call("set_config", {
@@ -724,10 +756,28 @@
     if (fn) { e.preventDefault(); await fn(btn); }
   });
 
-  $("#btn-exit").onclick = async () => {
-    const res = await askDialog("confirm", t("msg.btn_close"), t("kgsm.heading"), "");
-    if (res.ok) { await call("shutdown"); }
-  };
+  // 退出：后端一收到请求就会关服务，页面这次请求拿不到响应是正常的，
+  // 所以不能走 call()（它会把连接中断记成 ERROR），也不能等回包。
+  async function exitApp() {
+    const res = await askDialog("confirm", t("msg.exit_ask"),
+                                state.appName || "KGSaveManager", "");
+    if (!res.ok) { return; }
+    try {
+      await fetch("/api/call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method: "shutdown", params: {} }),
+      });
+    } catch (e) { /* 后端已关闭，连接被断开属正常 */ }
+    document.body.classList.add("exited");
+    const tip = document.getElementById("exit-text");
+    if (tip) { tip.textContent = t("msg.exited"); }
+    // 应用窗口里 window.close() 是允许的（实测生效）；普通标签页会被忽略，
+    // 这时页面顶层的提示会告诉用户可以手动关闭
+    try { window.close(); } catch (e) { /* ignore */ }
+  }
+
+  $("#btn-exit").onclick = exitApp;
   $("#dl-repo").addEventListener("change", () => actions["dl-versions"]());
   $("#set-language").addEventListener("change", async (e) => {
     const data = await call("set_language", { code: e.target.value });
@@ -736,6 +786,7 @@
 
   (async function boot() {
     fitAppWindow();
+    bindSettingsAutoSave();
     let init = null;
     try {
       init = await fetch("/api/state").then((r) => r.json());

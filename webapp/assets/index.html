@@ -24,7 +24,7 @@
     </div>
     <nav id="nav"></nav>
     <div class="sidebar-foot">
-      <button class="link" id="btn-exit" data-i18n="msg.btn_close"></button>
+      <button class="link" id="btn-exit" data-i18n="msg.btn_exit"></button>
     </div>
   </aside>
 
@@ -55,8 +55,10 @@
                   data-url="https://github.com/RimehueChimeball/KGSaveManager">Github - KGSaveManager</button>
           <button class="link" data-action="extlink"
                   data-url="https://github.com/RimehueChimeball">Github - RimehueChimeball</button>
-          <button class="link" data-action="doc"
+          <button class="link" data-action="doc" data-doc="guide"
                   data-i18n="kgsm.link_doc"></button>
+          <button class="link" data-action="doc" data-doc="changelog"
+                  data-i18n="kgsm.link_changelog"></button>
         </div>
       </div>
     </section>
@@ -194,7 +196,7 @@
           <button class="primary" data-action="dl-start"
                   data-i18n="dl.btn_download"></button>
           <button data-action="dl-test" data-i18n="dl.btn_test"></button>
-          <button data-action="dl-cancel" data-i18n="msg.btn_close"></button>
+          <button data-action="dl-cancel" data-i18n="msg.btn_cancel"></button>
         </div>
         <progress id="dl-progress" max="100" value="0"></progress>
         <pre class="hint" id="dl-test-result"></pre>
@@ -233,20 +235,29 @@
                   data-i18n="st.browser_default"></button>
         </div>
         <p class="hint" id="set-hint"></p>
-        <div class="row buttons">
-          <button class="primary" data-action="save-settings"
-                  data-i18n="ed.btn_write"></button>
-        </div>
       </div>
       <div class="card">
         <h2 data-i18n="st.about"></h2>
         <p id="about-paths" class="hint"></p>
+        <div class="link-list">
+          <button class="link" data-action="doc" data-doc="guide"
+                  data-i18n="kgsm.link_doc"></button>
+          <button class="link" data-action="doc" data-doc="changelog"
+                  data-i18n="kgsm.link_changelog"></button>
+        </div>
       </div>
     </section>
   </main>
 </div>
 
 <div id="toasts"></div>
+
+<div id="exit-tip" hidden>
+  <div class="exit-box">
+    <h3 data-i18n="msg.btn_exit"></h3>
+    <p id="exit-text"></p>
+  </div>
+</div>
 
 <div id="modal" hidden>
   <div class="modal-box">

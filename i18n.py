@@ -47,6 +47,7 @@ _ZH = {
     "kgsm.guide_title": "新手引导",
     "kgsm.step_doc": "阅读离线文档 · 快速开始",
     "kgsm.link_doc": "离线文档",
+    "kgsm.link_changelog": "更新日志",
     "kgsm.step_dl": "下载游戏",
     "kgsm.step_cfg": "配置程序",
     "kgsm.step_run": "启动游戏",
@@ -104,6 +105,7 @@ _ZH = {
     "st.browser_eff": "当前系统默认浏览器",
     "st.browser_auto": "未检测到（将使用系统关联打开）",
     "st.hint": "所有修改自动保存到：{path}",
+    "st.saved": "配置已自动保存。",
 
     # ---- 眉题（等宽大写，参考设计里的 editorial 标记） ----
     "eb.kgsm": "KGSM · 开始使用",
@@ -133,6 +135,9 @@ _ZH = {
     "msg.filetype_all": "所有文件",
     "msg.btn_ok": "确定",
     "msg.btn_close": "关闭",
+    "msg.btn_cancel": "取消",
+    "msg.btn_exit": "退出",
+    "msg.exit_ask": "退出 KGSaveManager？游戏页面与本次运行的服务都会停止。",    "msg.exited": "程序已退出，本页面可以关闭了。",
     "msg.btn_copy_path": "复制路径",
     "msg.path_copied": "已复制路径到剪贴板: {path}",
     "msg.paste_empty": "请先粘贴存档内容，或点「浏览选择存档文件」选一个文件。",
@@ -279,6 +284,7 @@ _EN = {
     "kgsm.guide_title": "Getting Started",
     "kgsm.step_doc": "Read the offline guide · Quick start",
     "kgsm.link_doc": "Offline guide",
+    "kgsm.link_changelog": "Changelog",
     "kgsm.step_dl": "Download the game",
     "kgsm.step_cfg": "Configure",
     "kgsm.step_run": "Launch the game",
@@ -340,6 +346,7 @@ _EN = {
     "st.browser_eff": "Current system default browser",
     "st.browser_auto": "not detected (will open via OS association)",
     "st.hint": "All changes are saved automatically to: {path}",
+    "st.saved": "Configuration saved automatically.",
 
     # ---- Eyebrows (mono uppercase labels from the reference design) ----
     "eb.kgsm": "KGSM · Getting started",
@@ -378,6 +385,11 @@ _EN = {
     "msg.filetype_all": "All files",
     "msg.btn_ok": "OK",
     "msg.btn_close": "Close",
+    "msg.btn_cancel": "Cancel",
+    "msg.btn_exit": "Exit",
+    "msg.exit_ask": "Exit KGSaveManager? The game page and this run's " "\n"
+                    "local server will stop.",
+    "msg.exited": "The program has exited; this page can be closed.",
     "msg.btn_copy_path": "Copy Path",
     "msg.path_copied": "Path copied to clipboard: {path}",
     "msg.paste_empty": "Paste the save text first, or use “Browse for a save "

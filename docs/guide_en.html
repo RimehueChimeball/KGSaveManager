@@ -149,10 +149,11 @@ Download Game. The home page shows no logs.</p>
 not by configuration. Files are named
 <code>name_1.kgsav</code> through <code>name_10.kgsav</code>. The default
 slot name is <code>存档N</code>. Filenames are never translated. The slot
-label shows a translated prefix (<code>Save 01.</code> or
-<code>存档01.</code>) followed by the filename prefix. Empty slots show
-<code>empty</code>. If multiple files match a slot, the newest is used.
-Deleting the configuration file does not affect recognition.</p>
+label shows a translated prefix and the filename prefix joined by a hyphen
+(<code>Save 01-name</code>, <code>存档01-名字</code>) &mdash; the slot table
+and the slot dropdown use the same text. Empty slots show <code>empty</code>.
+If multiple files match a slot, the newest is used. Deleting the
+configuration file does not affect recognition.</p>
 <h3 id="auto-save">Auto Save</h3>
 <p>Launch the game through KGSM so the page connects to the WebSocket
 bridge. Select a slot and click <em>Auto Save</em>. If the slot already has

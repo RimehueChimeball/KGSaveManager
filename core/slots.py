@@ -104,9 +104,9 @@ class SlotStore:
         return self.name(index) if exists else self.t("ui.empty_short")
 
     def label(self, index):
-        """槽位列表显示文本：`<翻译前缀>NN.名字`。"""
+        """槽位显示文本：`<翻译前缀>NN-名字`（列表与下拉框共用同一格式）。"""
         exists = index < len(self.info) and bool(self.info[index].get('exists'))
-        return (f"{self.t('sv.slot_prefix')}{index + 1:02d}."
+        return (f"{self.t('sv.slot_prefix')}{index + 1:02d}-"
                 f"{self.name_text(index, exists)}")
 
     def default_base(self, index):

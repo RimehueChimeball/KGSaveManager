@@ -179,7 +179,7 @@ class TestAutoLoad(unittest.TestCase):
             h = Harness(tmp)
             self.assertFalse(h.flows.auto_load(0))
             self.assertEqual(h.messages("warn")[0][2],
-                             "dlg.no_file|slot=sv.slot_prefix01.ui.empty_short")
+                             "dlg.no_file|slot=sv.slot_prefix01-ui.empty_short")
 
     def test_declined_confirmation_cancels(self):
         with TemporaryDirectory() as tmp:
@@ -233,7 +233,7 @@ class TestCopySave(unittest.TestCase):
             h = Harness(tmp)
             self.assertFalse(h.flows.copy_save(0))
             self.assertEqual(h.messages("warn")[0][2],
-                             "dlg.no_file|slot=sv.slot_prefix01.ui.empty_short")
+                             "dlg.no_file|slot=sv.slot_prefix01-ui.empty_short")
 
     def test_success_copies_and_logs(self):
         with TemporaryDirectory() as tmp:
@@ -262,7 +262,7 @@ class TestManualImport(unittest.TestCase):
             self.assertTrue(h.messages("notify"))
             self.assertEqual(h.messages("notify")[0][2],
                              "msg.manual_imported|name=我的导出.kgsav,"
-                             "slot=sv.slot_prefix01.存档1")
+                             "slot=sv.slot_prefix01-存档1")
             self.assertTrue(any(t == "slots_changed" for t, _ in h.ui.logs))
 
     def test_import_file_missing_path_reports(self):

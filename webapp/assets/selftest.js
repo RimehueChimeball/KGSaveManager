@@ -210,6 +210,74 @@
     check("导航选中态有过渡动画", dur > 0 &&
           (parseFloat(layer.transitionDuration) || 0) > 0);
 
+    // 退出按钮与弹窗：名字是"退出"，且不该出现复制路径按钮
+    const exitBtn = document.getElementById("btn-exit");
+    check("侧栏退出按钮叫「退出」",
+          !!exitBtn && exitBtn.textContent.indexOf(
+            state.strings["msg.btn_exit"] || "退出") === 0, false);
+    exitBtn.click();
+    await sleep(200);
+    const modalTitle = document.getElementById("modal-title");
+    const modalCopy = document.getElementById("modal-copy");
+    const modalFile = document.getElementById("modal-file");
+    const modalInput = document.getElementById("modal-input");
+    const modalArea = document.getElementById("modal-text");
+    check("退出确认弹窗只显示必要的控件（无复制路径/文件/输入框）",
+          !document.getElementById("modal").hidden &&
+          modalCopy.getClientRects().length === 0 &&
+          modalFile.getClientRects().length === 0 &&
+          modalInput.getClientRects().length === 0 &&
+          modalArea.getClientRects().length === 0);
+    check("退出弹窗标题为程序名",
+          (modalTitle.textContent || "") ===
+          (state.name || "KGSaveManager"), false);
+    document.getElementById("modal-cancel").click();
+    await sleep(120);
+    check("取消退出后弹窗关闭", document.getElementById("modal").hidden);
+
+    // 配置页：改完即存，不再有写入按钮
+    await gotoTab("settings");
+    check("配置页没有写入按钮",
+          !document.querySelector('#page-settings [data-action="save-settings"]'));
+    check("配置页提示为自动保存",
+          (document.getElementById("set-hint").textContent || "")
+            .indexOf((state.strings["st.hint"] || "").split("{")[0]) >= 0,
+          false);
+    // 只观察是否发出了 set_config（值不变，所以不会改动真实配置）
+    const seenMethods = [];
+    const realFetch = window.fetch;
+    window.fetch = (url, opts) => {
+      if (String(url).indexOf("/api/call") >= 0 && opts && opts.body) {
+        try { seenMethods.push(JSON.parse(opts.body).method); } catch (e) {}
+      }
+      return realFetch(url, opts);
+    };
+    const portInput = document.getElementById("set-port");
+    portInput.dispatchEvent(new Event("change"));
+    await sleep(800);
+    window.fetch = realFetch;
+    check("配置改动触发自动保存（set_config）",
+          seenMethods.indexOf("set_config") >= 0);
+
+    // 关于板块：离线文档 + 更新日志两个入口
+    await gotoTab("kgsm");
+    const docs = Array.from(
+      document.querySelectorAll('#page-kgsm .link-list [data-action="doc"]'));
+    check("关于板块有离线文档与更新日志入口（" + docs.length + " 个）",
+          docs.length === 2 &&
+          docs[0].dataset.doc === "guide" &&
+          docs[1].dataset.doc === "changelog");
+
+    // 槽位列表与下拉框使用同一格式（存档NN-名字）
+    await gotoTab("saves");
+    const firstCell = document.querySelector("#slot-rows tr td:nth-child(2)");
+    const firstOption = document.querySelector("#set-home-slot option");
+    check("槽位显示与下拉框同格式且用短横杠（" +
+          (firstCell ? firstCell.textContent : "") + "）",
+          !!firstCell && /^\S+\d{2}-/.test(firstCell.textContent) &&
+          !!firstOption && /^\S+\d{2}-/.test(firstOption.textContent) &&
+          firstCell.textContent.indexOf(" · ") < 0);
+
     // 下载页两个复选框：各自与所属文字首行对齐；同一行时顶端必须齐平
     // （曾因 .form label 覆盖 .check 变成 block + 外边距而"高低肩"）
     await gotoTab("download");
