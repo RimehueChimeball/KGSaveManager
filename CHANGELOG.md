@@ -99,6 +99,20 @@ All notable changes are listed by version.
 - HTML page headers were trimmed: every page keeps the small bilingual eyebrow
   label as its title, and only the home page keeps the large serif heading, so
   the duplicated title no longer takes vertical space away from the content.
+- Two interface faults fixed: the download page's two checkboxes sat at
+  different heights (`.form label` out-specified `.check`, so the labels were
+  block boxes with their own margins instead of flex rows — measured 8px apart,
+  now flush and top-aligned), and the editor's tree got its collapse back: a
+  triangle toggles a node, the state is kept per node path so it survives a
+  re-render after editing a value (the root node's `path` is null, which is why
+  the first attempt did nothing).
+- The editor toolbar mirrors the Tkinter layout again: view/source as a
+  segmented switch on the left with a visible selection, open/write on the
+  right.
+- Button and pill fills use a lighter accent (`oklch(54% 0.115 262)`,
+  rgb(73,109,177)) than the text accent (`oklch(46% 0.105 262)`): the darker
+  tone read as too heavy as a fill, while white text on the lighter fill still
+  measures 5.1:1.
 - Tests: 201 cases covering core (slots, flows, editor, download, server),
   bridge protocol and keepalive, injected script, downloader, i18n across
   Python and web assets, dead-code checks, and the browser self-test run.

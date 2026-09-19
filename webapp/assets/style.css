@@ -18,7 +18,9 @@
   --fg:           oklch(23% 0.02 260);      /* 墨青黑 */
   --muted:        oklch(50% 0.018 260);     /* 次级文字 */
   --border:       oklch(91.5% 0.008 245);   /* 发丝线 */
-  --accent:       oklch(46% 0.105 262);     /* 雾蓝紫 · 唯一点缀色 */
+  --accent:       oklch(46% 0.105 262);     /* 雾蓝紫 · 文字/眉题/描边 */
+  --accent-fill:  oklch(54% 0.115 262);     /* 填充用（按钮/药丸），比文字色浅 */
+  --accent-fill-hover: oklch(48% 0.12 262);
 
   --accent-soft:   color-mix(in oklch, var(--accent) 12%, transparent);
   --accent-softer: color-mix(in oklch, var(--accent) 6%, transparent);
@@ -144,14 +146,14 @@ body {
   inset: -1px;
   z-index: 0;
   border-radius: inherit;
-  background: var(--accent);
+  background: var(--accent-fill);
   opacity: 0;
   transform: scale(.94);
   transform-origin: left center;
   transition: opacity .24s ease, transform .32s cubic-bezier(.22, 1, .36, 1);
 }
 #nav button.active {
-  border-color: var(--accent);
+  border-color: var(--accent-fill);
   color: var(--surface);
   font-weight: 500;
   transform: none;
@@ -325,13 +327,13 @@ button {
 button:hover { border-color: var(--fg); background: var(--fg-soft); }
 button:active { transform: translateY(1px); }
 button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
   color: var(--surface);
 }
 button.primary:hover {
-  background: color-mix(in oklch, var(--accent) 85%, black);
-  border-color: color-mix(in oklch, var(--accent) 85%, black);
+  background: var(--accent-fill-hover);
+  border-color: var(--accent-fill-hover);
 }
 button.wide { width: 100%; justify-content: flex-start; }
 button.link {
@@ -442,6 +444,37 @@ button.link:hover { color: var(--accent); border-color: var(--accent); backgroun
   gap: 10px;
 }
 .toolbar button { min-height: 40px; }
+.toolbar.split { justify-content: space-between; gap: 18px; }
+.toolbar .group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* 分段开关（视图 / 源码）：置左，带选中态 */
+.seg-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+.seg {
+  min-height: 32px;
+  padding: 6px 18px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+}
+.seg:hover { border-color: var(--border); background: var(--surface); color: var(--fg); }
+.seg.active {
+  background: var(--surface);
+  border-color: var(--accent-fill);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 1px 3px oklch(0.3 0.06 262 / 0.12);
+}
 
 /* ---------------- 修改存档页 ---------------- */
 .tree-wrap {
@@ -461,6 +494,30 @@ button.link:hover { color: var(--accent); border-color: var(--accent); backgroun
   border-left: 1px solid var(--border);
 }
 .tree li { padding: 3px 0; }
+.tree li.branch > .key {
+  cursor: pointer;
+  color: var(--fg);
+  font-weight: 500;
+  border-bottom: 1px dashed transparent;
+}
+.tree li.branch > .key:hover { color: var(--accent); border-bottom-color: var(--accent-soft); }
+.tree .toggle {
+  display: inline-block;
+  width: 14px;
+  margin-right: 4px;
+  color: var(--accent);
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+}
+.tree .kind {
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+/* 收起时隐藏子节点（结构保留，展开即恢复） */
+.tree li.branch.collapsed > ul { display: none; }
 .tree .key { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
 .tree .val {
   font-family: var(--font-mono);
@@ -490,11 +547,37 @@ progress {
   background: var(--fg-soft);
 }
 progress::-webkit-progress-bar { background: var(--fg-soft); border-radius: 999px; }
-progress::-webkit-progress-value { background: var(--accent); border-radius: 999px; }
-progress::-moz-progress-bar { background: var(--accent); }
+progress::-webkit-progress-value { background: var(--accent-fill); border-radius: 999px; }
+progress::-moz-progress-bar { background: var(--accent-fill); }
 
 .check { display: flex; align-items: center; gap: 8px; color: var(--fg); margin: 0; font-size: 14px; }
 .check input { accent-color: var(--accent); }
+
+/* 复选框/行内标签要压过 `.form label`（否则会被它改成 block + 上下外边距，
+   两个复选框就会一个高一个低） */
+.form label.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.form label.check input { margin: 3px 0 0; flex: 0 0 auto; }
+.form label.inline {
+  display: inline;
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+/* 复选框行：顶端对齐（不用 center），文字换行时也不会出现"高低肩" */
+.check-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 28px;
+}
 
 #dl-test-result {
   margin-top: 14px;

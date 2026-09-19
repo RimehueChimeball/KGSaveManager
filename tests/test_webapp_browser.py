@@ -47,6 +47,12 @@ class TestBrowserSelftest(unittest.TestCase):
         self.h = WebHarness(self.tmp.name)
         self.addCleanup(self.tmp.cleanup)
         self.addCleanup(self.h.close)
+        # 放一个存档，让自检里的编辑器/折叠检查真的跑起来（临时目录，测完即删）
+        import savecodec
+        blob = savecodec.compress_base64(
+            '{"saveVersion":2,"resources":{"catnip":{"value":12.5}},'
+            '"buildings":[{"name":"hut","val":3}]}')
+        self.h.core.slots.write(2, blob, 1024 * 1024)
 
     def test_page_selftest_passes(self):
         # 自检需要一点真实时间（备注往返、事件轮询）；窗口尺寸按应用窗口给，

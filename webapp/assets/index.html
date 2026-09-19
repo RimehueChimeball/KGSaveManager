@@ -136,19 +136,27 @@
         <p class="eyebrow" data-i18n="eb.editor"></p>
       </header>
       <div class="card form wide">
-        <label data-i18n="ed.source"></label>
-        <div class="row">
-          <select id="ed-mode">
-            <option value="file" data-i18n="ed.mode_file"></option>
-            <option value="live" data-i18n="ed.mode_live"></option>
-          </select>
-          <select id="ed-slot"></select>
-          <button class="primary" data-action="editor-open"
-                  data-i18n="ed.btn_open"></button>
-          <button class="primary" data-action="editor-write"
-                  data-i18n="ed.btn_write"></button>
-          <button data-action="editor-view-tree" data-i18n="ed.view_tree"></button>
-          <button data-action="editor-view-source" data-i18n="ed.view_source"></button>
+        <div class="toolbar split">
+          <div class="group">
+            <label class="inline" data-i18n="ed.source"></label>
+            <select id="ed-mode">
+              <option value="file" data-i18n="ed.mode_file"></option>
+              <option value="live" data-i18n="ed.mode_live"></option>
+            </select>
+            <select id="ed-slot"></select>
+          </div>
+          <div class="group">
+            <button class="primary" data-action="editor-open"
+                    data-i18n="ed.btn_open"></button>
+            <button class="primary" data-action="editor-write"
+                    data-i18n="ed.btn_write"></button>
+          </div>
+        </div>
+        <div class="seg-group" role="group">
+          <button class="seg active" data-action="editor-view-tree"
+                  data-i18n="ed.view_tree"></button>
+          <button class="seg" data-action="editor-view-source"
+                  data-i18n="ed.view_source"></button>
         </div>
       </div>
       <div class="card wide">
@@ -176,7 +184,7 @@
           <button data-action="pick-dir" data-target="dl-dir"
                   data-i18n="ui.browse"></button>
         </div>
-        <div class="row">
+        <div class="row check-row">
           <label class="check"><input type="checkbox" id="dl-set-dir" checked>
             <span data-i18n="dl.set_service_dir"></span></label>
           <label class="check"><input type="checkbox" id="dl-keep-temp" checked>

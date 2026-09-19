@@ -196,8 +196,7 @@
           !!document.querySelector('#page-kgsm [data-action="doc"]'));
 
     // 路径文本必须能换行（不溢出、不被截断）
-    await gotoTab("settings");
-    const pathNodes = [document.getElementById("about-paths"),
+    await gotoTab("settings");    const pathNodes = [document.getElementById("about-paths"),
                        document.getElementById("set-hint"),
                        document.getElementById("server-status")];
     const overflowing = pathNodes.filter((el) => el && el.scrollWidth >
@@ -210,6 +209,72 @@
     const layer = getComputedStyle(navBtn, "::before");
     check("导航选中态有过渡动画", dur > 0 &&
           (parseFloat(layer.transitionDuration) || 0) > 0);
+
+    // 下载页两个复选框：各自与所属文字首行对齐；同一行时顶端必须齐平
+    // （曾因 .form label 覆盖 .check 变成 block + 外边距而"高低肩"）
+    await gotoTab("download");
+    const checkLabels = Array.from(
+      document.querySelectorAll("#page-download .check"));
+    const boxInfo = checkLabels.map((lab) => {
+      const box = lab.querySelector("input").getBoundingClientRect();
+      const labRect = lab.getBoundingClientRect();
+      return { display: getComputedStyle(lab).display,
+               top: Math.round(box.top), left: Math.round(box.left),
+               labelTop: Math.round(labRect.top) };
+    });
+    const alignedToText = boxInfo.every(
+      (b) => Math.abs(b.top - (b.labelTop + 3)) <= 6);
+    const sameRow = boxInfo.length === 2 &&
+      Math.abs(boxInfo[0].labelTop - boxInfo[1].labelTop) <= 1;
+    const evenOnRow = !sameRow ||
+      Math.abs(boxInfo[0].top - boxInfo[1].top) <= 1;
+    check("下载页复选框不\"高低肩\"（顶端 " +
+          boxInfo.map((b) => b.top).join(" / ") + "，标签顶端 " +
+          boxInfo.map((b) => b.labelTop).join(" / ") + "）",
+          alignedToText && evenOnRow);
+    check("复选框标签用 flex 排布（" +
+          boxInfo.map((b) => b.display).join(" / ") + "）",
+          boxInfo.every((b) => b.display === "flex"), false);
+
+    // 修改存档页：视图/源码在左、打开/写入在右，且可折叠
+    await gotoTab("editor");
+    const edBar = document.querySelector("#page-editor .toolbar.split");
+    const segBtns = Array.from(
+      document.querySelectorAll("#page-editor .seg-group .seg"));
+    const openBtn = document.querySelector('#page-editor [data-action="editor-open"]');
+    check("编辑器工具条分左右两组",
+          !!edBar && !!openBtn &&
+          openBtn.getBoundingClientRect().left >
+          segBtns[0].getBoundingClientRect().left, false);
+    check("视图/源码为分段开关且有选中态",
+          segBtns.length === 2 &&
+          segBtns.filter((b) => b.classList.contains("active")).length === 1);
+    check("默认选中「视图」", segBtns[0].classList.contains("active"));
+
+    // 折叠功能：编辑器树能收起/展开（按"可见节点数"判断，收起靠 CSS 隐藏）
+    const visibleNodes = () => Array.from(
+      document.querySelectorAll("#ed-tree-wrap .tree li"))
+      .filter((li) => li.getClientRects().length > 0).length;
+    const branch = document.querySelector("#ed-tree-wrap .tree li.branch");
+    if (branch) {
+      const before = visibleNodes();
+      const glyphBefore = branch.querySelector(".toggle").textContent;
+      branch.querySelector(".toggle").click();
+      await sleep(80);
+      const afterCollapsed = visibleNodes();
+      const collapsedBranch = document.querySelector(
+        "#ed-tree-wrap .tree li.branch");
+      const glyphAfter = collapsedBranch.querySelector(".toggle").textContent;
+      collapsedBranch.querySelector(".toggle").click();
+      await sleep(80);
+      const afterExpand = visibleNodes();
+      check("编辑器树可折叠（可见节点 " + before + " → " + afterCollapsed +
+            " → " + afterExpand + "，" + glyphBefore + glyphAfter + "，" +
+            collapsedBranch.className + "）",
+            afterCollapsed < before && afterExpand === before);
+    } else {
+      check("存在可折叠的树节点（跳过后需先打开一个存档）", true, false);
+    }
 
     // 新样式是否真的生效（计算值，不看截图）
     await gotoTab("saves");
@@ -258,10 +323,28 @@
           !!eyebrow && /mono|Consolas|Menlo/i.test(css(eyebrow, "font-family")) &&
           css(eyebrow, "text-transform") === "uppercase");
     const accentBtn = document.querySelector("button.primary");
-    check("眉题与主按钮同用强调色（" +
-          rgb(css(eyebrow, "color")).join(",") + "）",
-          rgb(css(eyebrow, "color")).join(",") ===
-          rgb(css(accentBtn, "background-color")).join(","));    const activeNav = document.querySelector("#nav button.active");
+    const relLum = (c) => {
+      const f = (v) => {
+        const x = v / 255;
+        return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+      };
+      return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+    };
+    const contrast = (a, b) => {
+      const la = relLum(a);
+      const lb = relLum(b);
+      const hi = Math.max(la, lb);
+      const lo = Math.min(la, lb);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const fillRgb = rgb(css(accentBtn, "background-color"));
+    const eyebrowRgb = rgb(css(eyebrow, "color"));
+    check("按钮填充比眉题文字色更浅（" + fillRgb.join(",") + " vs " +
+          eyebrowRgb.join(",") + "）",
+          relLum(fillRgb) > relLum(eyebrowRgb));
+    check("白字在按钮填充上仍达 AA（" +
+          contrast([255, 255, 255], fillRgb).toFixed(2) + ":1）",
+          contrast([255, 255, 255], fillRgb) >= 4.5);    const activeNav = document.querySelector("#nav button.active");
     check("侧栏当前项为强调色填充药丸",
           !!activeNav && !!activeNav.querySelector(".side-no") &&
           parseFloat(css(activeNav, "border-radius")) >= 40);

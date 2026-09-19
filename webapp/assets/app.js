@@ -13,6 +13,7 @@
     versionItems: {},
     editorRows: [],
     editorView: "tree",
+    editorCollapsed: {},
     paths: {},
     config: {},
     selectedSlot: 0,
@@ -288,6 +289,16 @@
     return li;
   }
 
+  // 折叠状态按节点路径记录，重新渲染（例如改完一个值）后仍保持展开/收起
+  function setCollapsed(path, collapsed) {
+    const key = JSON.stringify(path);
+    if (collapsed) {
+      state.editorCollapsed[key] = true;
+    } else {
+      delete state.editorCollapsed[key];
+    }
+  }
+
   function renderEditorTree() {
     const wrap = $("#ed-tree-wrap");
     wrap.innerHTML = "";
@@ -303,10 +314,32 @@
     rows.forEach((row) => {
       const li = row.kind === "leaf" ? leafNode(row) : document.createElement("li");
       if (row.kind !== "leaf") {
-        const key = document.createElement("span");
-        key.className = "key";
-        key.textContent = row.label === "" ? "/" : row.label;
-        li.appendChild(key);
+        // 可折叠节点：三角标 + 键名，点键名切换展开/收起（对齐原 Tk 版的树）
+        // 注意根节点的 path 是 null，键统一按 (path || []) 归一化，否则点了没用
+        const nodePath = row.path || [];
+        const key = JSON.stringify(nodePath);
+        const collapsed = !!state.editorCollapsed[key];
+        li.className = "branch" + (collapsed ? " collapsed" : "");
+        const toggle = document.createElement("span");
+        toggle.className = "toggle";
+        toggle.textContent = collapsed ? "▸" : "▾";
+        const keyEl = document.createElement("span");
+        keyEl.className = "key";
+        keyEl.textContent = row.label === "" ? "/" : row.label;
+        const hint = document.createElement("span");
+        hint.className = "kind";
+        hint.textContent = row.kind === "object" ? "{…}" : "[…]";
+        const onToggle = (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          setCollapsed(nodePath, !collapsed);
+          renderEditorTree();
+        };
+        toggle.onclick = onToggle;
+        keyEl.onclick = onToggle;
+        li.appendChild(toggle);
+        li.appendChild(keyEl);
+        li.appendChild(hint);
         const list = document.createElement("ul");
         li.appendChild(list);
         li._list = list;
@@ -425,6 +458,12 @@
     renderSettings();
     $("#ed-source").hidden = state.editorView !== "source";
     $("#ed-tree-wrap").hidden = state.editorView === "source";
+    // 视图/源码开关的选中态
+    $$('#page-editor [data-action^="editor-view-"]').forEach((btn) => {
+      const isTree = btn.dataset.action === "editor-view-tree";
+      btn.classList.toggle("active",
+                           isTree === (state.editorView === "tree"));
+    });
   }
 
   function applyState(data) {
