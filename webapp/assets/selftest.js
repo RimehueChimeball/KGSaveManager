@@ -210,6 +210,13 @@
     const brandIcon = document.querySelector("#brand img.brand-icon");
     check("侧栏品牌图标已加载",
           !!brandIcon && brandIcon.complete && brandIcon.naturalWidth > 0);
+    const px = (el, prop) => parseFloat(css(el, prop));
+    const bodyFs = px(document.body, "font-size");
+    const h1Fs = px(h1, "font-size");
+    const eyebrowFs = px(eyebrow, "font-size");
+    check("排版层级：h1 " + h1Fs + "px / 正文 " + bodyFs + "px / 眉题 " +
+          eyebrowFs + "px",
+          h1Fs >= 24 && h1Fs / bodyFs >= 1.6 && eyebrowFs <= 13);
     const logPanel = document.querySelector(".log");
     check("日志面板为浅色等宽面板",
           rgb(css(logPanel, "background-color")).every((v) => v >= 240) &&
