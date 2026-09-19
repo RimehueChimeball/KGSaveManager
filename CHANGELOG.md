@@ -4,18 +4,25 @@ All notable changes are listed by version.
 
 ## v1.3.0
 
+- HTML interface restyled after the reference design in
+  `OpenDesign/Suzuyuki Corridor`: ice-white background with a single misty
+  blue-violet accent, hairline borders instead of drop shadows, serif display
+  headings with mono uppercase eyebrow labels per page, a light frosted sidebar
+  whose navigation items are numbered pills (`01` … `06`, active item filled
+  with the accent), light monospace log/code panels, numbered guide list and
+  row-hover tables. Text combinations were checked against WCAG AA (5.5:1 to
+  16.9:1; the hairline border is decorative, not text).
+- The application window now opens in landscape. Chromium remembers the app
+  window geometry per profile, so the launcher's `--window-size` is ignored
+  once a window has been opened; the page therefore carries `fit=1` and sizes
+  itself (measured: 1560x929, ratio 1.68, centred in the work area) unless the
+  window is already wider than 1.15:1 and close to the target size.
 - The temp folder (`kgsm_data/kgsm_temp`) is gone: it is no longer created,
   cleaned at startup or listed by the library check, because manual import now
   takes a file the user picks. Existing folders are left on disk untouched.
-- HTML interface redesign: the pages are now a wide multi-column grid (two
-  columns from 1180px, three from 1720px) with the content area scrolling on
-  its own, so cards spread horizontally instead of stacking in one narrow
-  column. The visual style was rewritten as well: gradient sidebar with the
-  application icon, cards with rounded corners and soft shadows, section
-  headers with an accent bar, consistent button sizes with a primary gradient,
-  zebra/hover rows and a sticky header in the slot table, dark log panels and
-  themed scrollbars. Text colours were checked against WCAG AA contrast
-  (the muted grey was darkened to reach 4.9:1 on soft panels).
+- HTML interface: wide multi-column layout (two columns from 1180px, three from
+  1720px) with the content area scrolling on its own, so cards spread
+  horizontally instead of stacking in one narrow column.
 - The HTML page keeps the current tab in the address bar and accepts
   `?page=<kgsm|game|saves|editor|download|settings>` for deep links.
 - Manual import replaced the temp-folder monitoring with an explicit file
@@ -86,7 +93,7 @@ All notable changes are listed by version.
   the next start failed when that port was taken); the launch log states that
   the port was chosen for this run only. The download log's cache note now
   reports the cached default branch instead of the raw list and source.
-- Tests: 199 cases covering core (slots, flows, editor, download, server),
+- Tests: 200 cases covering core (slots, flows, editor, download, server),
   bridge protocol and keepalive, injected script, downloader, i18n across
   Python and web assets, dead-code checks, and the browser self-test run.
 - Note: pywebview was evaluated for an embedded-window variant and rejected —

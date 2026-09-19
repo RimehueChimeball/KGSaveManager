@@ -105,6 +105,14 @@ _ZH = {
     "st.browser_auto": "未检测到（将使用系统关联打开）",
     "st.hint": "所有修改自动保存到：{path}",
 
+    # ---- 眉题（等宽大写，参考设计里的 editorial 标记） ----
+    "eb.kgsm": "KGSM · 开始使用",
+    "eb.game": "LAUNCH · 启动游戏",
+    "eb.saves": "SAVES · 存档管理",
+    "eb.editor": "EDITOR · 修改存档",
+    "eb.download": "DOWNLOAD · 下载游戏",
+    "eb.settings": "SETTINGS · 配置",
+
     # ---- 存档（自动/手动） ----
     "sv.btn_auto_save": "自动存档",
     "sv.btn_manual_save": "手动导入",
@@ -331,6 +339,14 @@ _EN = {
     "st.browser_eff": "Current system default browser",
     "st.browser_auto": "not detected (will open via OS association)",
     "st.hint": "All changes are saved automatically to: {path}",
+
+    # ---- Eyebrows (mono uppercase labels from the reference design) ----
+    "eb.kgsm": "KGSM · Getting started",
+    "eb.game": "LAUNCH · Game",
+    "eb.saves": "SAVES · Save management",
+    "eb.editor": "EDITOR · Save editor",
+    "eb.download": "DOWNLOAD · Game files",
+    "eb.settings": "SETTINGS · Configuration",
 
     # ---- Save (auto / manual) ----
     "sv.btn_auto_save": "Auto Save",

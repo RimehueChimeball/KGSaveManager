@@ -169,12 +169,18 @@ def _launch(exe, url, new_window):
     subprocess.Popen(args)
 
 
-def app_window_args(exe, url, width=1180, height=760):
-    """应用窗口模式（无地址栏/标签页）的启动参数。"""
-    return [exe, f"--app={url}", f"--window-size={int(width)},{int(height)}"]
+def app_window_args(exe, url, width=1500, height=940):
+    """应用窗口模式（无地址栏/标签页）的启动参数。
+
+    URL 上带 `fit=1`：页面加载后会自己把窗口调整成横向尺寸。命令行的
+    `--window-size` 只在浏览器还没有记住该应用窗口尺寸时生效，所以两者都做。
+    """
+    sep = "&" if "?" in url else "?"
+    return [exe, f"--app={url}{sep}fit=1",
+            f"--window-size={int(width)},{int(height)}"]
 
 
-def open_app_window(url, browser_path="", width=1180, height=760):
+def open_app_window(url, browser_path="", width=1500, height=940):
     """以「应用窗口」方式打开地址（Edge/Chrome 的 --app=，无地址栏与标签页）。
 
     :return: 'app'（应用窗口）/ 其他打开方式字符串 / None（失败）

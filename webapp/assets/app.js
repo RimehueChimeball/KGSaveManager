@@ -135,6 +135,34 @@
     }
   }
 
+  // 应用窗口按横向尺寸调整自己。
+  // 背景：Edge/Chrome 的应用窗口尺寸由浏览器配置记住，命令行 --window-size
+  // 只在"干净配置"时生效，所以默认配置里窗口常常是方的甚至竖的。
+  // 页面自己 resizeTo/moveTo 在应用窗口里是生效的（实测 700x500 / moveTo 均生效），
+  // 普通标签页里浏览器会忽略这两个调用，因此可以无条件尝试。
+  function fitAppWindow() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("fit") !== "1") { return; }
+    if (window.sessionStorage.getItem("kgsm-fit") === "1") { return; }
+    const availW = window.screen.availWidth || 1280;
+    const availH = window.screen.availHeight || 800;
+    let w = Math.min(1560, Math.round(availW * 0.92));
+    let h = Math.min(960, Math.round(availH * 0.90));
+    if (w / h < 1.5) { w = Math.round(h * 1.55); }   // 保证是横向窗口
+    if (w > availW) { w = availW; }
+    if (h > availH) { h = availH; }
+    // 已经是够宽的横向窗口就不动（尊重用户自己调过的大小）
+    const square = window.outerWidth <= window.outerHeight * 1.15;
+    const tooSmall = window.outerWidth < w - 80 || window.outerHeight < h - 80;
+    if (!square && !tooSmall) { return; }
+    try {
+      window.moveTo(Math.max(0, Math.round((availW - w) / 2)),
+                    Math.max(0, Math.round((availH - h) / 2)));
+      window.resizeTo(w, h);
+      window.sessionStorage.setItem("kgsm-fit", "1");
+    } catch (e) { /* 普通标签页里会被忽略 */ }
+  }
+
   async function answerDialog(id, ok, text) {
     try {
       await fetch("/api/answer", {
@@ -159,9 +187,15 @@
   function renderNav() {
     const nav = $("#nav");
     nav.innerHTML = "";
-    state.tabOrder.forEach((key) => {
+    state.tabOrder.forEach((key, i) => {
       const btn = document.createElement("button");
-      btn.textContent = t("tab." + key);
+      const no = document.createElement("span");
+      no.className = "side-no";
+      no.textContent = String(i + 1).padStart(2, "0");
+      const label = document.createElement("span");
+      label.textContent = t("tab." + key);
+      btn.appendChild(no);
+      btn.appendChild(label);
       btn.dataset.page = key;
       btn.onclick = () => showPage(key);
       nav.appendChild(btn);
@@ -655,6 +689,7 @@
   });
 
   (async function boot() {
+    fitAppWindow();
     let init = null;
     try {
       init = await fetch("/api/state").then((r) => r.json());

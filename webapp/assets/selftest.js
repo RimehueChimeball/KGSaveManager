@@ -152,23 +152,68 @@
     // 新样式是否真的生效（计算值，不看截图）
     const css = (el, prop) => getComputedStyle(el).getPropertyValue(prop);
     const card = cards[0];
-    check("卡片有圆角与阴影",
-          parseFloat(css(card, "border-radius")) >= 10 &&
-          css(card, "box-shadow") !== "none");
-    check("卡片为白色面板", css(card, "background-color") === "rgb(255, 255, 255)");
-    check("侧栏用深色渐变",
-          /gradient/.test(css(document.getElementById("sidebar"),
-                              "background-image")), false);
-    check("主按钮用强调色",
-          css(document.querySelector("button.primary"), "background-image")
-            .indexOf("gradient") >= 0, false);
+    // 计算值可能是 oklch(...)，用画布真实绘制后再读回 sRGB 像素
+    const cvs = document.createElement("canvas");
+    cvs.width = 1;
+    cvs.height = 1;
+    const ctx = cvs.getContext("2d", { willReadFrequently: true });
+    const rgb = (color, over) => {
+      ctx.clearRect(0, 0, 1, 1);
+      if (over) {
+        ctx.fillStyle = over;
+        ctx.fillRect(0, 0, 1, 1);
+      }
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, 1, 1);
+      const d = ctx.getImageData(0, 0, 1, 1).data;
+      return [d[0], d[1], d[2]];
+    };
+    const pageBg = css(document.body, "background-color");
+    const near = (color, level, over) =>
+      rgb(color, over).every((v) => v >= level);
+    const top = rgb(css(card, "background-color")).join(",");
+    check("卡片有圆角（≥8px）",
+          parseFloat(css(card, "border-radius")) >= 8);
+    check("卡片为发丝线扁平样式（细边、不靠阴影）",
+          parseFloat(css(card, "border-top-width")) === 1 &&
+          !near(css(card, "border-top-color"), 250) &&
+          /none|0px/.test(css(card, "box-shadow")));
+    check("卡片为近白表面（" + top + "）",
+          rgb(css(card, "background-color")).every((v) => v >= 250));
+    check("页面底色为冰白但不纯白（" +
+          rgb(pageBg).join(",") + "）",
+          rgb(pageBg).every((v) => v >= 242 && v < 255), false);
+    const h1 = document.querySelector(".page.active h1");
+    check("大标题使用衬线字体",
+          /serif|Songti|SimSun|Georgia|Noto Serif/i.test(css(h1, "font-family")));
+    const eyebrow = document.querySelector(".page.active .eyebrow");
+    check("每页有等宽大写眉题",
+          !!eyebrow && /mono|Consolas|Menlo/i.test(css(eyebrow, "font-family")) &&
+          css(eyebrow, "text-transform") === "uppercase");
+    const accentBtn = document.querySelector("button.primary");
+    check("眉题与主按钮同用强调色（" +
+          rgb(css(eyebrow, "color")).join(",") + "）",
+          rgb(css(eyebrow, "color")).join(",") ===
+          rgb(css(accentBtn, "background-color")).join(","));
+    const activeNav = document.querySelector("#nav button.active");
+    check("侧栏当前项为强调色填充药丸",
+          !!activeNav && !!activeNav.querySelector(".side-no") &&
+          parseFloat(css(activeNav, "border-radius")) >= 40);
+    check("侧栏编号为等宽字体",
+          !!activeNav &&
+          /mono|Consolas|Menlo/i.test(css(activeNav.querySelector(".side-no"),
+                                          "font-family")));
+    const sideBg = rgb(css(document.getElementById("sidebar"),
+                           "background-color"), pageBg);
+    check("侧栏为浅色 + 发丝线（不再是深色块，" + sideBg.join(",") + "）",
+          sideBg.every((v) => v >= 230), false);
     const brandIcon = document.querySelector("#brand img.brand-icon");
     check("侧栏品牌图标已加载",
           !!brandIcon && brandIcon.complete && brandIcon.naturalWidth > 0);
     const logPanel = document.querySelector(".log");
-    check("日志面板为深色底",
-          /rgb\((\d+), (\d+), (\d+)\)/.test(css(logPanel, "background-color")) &&
-          css(logPanel, "background-color") !== "rgb(255, 255, 255)", false);
+    check("日志面板为浅色等宽面板",
+          rgb(css(logPanel, "background-color")).every((v) => v >= 240) &&
+          /mono|Consolas|Menlo/i.test(css(logPanel, "font-family")), false);
     if (nav.length) { nav[0].click(); }
     await sleep(120);
 

@@ -430,8 +430,15 @@ class TestAppWindow(unittest.TestCase):
                                           "http://127.0.0.1:1234/",
                                           1200, 800)
         self.assertEqual(args[0], "C:/x/msedge.exe")
-        self.assertIn("--app=http://127.0.0.1:1234/", args)
+        # 页面用 fit=1 自己把窗口调成横向尺寸（命令行尺寸只在干净配置下生效）
+        self.assertIn("--app=http://127.0.0.1:1234/?fit=1", args)
         self.assertIn("--window-size=1200,800", args)
+
+    def test_app_window_args_append_fit_flag(self):
+        args = web_server.app_window_args("C:/x/msedge.exe",
+                                          "http://127.0.0.1:1234/?page=saves")
+        self.assertIn("--app=http://127.0.0.1:1234/?page=saves&fit=1", args)
+        self.assertIn("--window-size=1500,940", args, "默认尺寸应为横向")
 
     def test_open_app_window_uses_app_mode(self):
         calls = []
@@ -447,7 +454,7 @@ class TestAppWindow(unittest.TestCase):
             web_server.subprocess.Popen = orig_popen
         self.assertEqual(how, "app")
         self.assertEqual(len(calls), 1)
-        self.assertIn("--app=http://127.0.0.1:9/", calls[0])
+        self.assertIn("--app=http://127.0.0.1:9/?fit=1", calls[0])
 
     def test_open_app_window_falls_back_without_browser(self):
         """配置的浏览器无效且系统默认浏览器也探测不到时，退回普通打开。"""
