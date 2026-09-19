@@ -115,6 +115,7 @@ body {
 #nav { display: flex; flex-direction: column; gap: 8px; }
 
 #nav button {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -122,17 +123,41 @@ body {
   padding: 10px 16px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: color-mix(in oklch, var(--bg) 74%, transparent);
+  background: transparent;
   color: var(--fg);
   font: inherit;
   font-size: 14.5px;
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
-  transition: color .15s ease, border-color .15s ease,
-              background .15s ease, transform .15s ease;
+  isolation: isolate;
+  transition: color .22s ease, border-color .22s ease,
+              transform .22s cubic-bezier(.22, 1, .36, 1);
 }
 #nav button:hover { color: var(--accent); border-color: var(--accent); transform: translateX(4px); }
+
+/* 选中态的强调色层单独做动画：背景色在 oklch/color-mix 之间插值不可靠，
+   改用一层淡入 + 轻微缩放的覆盖层，过渡一定可见 */
+#nav button::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  opacity: 0;
+  transform: scale(.94);
+  transform-origin: left center;
+  transition: opacity .24s ease, transform .32s cubic-bezier(.22, 1, .36, 1);
+}
+#nav button.active {
+  border-color: var(--accent);
+  color: var(--surface);
+  font-weight: 500;
+  transform: none;
+}
+#nav button.active::before { opacity: 1; transform: scale(1); }
+#nav button > span { position: relative; z-index: 1; }
 #nav button .side-no {
   font-family: var(--font-mono);
   font-size: 11.5px;
@@ -140,16 +165,21 @@ body {
   color: var(--accent);
   min-width: 18px;
   font-variant-numeric: tabular-nums;
-}
-#nav button.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--surface);
-  font-weight: 500;
-  transform: none;
+  transition: color .22s ease;
 }
 #nav button.active .side-no { color: var(--surface); }
-#nav button.active::after { content: '→'; margin-left: auto; font-size: 13px; }
+#nav button.active::after {
+  content: '→';
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+  font-size: 13px;
+  animation: nav-arrow-in .32s cubic-bezier(.22, 1, .36, 1);
+}
+@keyframes nav-arrow-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: none; }
+}
 
 .sidebar-foot {
   margin-top: auto;
@@ -178,6 +208,8 @@ body {
 @media (min-width: 1720px) {
   .page.active { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+/* 上下排版：整页单列（启动游戏 / 下载游戏 / 配置 / 修改存档） */
+.page.stack-page.active { grid-template-columns: minmax(0, 1fr); }
 
 /* ---------------- 排版 ---------------- */
 .eyebrow {
@@ -361,27 +393,47 @@ button.link:hover { color: var(--accent); border-color: var(--accent); backgroun
   font-size: 13.5px;
   white-space: pre-wrap;
   line-height: 1.75;
+  overflow-wrap: anywhere;      /* 长路径自动折行，不撑破卡片 */
+  word-break: break-word;
 }
+/* 路径类文本（存档库/日志/配置/服务地址）一律可换行 */
+.path, #about-paths, #set-hint, #server-status, #dl-test-result,
+.modal-box p, .slots td, .toast {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+#about-paths { white-space: pre-wrap; }
 
-.guide { padding-left: 0; margin: 0; list-style: none; }
+.guide { padding-left: 0; margin: 0; list-style: none; counter-reset: guide; }
 .guide li {
   display: grid;
   grid-template-columns: 26px 1fr;
   gap: 10px;
-  padding: 12px 0;
-  border-top: 1px solid var(--border);
+  padding: 6px 0;
   font-size: 14.5px;
+  align-items: baseline;
 }
-.guide li:first-child { border-top: 0; }
 .guide li::before {
   content: counter(guide);
   counter-increment: guide;
   font-family: var(--font-mono);
   font-size: 11.5px;
   color: var(--accent);
-  padding-top: 3px;
 }
-.guide { counter-reset: guide; }
+/* 引导项本身是带下划线的链接按钮，不再另外加分割线 */
+.guide li + li { border-top: 0; }
+
+/* 链接纵向排列（关于板块） */
+.link-list { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+
+/* 横向功能条（类似顶部菜单栏）：存档管理页的功能按钮 */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.toolbar button { min-height: 40px; }
 
 /* ---------------- 修改存档页 ---------------- */
 .tree-wrap {

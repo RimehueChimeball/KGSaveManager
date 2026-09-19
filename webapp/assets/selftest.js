@@ -114,18 +114,29 @@
     const events = await fetch("/api/events?since=0").then((r) => r.json());
     check("事件接口可用", events && events.ok === true);
 
+    // —— 小工具：切换页面、读计算样式（后面多处用到） ——
+    const css = (el, prop) => getComputedStyle(el).getPropertyValue(prop);
+    async function gotoTab(key) {
+      for (const b of nav) {
+        if (b.dataset.page === key) { b.click(); }
+      }
+      await sleep(120);
+    }
+    function columns(pageEl) {
+      return getComputedStyle(pageEl).gridTemplateColumns
+        .split(" ").filter((s) => s && s !== "none").length;
+    }
+
     // 布局：宽屏横向分列 + 内容纵向滚动（不出现横向滚动条）
     const main = document.getElementById("main");
     const viewport = window.innerWidth;
+    await gotoTab("kgsm");
     if (viewport >= 1180) {
-      const grid = getComputedStyle(document.querySelector(".page.active"))
-        .gridTemplateColumns;
-      const cols = grid.split(" ").filter((s) => s && s !== "none").length;
+      const cols = columns(document.querySelector(".page.active"));
       check("宽屏下卡片横向分列（" + cols + " 列）", cols >= 2);
     } else {
       check("窄窗口保持单列（" + viewport + "px）",
-            getComputedStyle(document.querySelector(".page.active"))
-              .gridTemplateColumns.split(" ").length === 1, false);
+            columns(document.querySelector(".page.active")) === 1, false);
     }
     check("页面不出现横向滚动",
           document.documentElement.scrollWidth <= viewport + 1);
@@ -133,11 +144,18 @@
           main.scrollHeight > main.clientHeight ||
           document.querySelectorAll(".page.active .card").length <= 2, false);
 
-    // 存档管理页：卡片分列且在窗口内，横向可读
-    for (const btn of nav) {
-      if (btn.dataset.page === "saves") { btn.click(); }
+    // 上下排版：启动游戏 / 下载游戏 / 配置 / 修改存档都是单列
+    for (const key of ["game", "download", "settings", "editor"]) {
+      await gotoTab(key);
+      const tabBtn = Array.from(nav).find((b) => b.dataset.page === key);
+      const label = tabBtn && tabBtn.lastElementChild
+        ? tabBtn.lastElementChild.textContent : key;
+      check("「" + label + "」页为上下单列排版",
+            columns(document.getElementById("page-" + key)) === 1);
     }
-    await sleep(200);
+
+    // 存档管理页：横向工具条 + 表格 + 日志
+    await gotoTab("saves");
     const cards = Array.from(document.querySelectorAll("#page-saves .card"));
     const rects = cards.map((c) => c.getBoundingClientRect());
     check("存档管理页有卡片", cards.length >= 3);
@@ -148,9 +166,53 @@
     const cardTops = Array.from(rects.map((r) => Math.round(r.top)));
     const distinctRows = new Set(cardTops).size;
     check("卡片分成多行排布（" + distinctRows + " 行）", distinctRows >= 2);
+    // 功能按钮是横向排列的工具条（像顶部菜单栏），且没有"默认选中"样式
+    const toolbar = document.querySelector("#page-saves .toolbar");
+    const tbBtns = toolbar ? Array.from(toolbar.querySelectorAll("button")) : [];
+    check("功能按钮为横向工具条（" + tbBtns.length + " 个）",
+          !!toolbar && tbBtns.length >= 6 &&
+          new Set(tbBtns.map((b) => Math.round(b.getBoundingClientRect().top)))
+            .size === 1);
+    check("功能按钮没有默认高亮项",
+          !tbBtns.some((b) => b.classList.contains("primary")), false);
+    check("使用说明板块已移除",
+          !document.querySelector("#page-saves .hint"), false);
+
+    // KGSM 页：引导顺序、无分割线、关于板块纵向链接
+    await gotoTab("kgsm");
+    const guideFirst = document.querySelector("#page-kgsm .guide li button");
+    check("新手引导第一条是离线文档",
+          !!guideFirst && guideFirst.dataset.action === "doc");
+    const guideItems = Array.from(
+      document.querySelectorAll("#page-kgsm .guide li"));
+    check("引导列表项之间没有分割线",
+          guideItems.every((li) =>
+            parseFloat(css(li, "border-top-width")) === 0), false);
+    check("关于板块链接纵向排列",
+          getComputedStyle(document.querySelector("#page-kgsm .link-list"))
+            .flexDirection === "column", false);
+    check("文档入口已从侧栏移到关于板块",
+          !document.getElementById("btn-doc") &&
+          !!document.querySelector('#page-kgsm [data-action="doc"]'));
+
+    // 路径文本必须能换行（不溢出、不被截断）
+    await gotoTab("settings");
+    const pathNodes = [document.getElementById("about-paths"),
+                       document.getElementById("set-hint"),
+                       document.getElementById("server-status")];
+    const overflowing = pathNodes.filter((el) => el && el.scrollWidth >
+                                              el.clientWidth + 1);
+    check("路径文本自动换行（无溢出的元素）", overflowing.length === 0, false);
+
+    // 导航选中态有过渡动画（背景层 + 颜色）
+    const navBtn = document.querySelector("#nav button");
+    const dur = parseFloat(css(navBtn, "transition-duration")) || 0;
+    const layer = getComputedStyle(navBtn, "::before");
+    check("导航选中态有过渡动画", dur > 0 &&
+          (parseFloat(layer.transitionDuration) || 0) > 0);
 
     // 新样式是否真的生效（计算值，不看截图）
-    const css = (el, prop) => getComputedStyle(el).getPropertyValue(prop);
+    await gotoTab("saves");
     const card = cards[0];
     // 计算值可能是 oklch(...)，用画布真实绘制后再读回 sRGB 像素
     const cvs = document.createElement("canvas");

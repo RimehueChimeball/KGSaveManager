@@ -46,6 +46,7 @@ _ZH = {
     "kgsm.heading": "KittensGame 存档管理器",
     "kgsm.guide_title": "新手引导",
     "kgsm.step_doc": "阅读离线文档 · 快速开始",
+    "kgsm.link_doc": "离线文档",
     "kgsm.step_dl": "下载游戏",
     "kgsm.step_cfg": "配置程序",
     "kgsm.step_run": "启动游戏",
@@ -63,7 +64,6 @@ _ZH = {
 
     # ---- 存档管理页 ----
     "sv.title_slots": "存档位",
-    "sv.title_help": "使用提示",
     "sv.title_log": "输出日志",
     "sv.col_time": "时间",
     "sv.col_note": "备注",
@@ -277,6 +277,7 @@ _EN = {
     "kgsm.heading": "KittensGame Save Manager",
     "kgsm.guide_title": "Getting Started",
     "kgsm.step_doc": "Read the offline guide · Quick start",
+    "kgsm.link_doc": "Offline guide",
     "kgsm.step_dl": "Download the game",
     "kgsm.step_cfg": "Configure",
     "kgsm.step_run": "Launch the game",
@@ -297,7 +298,6 @@ _EN = {
 
     # ---- Save Management page ----
     "sv.title_slots": "Save Slots",
-    "sv.title_help": "Usage Notes",
     "sv.title_log": "Output Log",
     "sv.col_time": "Time",
     "sv.col_note": "Note",

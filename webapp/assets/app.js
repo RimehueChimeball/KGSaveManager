@@ -146,8 +146,8 @@
     if (window.sessionStorage.getItem("kgsm-fit") === "1") { return; }
     const availW = window.screen.availWidth || 1280;
     const availH = window.screen.availHeight || 800;
-    let w = Math.min(1560, Math.round(availW * 0.92));
-    let h = Math.min(960, Math.round(availH * 0.90));
+    let w = Math.min(1320, Math.round(availW * 0.76));
+    let h = Math.min(840, Math.round(availH * 0.78));
     if (w / h < 1.5) { w = Math.round(h * 1.55); }   // 保证是横向窗口
     if (w > availW) { w = availW; }
     if (h > availH) { h = availH; }
@@ -677,7 +677,6 @@
     if (fn) { e.preventDefault(); await fn(btn); }
   });
 
-  $("#btn-doc").onclick = () => actions.doc();
   $("#btn-exit").onclick = async () => {
     const res = await askDialog("confirm", t("msg.btn_close"), t("kgsm.heading"), "");
     if (res.ok) { await call("shutdown"); }

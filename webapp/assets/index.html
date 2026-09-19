@@ -24,7 +24,6 @@
     </div>
     <nav id="nav"></nav>
     <div class="sidebar-foot">
-      <button class="link" id="btn-doc" data-i18n="kgsm.step_doc"></button>
       <button class="link" id="btn-exit" data-i18n="msg.btn_close"></button>
     </div>
   </aside>
@@ -36,30 +35,31 @@
       <div class="card">
         <h2 data-i18n="kgsm.guide_title"></h2>
         <ol class="guide">
+          <li><button class="link" data-action="doc"
+                      data-i18n="kgsm.step_doc"></button></li>
           <li><button class="link" data-action="goto" data-page="download"
                       data-i18n="kgsm.step_dl"></button></li>
           <li><button class="link" data-action="goto" data-page="settings"
                       data-i18n="kgsm.step_cfg"></button></li>
           <li><button class="link" data-action="goto" data-page="game"
                       data-i18n="kgsm.step_run"></button></li>
-          <li><button class="link" data-action="doc"
-                      data-i18n="kgsm.step_doc"></button></li>
         </ol>
         <p class="hint" data-i18n="kgsm.guide_hint"></p>
       </div>
       <div class="card">
         <h2 data-i18n="st.about"></h2>
-        <p>
+        <div class="link-list">
           <button class="link" data-action="extlink"
-                  data-url="https://github.com/RimehueChimeball/KGSaveManager">KGSaveManager - Github</button>
-          ·
+                  data-url="https://github.com/RimehueChimeball/KGSaveManager">Github - KGSaveManager</button>
           <button class="link" data-action="extlink"
-                  data-url="https://github.com/RimehueChimeball">RimehueChimeball - Github</button>
-        </p>
+                  data-url="https://github.com/RimehueChimeball">Github - RimehueChimeball</button>
+          <button class="link" data-action="doc"
+                  data-i18n="kgsm.link_doc"></button>
+        </div>
       </div>
     </section>
 
-    <section class="page" id="page-game">
+    <section class="page stack-page" id="page-game">
       <p class="eyebrow" data-i18n="eb.game"></p>
       <h1 data-i18n="tab.game"></h1>
       <div class="card form">
@@ -91,26 +91,21 @@
     <section class="page" id="page-saves">
       <p class="eyebrow" data-i18n="eb.saves"></p>
       <h1 data-i18n="tab.saves"></h1>
-      <div class="card side">
-        <button class="primary wide" data-action="auto-save"
+      <div class="card wide toolbar">
+        <button data-action="auto-save"
                 data-i18n="sv.btn_auto_save"></button>
-        <button class="wide" data-action="manual-save"
+        <button data-action="manual-save"
                 data-i18n="sv.btn_manual_save"></button>
-        <button class="wide" data-action="auto-load"
+        <button data-action="auto-load"
                 data-i18n="sv.btn_auto_load"></button>
-        <button class="wide" data-action="copy-save"
+        <button data-action="copy-save"
                 data-i18n="sv.btn_load"></button>
-        <button class="wide" data-action="rename-slot"
+        <button data-action="rename-slot"
                 data-i18n="sv.btn_rename"></button>
-        <button class="wide" data-action="refresh"
+        <button data-action="refresh"
                 data-i18n="sv.btn_refresh"></button>
-        <hr>
-        <button class="wide" data-action="check-library"
+        <button data-action="check-library"
                 data-i18n="sv.btn_check"></button>
-      </div>
-      <div class="card">
-        <h2 data-i18n="sv.title_help"></h2>
-        <p class="hint" data-i18n="sv.help"></p>
       </div>
       <div class="card wide">
         <h2 data-i18n="sv.title_slots"></h2>
@@ -132,7 +127,7 @@
       </div>
     </section>
 
-    <section class="page" id="page-editor">
+    <section class="page stack-page" id="page-editor">
       <p class="eyebrow" data-i18n="eb.editor"></p>
       <h1 data-i18n="tab.editor"></h1>
       <div class="card form wide">
@@ -157,7 +152,7 @@
       </div>
     </section>
 
-    <section class="page" id="page-download">
+    <section class="page stack-page" id="page-download">
       <p class="eyebrow" data-i18n="eb.download"></p>
       <h1 data-i18n="tab.download"></h1>
       <div class="card form">
@@ -196,7 +191,7 @@
       </div>
     </section>
 
-    <section class="page" id="page-settings">
+    <section class="page stack-page" id="page-settings">
       <p class="eyebrow" data-i18n="eb.settings"></p>
       <h1 data-i18n="tab.settings"></h1>
       <div class="card form">

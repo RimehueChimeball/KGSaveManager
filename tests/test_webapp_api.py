@@ -438,7 +438,7 @@ class TestAppWindow(unittest.TestCase):
         args = web_server.app_window_args("C:/x/msedge.exe",
                                           "http://127.0.0.1:1234/?page=saves")
         self.assertIn("--app=http://127.0.0.1:1234/?page=saves&fit=1", args)
-        self.assertIn("--window-size=1500,940", args, "默认尺寸应为横向")
+        self.assertIn("--window-size=1320,840", args, "默认尺寸应为横向")
 
     def test_open_app_window_uses_app_mode(self):
         calls = []
