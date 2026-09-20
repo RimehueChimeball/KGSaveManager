@@ -6,8 +6,14 @@
 - 关闭窗口时取消排队中的界面轮询任务。
 
 没有可用 Tk 环境时自动跳过。
+
+注意回收顺序：Tk 的 `Variable` 等对象如果留到别的线程才被 GC，`__del__` 会在那个
+线程里调用 Tcl，抛出 “main thread is not in main loop”，并可能把那个线程卡住
+（实测：HTTP 请求处理线程在 GC 时进入 `tkinter.Variable.__del__`，请求因此超时）。
+所以关闭时先在主线程、解释器还活着的时候放掉引用并 `gc.collect()`。
 """
 
+import gc
 import sys
 import tkinter as tk
 import unittest
@@ -36,25 +42,37 @@ class TestTkGuards(unittest.TestCase):
         import KGSaveManagerTk as tkmod
         self.tkmod = tkmod
         self.app = None
+        self.root = None
 
     def _build(self):
         # 让程序数据与日志落在临时目录里，避免污染仓库
         root = tk.Tk()
         root.withdraw()
-        core_base = Path(self.tmp.name)
         app = self.tkmod.KGSaveManager(root)
-        self.addCleanup(self._close, app, root)
         self.app = app
+        self.root = root
+        self.addCleanup(self._close)
         return app, root
 
-    def _close(self, app, root):
-        try:
-            app._on_close()
-        except Exception:
+    def _close(self):
+        """关闭应用并在这里把 Tk 对象回收掉（必须在主线程做）。"""
+        app, root = self.app, self.root
+        if app is not None:
+            try:
+                app._on_close()
+            except Exception:
+                pass
+        # 先断开引用，再回收：Tk 解释器还活着，变量在这里干净地析构
+        self.app = None
+        self.root = None
+        del app
+        gc.collect()
+        if root is not None:
             try:
                 root.destroy()
             except Exception:
                 pass
+        gc.collect()
 
     def test_callback_exception_is_logged_and_reported(self):
         app, _root = self._build()
