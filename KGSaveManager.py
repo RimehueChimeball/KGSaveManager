@@ -67,7 +67,7 @@ def main(argv=None):
     print("  退出：页面里的「退出」按钮，或按 Ctrl+C")
 
     # 界面窗口固定用应用窗口（无地址栏/标签页），页面自己调成横向尺寸。
-    # 配置页的「游戏窗口位置/状态」只作用于游戏窗口，不影响这里。
+    # 配置页的「游戏窗口位置」只作用于游戏窗口，不影响这里。
     if not args.no_browser:
         how = open_app_window(url, browser_path=core.cfg.browser)
         print(f"  打开方式: {how or '(失败，请手动打开上面的地址)'}")

@@ -5,18 +5,15 @@
 - 多线程处理（socketserver.ThreadingMixIn）
 - 访问日志经事件队列转发到 UI 线程，不写控制台
 
-另外负责按配置打开浏览器窗口（界面窗口固定用应用窗口；游戏窗口按配置页的
-「游戏窗口位置/状态」，最大化由 Win32 的 ShowWindow 落实，见本文件末尾）。
+另外负责打开浏览器窗口：程序界面窗口固定用应用窗口，游戏窗口按配置页的
+「游戏窗口位置」（应用窗口或浏览器标签页，见 open_game_window）。
 """
 
-import ctypes
 import functools
 import http.server
 import os
 import socketserver
 import subprocess
-import sys
-import time
 import urllib.parse
 import webbrowser
 
@@ -176,25 +173,21 @@ def _launch(exe, url, new_window):
 
 
 def _window_plan(cfg):
-    """从配置取出 (启动位置, 页面侧窗口状态, 窗口状态)。
+    """从配置取出游戏窗口的打开方式。
 
-    :return: (mode, fit, state)：mode 为 'app'/'tab'；fit 为 'auto'/'max'/'full'
+    :return: (mode, fit)：mode 为 'app'（独立应用窗口）/'tab'（浏览器标签页）；
+        fit 是给本程序自己的页面用的横向尺寸参数（游戏页不需要）
     """
     mode = getattr(cfg, "launch_mode", "app")
-    state = getattr(cfg, "window_state", "normal")
-    fit = {"normal": "auto", "max": "max", "full": "full"}.get(state, "auto")
-    return mode, fit, state
+    return mode
 
 
 def app_window_args(exe, url, width=1320, height=840, fit="auto",
-                    fullscreen=False, window_size=None):
+                    window_size=None):
     """应用窗口模式（无地址栏/标签页）的启动参数。
 
-    :param fit: 写进 URL 的页面侧窗口状态（'auto' = 页面自己调成横向窗口）；
+    :param fit: 写进 URL 的页面侧尺寸参数（'auto' = 页面自己调成横向窗口）；
         传空串表示这个页面不认识该参数（例如游戏页）
-    :param fullscreen: 命令行 --start-fullscreen，只在"浏览器进程由本次启动创建"
-        时生效（实测：浏览器已经在运行时会被忽略，窗口沿用记忆尺寸），
-        因此调用方还会用 Win32 兜底
     :param window_size: 是否带 --window-size；默认只在 fit=auto 时带
     """
     if fit:
@@ -205,13 +198,11 @@ def app_window_args(exe, url, width=1320, height=840, fit="auto",
     args = [exe, f"--app={url}"]
     if window_size:
         args.append(f"--window-size={int(width)},{int(height)}")
-    if fullscreen:
-        args.append("--start-fullscreen")
     return args
 
 
 def open_app_window(url, browser_path="", width=1320, height=840, fit="auto",
-                    fullscreen=False, window_size=None):
+                    window_size=None):
     """以「应用窗口」方式打开地址（Edge/Chrome 的 --app=，无地址栏与标签页）。
 
     :return: 'app'（应用窗口）/ 其他打开方式字符串 / None（失败）
@@ -226,7 +217,7 @@ def open_app_window(url, browser_path="", width=1320, height=840, fit="auto",
     if exe and os.path.isfile(exe) and _is_known_engine(exe):
         try:
             subprocess.Popen(app_window_args(exe, url, width, height, fit,
-                                             fullscreen, window_size))
+                                             window_size))
             return "app"
         except OSError:
             pass
@@ -236,132 +227,17 @@ def open_app_window(url, browser_path="", width=1320, height=840, fit="auto",
 def open_game_window(cfg, url, width=1320, height=840):
     """按配置打开游戏页（「启动游戏」用它）。
 
-    只有游戏窗口受配置页的「游戏窗口位置/状态」影响：独立窗口（应用模式）或浏览器
-    标签页；应用模式下「最大化/全屏」还会用 Win32 落实——命令行
-    `--start-fullscreen` 只在本次启动创建浏览器进程时生效，浏览器已经在运行时会被
-    忽略（实测），所以窗口出现后再按状态调整一次（`ShowWindow` 是跨进程可行的，
-    实测客户区正好等于工作区）。
+    只有「游戏窗口位置」一项设置：独立窗口（应用模式）或浏览器标签页。窗口大小交给
+    浏览器（首次用 --window-size，之后沿用浏览器记住的尺寸，手动调整过就会记住）。
 
-    :return: (打开方式描述, 提示标记)：标记为 'full_fallback' 时表示全屏参数被浏览器
-        忽略、已退化为最大化；失败返回 (None, "")
+    :return: 打开方式描述字符串（失败返回 None）
     """
-    mode, _fit, state = _window_plan(cfg)
+    mode = _window_plan(cfg)
     if mode == "tab":
         return open_in_browser(url, browser_path=cfg.browser,
-                               new_window=False), ""
-    before = _top_level_windows() if state != "normal" else None
-    how = open_app_window(url, browser_path=cfg.browser, width=width,
-                          height=height, fit="", window_size=True,
-                          fullscreen=(state == "full"))
-    if not (how == "app" and state != "normal"):
-        return how, ""
-    hwnd = _wait_new_window(before) if before is not None else None
-    if not hwnd:
-        return how, ""
-    if state == "full":
-        if _is_fullscreen(hwnd):
-            return how, ""
-        _maximize_window(hwnd)
-        return how, "full_fallback"
-    _maximize_window(hwnd)
-    return how, ""
-
-
-# ---------------- Win32：窗口状态的兜底 ----------------
-# 页面侧的 resizeTo 只能把"窗口外框"设成工作区大小，四周会留下可见边框
-# （实测客户区 1904×1024，看着像"手搓的最大化"）；ShowWindow(SW_MAXIMIZE)
-# 得到的才是真正的最大化（实测客户区 1920×1032 = 工作区）。
-
-_SW_MAXIMIZE = 3
-
-
-def _win32():
-    """返回 (user32, win32gui?)——非 Windows 或调用失败时返回 None。"""
-    if sys.platform != "win32":
-        return None
-    try:
-        return ctypes.windll.user32
-    except Exception:
-        return None
-
-
-def _top_level_windows():
-    """当前所有可见的 Chromium 顶层窗口句柄集合（用于找出新开的那个窗口）。"""
-    user32 = _win32()
-    if user32 is None:
-        return set()
-    found = set()
-    CB = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-
-    def cb(hwnd, _param):
-        try:
-            if not user32.IsWindowVisible(hwnd):
-                return True
-            buf = ctypes.create_unicode_buffer(256)
-            user32.GetClassNameW(hwnd, buf, 256)
-            if buf.value.startswith("Chrome_WidgetWin"):
-                found.add(int(hwnd))
-        except Exception:
-            pass
-        return True
-
-    try:
-        user32.EnumWindows(CB(cb), 0)
-    except Exception:
-        return set()
-    return found
-
-
-def _wait_new_window(before, timeout=8.0):
-    """等新开的窗口出现（返回句柄；超时返回 None）。"""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        new = _top_level_windows() - set(before or ())
-        if new:
-            return sorted(new)[-1]
-        time.sleep(0.25)
-    return None
-
-
-def _window_rect(hwnd):
-    """窗口矩形 (left, top, right, bottom)；失败返回 None。"""
-    user32 = _win32()
-    if user32 is None or not hwnd:
-        return None
-
-    class _RECT(ctypes.Structure):
-        _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
-                    ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
-
-    rect = _RECT()
-    if not user32.GetWindowRect(ctypes.c_void_p(int(hwnd)),
-                                ctypes.byref(rect)):
-        return None
-    return (rect.left, rect.top, rect.right, rect.bottom)
-
-
-def _screen_height():
-    user32 = _win32()
-    return user32.GetSystemMetrics(1) if user32 is not None else 0
-
-
-def _is_fullscreen(hwnd):
-    """窗口是否已经真的全屏（高度≈屏幕高度；--start-fullscreen 生效时是这样）。"""
-    rect = _window_rect(hwnd)
-    height = _screen_height()
-    return bool(rect and height and (rect[3] - rect[1]) >= height - 2)
-
-
-def _maximize_window(hwnd):
-    """把窗口设为真正的最大化（客户区正好等于工作区）。"""
-    user32 = _win32()
-    if user32 is None or not hwnd:
-        return False
-    try:
-        user32.ShowWindow(ctypes.c_void_p(int(hwnd)), _SW_MAXIMIZE)
-        return True
-    except Exception:
-        return False
+                               new_window=False)
+    return open_app_window(url, browser_path=cfg.browser, width=width,
+                           height=height, fit="", window_size=True)
 
 
 def open_in_browser(url, browser_path="", new_window=True):

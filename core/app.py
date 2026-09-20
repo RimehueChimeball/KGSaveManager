@@ -53,7 +53,8 @@ class AppCore:
         self.events = queue.Queue()
         self.slots = SlotStore(self.paths.saves, self.t, slot_count)
         self.server = ServerController(ui=ui, cfg=self.cfg, t=self.t,
-                                       events=self.events, logger=self.logger)
+                                       events=self.events, logger=self.logger,
+                                       paths=self.paths)
         self.flows = SaveFlows(
             ui=ui, slots=self.slots, cfg=self.cfg, t=self.t,
             events=self.events, app_name=app_name,

@@ -88,26 +88,22 @@ identically in both.</p>
       browser app window by default (Edge/Chrome <code>--app=</code>, no address
       bar or tabs). The address is printed at startup and can be opened manually
       on the same machine.</li>
-  <li>The Settings page's “Game Window Opens In / Game Window State” apply
-      <b>only to the window that “Launch Game” opens</b>, not to this program's own
-      interface window (that one is always an app window and sizes itself into a
-      centred landscape window on load). The position is “Separate window (app
-      mode)” or “Browser tab” and takes effect on the next start; a browser tab
-      cannot resize its own window, so the state only applies to app mode (in tab
-      mode the option is greyed out with that explanation), and tab mode never
-      opens a new window — the page is added as a tab to the browser window you
-      already have.</li>
-  <li>Game window state: “Window” leaves the window alone (whatever size the
-      browser remembers). “Maximized” is a real maximize, applied through Win32
-      <code>ShowWindow</code> — measured client area equals the work area
-      (1920×1032), whereas a page-side <code>resizeTo</code> only sizes the outer
-      frame to the work area and leaves a visible border (measured client area
-      1904×1024, which looks like a hand-made maximize). “Full screen” uses
-      <code>--start-fullscreen</code>, which <b>only takes effect when this launch
-      starts the browser process</b>: when the browser is already running the flag
-      is ignored, the program falls back to maximized and says so in the run log
-      and on the Launch Game page (covering the taskbar or not is the visible
-      difference between the two).</li>
+  <li>The Settings page's “Game Window Opens In” applies <b>only to the window that
+      “Launch Game” opens</b>, not to this program's own interface window (that one
+      is always an app window and sizes itself into a centred landscape window on
+      load): “Separate window (app mode)” opens it with <code>--app=</code> (no
+      address bar), while “Browser tab” adds it to the browser window you already
+      have without opening a new one. The size is left to the browser: the first
+      launch passes <code>--window-size</code>, and after that the remembered size
+      is reused (resize it once and the browser remembers).</li>
+  <li>Resume automatically (on by default in Settings): when the game window or tab
+      is closed (a reload counts too), the page hands its current save to the
+      program, which stores it as <code>kgsm_data/session.kgsav</code>; the next
+      time the game is opened, the page is fed that save as soon as it connects and
+      reloads, so you continue where you left off. The game's own save lives in the
+      browser's storage, isolated per origin (port included), so a changed port
+      starts empty — this snapshot is what makes it independent of the port. With
+      the switch off, nothing is stored or restored.</li>
   <li>The window title and icon come from the page:
       <code>&lt;title&gt;</code> (updated by the page at runtime) and
       <code>webapp/assets/favicon.ico</code> plus
@@ -116,8 +112,11 @@ identically in both.</p>
   <li>All data comes from a local JSON API (<code>/api/state</code>,
       <code>/api/call</code>, <code>/api/events</code>). The whole frontend uses
       the standard library only; no third-party package is required.</li>
-  <li>Because the interface is a page, “select a folder” is a text prompt: paste
-      the path and confirm.</li>
+  <li>Because the interface is a page, “select a folder or file” is a text prompt:
+      paste the path and confirm. A browser does not hand out local paths, so the
+      Settings and Download pages no longer carry a Browse button (picking a file
+      only yields its name, which cannot be put back into the box); the manual
+      import dialog uses the browser's own file picker, which does work.</li>
   <li>Window identity: the title bar shows the page title (“KittensGame Save
       Manager v1.3.0”) and the window/taskbar icon is the one declared by the
       page (<code>favicon.ico</code> / <code>icon-192.png</code>); Edge also

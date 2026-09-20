@@ -462,20 +462,6 @@ class TestAppWindow(unittest.TestCase):
         self.assertIn("--app=http://127.0.0.1:1234/?page=saves&fit=auto", args)
         self.assertIn("--window-size=1320,840", args, "默认尺寸应为横向")
 
-    def test_window_state_args(self):
-        """最大化/全屏：窗口尺寸交给页面，全屏额外传 --start-fullscreen。"""
-        exe = "C:/x/msedge.exe"
-        url = "http://127.0.0.1:1234/"
-        maxed = web_server.app_window_args(exe, url, fit="max")
-        self.assertIn(f"--app={url}?fit=max", maxed)
-        self.assertNotIn("--window-size=1320,840", maxed,
-                         "最大化时由页面自己铺满工作区")
-        self.assertNotIn("--start-fullscreen", maxed)
-        full = web_server.app_window_args(exe, url, fit="full",
-                                          fullscreen=True)
-        self.assertIn(f"--app={url}?fit=full", full)
-        self.assertIn("--start-fullscreen", full)
-
     def test_open_app_window_uses_app_mode(self):
         calls = []
         orig_popen = web_server.subprocess.Popen
@@ -496,12 +482,11 @@ class TestAppWindow(unittest.TestCase):
         """窗口设置只作用于游戏窗口：界面窗口固定用应用窗口 + 页面侧横向尺寸。
 
         这条是需求本身（用户明确说过只作用于游戏窗口），所以直接在源码层面挡住
-        回归：界面入口不许读 launch_mode/window_state。
+        回归：界面入口不许读 launch_mode。
         """
         entry = (REPO / "KGSaveManager.py").read_text(encoding="utf-8")
         self.assertIn("open_app_window(url", entry)
         self.assertNotIn("_window_plan", entry)
-        self.assertNotIn("window_state", entry)
         self.assertNotIn("launch_mode", entry)
 
     def test_open_app_window_falls_back_without_browser(self):

@@ -23,7 +23,7 @@ class FakeConfig:
         self.port = ""
         self.browser = ""
         self.launch_mode = "app"
-        self.window_state = "normal"
+        self.auto_resume = True
         self.updates = []
 
     def update(self, **kw):
@@ -300,14 +300,73 @@ class TestServerController(unittest.TestCase):
     def tearDown(self):
         web_server.open_in_browser = self.orig_open
 
-    def _controller(self, tmp, game_dir="", logger=None):
+    def _controller(self, tmp, game_dir="", logger=None, paths=None):
         cfg = FakeConfig()
         cfg.game_dir = game_dir
         ui = NullUiPort(confirm_default=True)
         events = queue.Queue()
         ctl = ServerController(ui=ui, cfg=cfg, t=make_t(), events=events,
-                               logger=logger)
+                               logger=logger, paths=paths)
         return ctl, cfg, ui
+
+    # ---------------- 自动续玩 ----------------
+    def test_session_snapshot_is_stored_and_restored(self):
+        """关闭游戏时存进度；下次打开（页面连上）时自动灌回去，且只灌一次。"""
+        from core.paths import AppPaths
+        with TemporaryDirectory() as tmp:
+            paths = AppPaths(tmp)
+            ctl, cfg, ui = self._controller(tmp, str(Path(tmp)), paths=paths)
+
+            # 关掉游戏：页面把进度发过来
+            ctl._store_session("BLOB-STATE")
+            self.assertEqual(paths.session.read_text(encoding="utf-8"),
+                             "BLOB-STATE")
+            self.assertTrue(any("msg.session_saved" in line
+                                for _tag, line in ui.logs),
+                            f"应提示已保存进度: {ui.logs}")
+
+            # 相同内容不重复写（pagehide + beforeunload 会各来一次）
+            before = len(ui.logs)
+            ctl._store_session("BLOB-STATE")
+            self.assertEqual(len(ui.logs), before, "内容没变就不该再提示")
+
+            # 下次打开：页面连上 → 自动灌回去
+            applied = []
+            ctl.bridge = type("B", (), {
+                "apply_save": lambda self, text, timeout=8.0:
+                applied.append(text) or True})()
+            ctl._restore_session()
+            self.assertEqual(applied, ["BLOB-STATE"])
+            self.assertTrue(any("msg.session_restored" in line
+                                for _tag, line in ui.logs))
+
+            # 再连一次（页面写完会 reload，于是又连上）不该重复灌
+            ctl._restore_session()
+            self.assertEqual(applied, ["BLOB-STATE"], "只应在每轮服务里恢复一次")
+
+    def test_auto_resume_off_and_missing_file(self):
+        from core.paths import AppPaths
+        with TemporaryDirectory() as tmp:
+            paths = AppPaths(tmp)
+            ctl, cfg, _ui = self._controller(tmp, str(Path(tmp)), paths=paths)
+            applied = []
+            ctl.bridge = type("B", (), {
+                "apply_save": lambda self, text, timeout=8.0:
+                applied.append(text) or True})()
+
+            # 没有文件 → 什么都不做
+            ctl._restore_session()
+            self.assertEqual(applied, [])
+
+            # 关掉开关：既不恢复也不保存
+            cfg.auto_resume = False
+            paths.session.parent.mkdir(parents=True, exist_ok=True)
+            paths.session.write_text("OLD", encoding="utf-8")
+            ctl._restore_session()
+            self.assertEqual(applied, [], "关闭自动续玩时不该恢复")
+            ctl._store_session("NEW")
+            self.assertEqual(paths.session.read_text(encoding="utf-8"), "OLD",
+                             "关闭自动续玩时不该保存")
 
     def test_start_without_directory(self):
         with TemporaryDirectory() as tmp:
@@ -427,30 +486,19 @@ class TestServerController(unittest.TestCase):
         import web_server
         calls = []
         orig_popen = web_server.subprocess.Popen
-        orig_windows = web_server._top_level_windows
-        orig_wait = web_server._wait_new_window
         web_server.subprocess.Popen = lambda args: calls.append(args)
-        web_server._top_level_windows = lambda: set()
-        web_server._wait_new_window = lambda before, timeout=8.0: None
         try:
             with TemporaryDirectory() as tmp:
                 exe = Path(tmp) / "msedge.exe"
                 exe.write_bytes(b"")
                 url = "http://127.0.0.1:9/"
-                for state, expect in (("normal", []),
-                                      ("max", []),
-                                      ("full", ["--start-fullscreen"])):
-                    cfg = FakeConfig()
-                    cfg.browser = str(exe)
-                    cfg.window_state = state
-                    web_server.open_game_window(cfg, url)
-                    self.assertIn(f"--app={url}", calls[-1],
-                                  "游戏页不带 fit 参数")
-                    self.assertIn("--window-size=1320,840", calls[-1])
-                    for flag in expect:
-                        self.assertIn(flag, calls[-1])
                 cfg = FakeConfig()
                 cfg.browser = str(exe)
+                web_server.open_game_window(cfg, url)
+                self.assertIn(f"--app={url}", calls[-1], "游戏页不带 fit 参数")
+                self.assertIn("--window-size=1320,840", calls[-1])
+                self.assertNotIn("--start-fullscreen", calls[-1],
+                                 "窗口状态功能已删除")
                 cfg.launch_mode = "tab"
                 web_server.open_game_window(cfg, url)
                 self.assertNotIn("--app=", " ".join(calls[-1]))
@@ -458,54 +506,6 @@ class TestServerController(unittest.TestCase):
                                  "标签页模式不新开窗口")
         finally:
             web_server.subprocess.Popen = orig_popen
-            web_server._top_level_windows = orig_windows
-            web_server._wait_new_window = orig_wait
-
-    def test_game_window_maximize_and_fullscreen_fallback(self):
-        """最大化/全屏用 Win32 落实：真全屏参数被忽略时退化为最大化并给出提示。"""
-        import web_server
-        maximized = []
-        orig = (web_server.subprocess.Popen, web_server._top_level_windows,
-                web_server._wait_new_window, web_server._maximize_window,
-                web_server._is_fullscreen)
-        web_server.subprocess.Popen = lambda args: None
-        web_server._top_level_windows = lambda: set()
-        web_server._wait_new_window = lambda before, timeout=8.0: 4242
-        web_server._maximize_window = lambda hwnd: maximized.append(hwnd) or True
-        try:
-            with TemporaryDirectory() as tmp:
-                exe = Path(tmp) / "msedge.exe"
-                exe.write_bytes(b"")
-                url = "http://127.0.0.1:9/"
-                cfg = FakeConfig()
-                cfg.browser = str(exe)
-
-                cfg.window_state = "max"
-                how, note = web_server.open_game_window(cfg, url)
-                self.assertEqual((how, note), ("app", ""))
-                self.assertEqual(maximized, [4242], "最大化要落到新窗口上")
-
-                maximized.clear()
-                cfg.window_state = "full"
-                web_server._is_fullscreen = lambda hwnd: False
-                how, note = web_server.open_game_window(cfg, url)
-                self.assertEqual(maximized, [4242], "全屏被忽略时应退化为最大化")
-                self.assertEqual(note, "full_fallback",
-                                 "要说明原因是全屏参数被忽略")
-
-                maximized.clear()
-                web_server._is_fullscreen = lambda hwnd: True
-                how, note = web_server.open_game_window(cfg, url)
-                self.assertEqual(maximized, [], "真全屏时不该再动窗口")
-                self.assertEqual(note, "")
-
-                cfg.window_state = "normal"
-                how, note = web_server.open_game_window(cfg, url)
-                self.assertEqual(maximized, [], "「窗口」状态不强制调整窗口")
-        finally:
-            (web_server.subprocess.Popen, web_server._top_level_windows,
-             web_server._wait_new_window, web_server._maximize_window,
-             web_server._is_fullscreen) = orig
 
     def test_open_game_window_without_url(self):
         with TemporaryDirectory() as tmp:

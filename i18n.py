@@ -103,12 +103,7 @@ _ZH = {
     "st.game_win_pos": "游戏窗口位置",
     "st.launch_app": "独立窗口（应用模式）",
     "st.launch_tab": "浏览器标签页",
-    "st.game_win_state": "游戏窗口状态",
-    "st.win_normal": "窗口",
-    "st.win_max": "最大化",
-    "st.win_full": "全屏",
-    "st.win_state_tab_hint": "浏览器标签页里页面不能调整窗口尺寸，"
-                             "游戏窗口状态只对独立窗口（应用模式）生效。",
+    "st.auto_resume": "自动续玩（关掉游戏时保存进度，下次打开自动恢复）",
     "st.about": "关于",
     "st.browser_eff": "当前系统默认浏览器",
     "st.browser_auto": "未检测到（将使用系统关联打开）",
@@ -132,7 +127,10 @@ _ZH = {
     "msg.auto_overwrite": "自动存档到 {slot}？将覆盖现有存档。",
     "msg.auto_saved": "已自动存档: {dest}",
     "msg.auto_timeout": "自动存档超时：游戏页面没有响应。",
-    "msg.full_fallback": "浏览器已经在运行，游戏窗口无法进入全屏，已改为最大化。",
+    "msg.session_saved": "游戏已关闭，本次进度已保存（下次打开自动恢复）。",
+    "msg.session_restoring": "正在恢复上次关闭游戏时的进度……",
+    "msg.session_restored": "已自动恢复上次关闭游戏时的进度。",
+    "msg.session_restore_fail": "自动恢复失败：页面没有确认写入，本次按新开局进行。",
     "msg.manual_title": "手动导入存档",
     "msg.manual_tip": "手动导入",
     "msg.manual_pick": "浏览选择存档文件…",
@@ -355,13 +353,8 @@ _EN = {
     "st.game_win_pos": "Game Window Opens In",
     "st.launch_app": "Separate window (app mode)",
     "st.launch_tab": "Browser tab",
-    "st.game_win_state": "Game Window State",
-    "st.win_normal": "Window",
-    "st.win_max": "Maximized",
-    "st.win_full": "Full screen",
-    "st.win_state_tab_hint": "A browser tab cannot resize its window, so the "
-                             "game window state applies to the separate window "
-                             "(app mode) only.",
+    "st.auto_resume": "Resume automatically (save the progress when the game "
+                      "closes, restore it next time)",
     "st.about": "About",
     "st.browser_eff": "Current system default browser",
     "st.browser_auto": "not detected (will open via OS association)",
@@ -388,8 +381,14 @@ _EN = {
                           "overwritten.",
     "msg.auto_saved": "Auto-saved: {dest}",
     "msg.auto_timeout": "Auto-save timed out: no response from the game.",
-    "msg.full_fallback": "The browser was already running, so the game window "
-                         "could not go full screen; maximized instead.",
+    "msg.session_saved": "The game was closed; this progress was saved and will "
+                         "be restored next time.",
+    "msg.session_restoring": "Restoring the progress from when you last closed "
+                             "the game...",
+    "msg.session_restored": "Restored the progress from when you last closed "
+                            "the game.",
+    "msg.session_restore_fail": "Automatic restore failed: the page did not "
+                                "confirm the write, so this run starts fresh.",
     "msg.manual_title": "Import a Save",
     "msg.manual_tip": "Manual import",
     "msg.manual_pick": "Browse for a save file...",

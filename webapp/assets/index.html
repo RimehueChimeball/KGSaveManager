@@ -71,8 +71,6 @@
         <label data-i18n="la.dir"></label>
         <div class="row">
           <input type="text" id="game-dir">
-          <button data-action="pick-dir" data-target="game-dir"
-                  data-i18n="ui.browse"></button>
         </div>
         <label data-i18n="la.port"></label>
         <div class="row">
@@ -183,8 +181,6 @@
         <label data-i18n="dl.dir"></label>
         <div class="row">
           <input type="text" id="dl-dir">
-          <button data-action="pick-dir" data-target="dl-dir"
-                  data-i18n="ui.browse"></button>
         </div>
         <div class="row check-row">
           <label class="check"><input type="checkbox" id="dl-set-dir" checked>
@@ -219,21 +215,18 @@
         <label data-i18n="st.game_dir"></label>
         <div class="row">
           <input type="text" id="set-game-dir">
-          <button data-action="pick-dir" data-target="set-game-dir"
-                  data-i18n="ui.browse"></button>
         </div>
         <label data-i18n="st.port"></label>
         <div class="row"><input type="text" id="set-port" class="narrow"></div>
         <label data-i18n="st.game_win_pos"></label>
         <div class="row"><select id="set-launch-mode"></select></div>
-        <label data-i18n="st.game_win_state"></label>
-        <div class="row"><select id="set-window-state"></select></div>
-        <p class="hint" id="win-state-hint"></p>
+        <div class="row check-row">
+          <label class="check"><input type="checkbox" id="set-auto-resume">
+            <span data-i18n="st.auto_resume"></span></label>
+        </div>
         <label data-i18n="st.browser"></label>
         <div class="row">
           <input type="text" id="set-browser">
-          <button data-action="pick-file" data-target="set-browser"
-                  data-i18n="ui.browse"></button>
           <button data-action="browser-default"
                   data-i18n="st.browser_default"></button>
         </div>

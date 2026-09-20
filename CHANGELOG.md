@@ -139,24 +139,28 @@ All notable changes are listed by version.
 - Two new settings, <b>applying only to the window that “Launch Game” opens</b>
   (this program's own interface window stays an app window and keeps sizing itself
   into a centred landscape window on load): <b>game window opens in</b> (separate
-  window (app mode) / browser tab) and <b>game window state</b> (window /
-  maximized / full screen), both taking effect on the next start.
+  window (app mode) / browser tab) and <b>resume automatically</b>.
+- Resume automatically (on by default): when the game window or tab is closed
+  (a reload counts too), the injected script hands the current save to the
+  program, which stores it as `kgsm_data/session.kgsav`; the next time the game
+  is opened, the save is fed back as soon as the page connects and the page
+  reloads, continuing where you left off. The game's own save lives in browser
+  storage that is isolated per origin (port included), so a changed port would
+  otherwise start empty — this snapshot is what makes it port-independent.
+  Measured with a fake game page and a real browser (session fake-game dir): the
+  file is written on close, and after running on port 7483 and switching to
+  14770 the page title showed the restored save with
+  `[SESSION_LOAD] ...` in the run log. With the switch off nothing is stored or
+  restored.
 - “Launch Game” used to always open a plain browser window (with a tab strip and
   an address bar), so choosing app mode changed nothing there. It now follows the
-  two settings; tab mode was measured to add a tab to the existing window instead
-  of opening a new one (window count unchanged, title becomes “… and 1 other
-  page”), and the state is greyed out there with that explanation.
-- “Maximized” for the game window is a real maximize, applied through Win32
-  `ShowWindow(SW_MAXIMIZE)`: measured client area 1920×1032 on a 1920×1032 work
-  area, i.e. exactly filling it. A page-side `resizeTo` only sizes the outer frame
-  to the work area and leaves a visible border (measured client area 1904×1024,
-  which looks like a hand-made maximize), so it is now used for the interface
-  window's landscape size only. “Full screen” uses `--start-fullscreen`, which was
-  measured to work only when this launch starts the browser process (1920×1080,
-  covering the taskbar); when the browser is already running the flag is ignored,
-  the program falls back to maximized and says so in the run log and on the Launch
-  Game page. Sending F11 natively was measured and does nothing, so that route was
-  not used.
+  setting; tab mode was measured to add a tab to the existing window instead of
+  opening a new one (window count unchanged, title becomes “… and 1 other page”).
+- The Browse buttons on the Settings and Download pages are gone: in the HTML
+  version they only opened a text box for pasting a path, which is no better than
+  typing into the field itself (a browser never hands a page a local path, and
+  picking a file yields only its name). The Tk version keeps its Browse buttons —
+  those open real system dialogs.
 - Fixed the configured port being overwritten by an automatically assigned one:
   when the configured port is busy, the run falls back to an automatic port, but
   it no longer writes that new port back into the configuration. The old code

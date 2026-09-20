@@ -7,8 +7,8 @@
              空串 = 使用系统默认浏览器（运行时动态检测）。
 - game_dir : 游戏目录（同时是 Web 服务根目录），默认空
 - port     : 固定端口字符串，空 = 自动选择
-- launch_mode  : 界面启动位置，'app' = 独立应用窗口（默认），'tab' = 浏览器标签页
-- window_state : 应用窗口的窗口状态，'normal'（默认）/ 'max'（最大化）/ 'full'（全屏）
+- launch_mode  : 游戏窗口的打开方式，'app' = 独立应用窗口（默认），'tab' = 浏览器标签页
+- auto_resume : 自动续玩——关掉游戏时保存当时进度，下次打开游戏自动恢复，默认开
 - notes    : {str(i): 槽位备注}——配置文件只记录槽位对应的备注；
              槽位“名字/存档文件”一律由程序扫描存档库文件名与修改日期得到，
              不保存在配置里（删除配置文件不会丢失存档识别）。
@@ -22,9 +22,8 @@ from pathlib import Path
 
 from i18n import LANG_ZH, detect_system_language
 
-# 界面启动位置与窗口状态（配置页可改）
+# 游戏窗口的打开方式（配置页可改）
 LAUNCH_MODES = ("app", "tab")               # 应用窗口 / 浏览器标签页
-WINDOW_STATES = ("normal", "max", "full")   # 窗口 / 最大化 / 全屏
 
 # 常见浏览器候选（用于检测失败时的回退与启动兜底）
 _BROWSER_CANDIDATES = [
@@ -122,7 +121,7 @@ class AppConfig:
         self.game_dir = ""
         self.port = ""
         self.launch_mode = LAUNCH_MODES[0]
-        self.window_state = WINDOW_STATES[0]
+        self.auto_resume = True
         self.notes = {}
         self._lock = threading.Lock()
         self._load()
@@ -162,9 +161,9 @@ class AppConfig:
         launch_mode = data.get("launch_mode", "")
         if launch_mode in LAUNCH_MODES:
             self.launch_mode = launch_mode
-        window_state = data.get("window_state", "")
-        if window_state in WINDOW_STATES:
-            self.window_state = window_state
+        auto_resume = data.get("auto_resume", True)
+        if isinstance(auto_resume, bool):
+            self.auto_resume = auto_resume
 
         # 备注：优先取 notes 字段；旧文件（纯 {i: text}）自动迁移
         # （旧版 slot_names 字段已废弃，不再读取/保存：名字一律来自存档库文件名）
@@ -186,7 +185,7 @@ class AppConfig:
             "game_dir": self.game_dir,
             "port": self.port,
             "launch_mode": self.launch_mode,
-            "window_state": self.window_state,
+            "auto_resume": self.auto_resume,
             "notes": self.notes,
         }
         tmp = self.path.with_suffix(".json.tmp")
@@ -242,10 +241,10 @@ class AppConfig:
             if v in LAUNCH_MODES and self.launch_mode != v:
                 self.launch_mode = v
                 changed = True
-        if "window_state" in kwargs:
-            v = kwargs["window_state"]
-            if v in WINDOW_STATES and self.window_state != v:
-                self.window_state = v
+        if "auto_resume" in kwargs:
+            v = bool(kwargs["auto_resume"])
+            if self.auto_resume != v:
+                self.auto_resume = v
                 changed = True
         if changed:
             self.save()

@@ -29,24 +29,30 @@ class TestAppConfig(unittest.TestCase):
     def test_defaults(self):
         cfg, path = self._load({})
         self.assertEqual(cfg.launch_mode, "app")
-        self.assertEqual(cfg.window_state, "normal")
+        self.assertTrue(cfg.auto_resume, "自动续玩默认开")
         self.assertEqual(cfg.port, "")
         saved = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(saved["launch_mode"], "app")
-        self.assertEqual(saved["window_state"], "normal")
+        self.assertTrue(saved["auto_resume"])
 
     def test_launch_settings_roundtrip(self):
-        cfg, path = self._load({"launch_mode": "tab", "window_state": "full"})
+        cfg, path = self._load({"launch_mode": "tab", "auto_resume": False})
         self.assertEqual(cfg.launch_mode, "tab")
-        self.assertEqual(cfg.window_state, "full")
+        self.assertFalse(cfg.auto_resume)
         # 只有合法值才写得进配置
-        cfg.update(launch_mode="nonsense", window_state="nonsense")
+        cfg.update(launch_mode="nonsense")
         self.assertEqual(cfg.launch_mode, "tab")
-        self.assertEqual(cfg.window_state, "full")
-        cfg.update(window_state="max")
+        cfg.update(auto_resume=True)
         saved = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(saved["window_state"], "max")
         self.assertEqual(saved["launch_mode"], "tab")
+        self.assertTrue(saved["auto_resume"])
+
+    def test_removed_window_state_is_ignored(self):
+        """已删除的窗口状态（游戏窗口状态）不再被读回或写回。"""
+        cfg, path = self._load({"window_state": "full"})
+        self.assertFalse(hasattr(cfg, "window_state"))
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        self.assertNotIn("window_state", saved)
 
     def test_removed_home_slot_is_ignored(self):
         """旧配置里的 home_slot（已删除的「默认存档位」）不再被读回或写回。"""

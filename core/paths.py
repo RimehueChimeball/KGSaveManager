@@ -21,6 +21,9 @@ class AppPaths:
         self.backups = self.data / "backups"
         self.logs = self.data / "kgsm_log"
         self.config = self.data / "kgsm_config.json"
+        # 自动续玩用的"上次关闭游戏时的进度"：不放在存档库（kittens_saves）里，
+        # 所以不会被当成存档位扫描到
+        self.session = self.data / "session.kgsav"
         self.i18n = self.base / "i18n"
         self.docs = self.base / "docs"
         self.assets = self.base / "webapp" / "assets"
@@ -70,6 +73,7 @@ class AppPaths:
             "backups": str(self.backups),
             "logs": str(self.logs),
             "config": str(self.config),
+            "session": str(self.session),
         }
 
 

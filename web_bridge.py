@@ -139,9 +139,10 @@ def bridge_js(ws_url, save_wait_ms=5000, hello_timeout_ms=120000):
         "  }\n"
         "}\n"
         "var started=Date.now();\n"
+        # ws 提到外层：自动续玩的快照函数也要用它（放在 connect() 里会取不到）
+        "var ws=null;\n"
         "function connect(){\n"
-        "  var ws;\n"
-        "  try{ ws=new WebSocket('" + ws_url + "'); }catch(e){ return; }\n"
+        "  try{ ws=new WebSocket('" + ws_url + "'); }catch(e){ ws=null; return; }\n"
         "  ws.onopen=function(){ announce(ws); };\n"
         "  ws.onmessage=function(ev){\n"
         "    try{\n"
@@ -172,6 +173,19 @@ def bridge_js(ws_url, save_wait_ms=5000, hello_timeout_ms=120000):
         "  };\n"
         "  ws.onclose=function(){ setTimeout(connect, 3000); };\n"
         "}\n"
+        "function sendSessionSnapshot(){\n"
+        "  // 关闭游戏（关窗口/关标签/刷新）时把当前进度交给 KGSM：\n"
+        "  // 游戏的存档在 localStorage 里按来源（含端口）隔离，端口一变就是新来源，\n"
+        "  // 所以由 KGSM 自己存一份，下次打开再灌回去（自动续玩）。\n"
+        "  try{\n"
+        "    if(!ws || ws.readyState!==1){ return; }\n"
+        "    var res=currentSave();\n"
+        "    if(res && res.data){ ws.send(JSON.stringify("
+        "{type:'session_snapshot',data:res.data})); }\n"
+        "  }catch(e){}\n"
+        "}\n"
+        "window.addEventListener('pagehide',sendSessionSnapshot);\n"
+        "window.addEventListener('beforeunload',sendSessionSnapshot);\n"
         "connect();\n"
         "})();"
     )
@@ -196,11 +210,30 @@ class WebSocketBridge:
         self._apply = None        # {'id','event','ok','err'} 下发存档的确认
         self._next_id = 1
         self._ui_queue = None
+        self._on_connect = None
+        self._on_snapshot = None
         self.port = None
 
     def set_ui_queue(self, queue):
         """注入 UI 事件队列，用于把连接状态回显到「启动游戏」页日志。"""
         self._ui_queue = queue
+
+    def set_session_hooks(self, on_connect=None, on_snapshot=None):
+        """自动续玩用的两个回调。
+
+        :param on_connect: 页面连上时调用（在单独线程里跑，避免在读取线程里
+            等 apply_ok 造成死锁）
+        :param on_snapshot: 页面在关闭/刷新前把当前进度发过来时调用，参数是存档文本
+        """
+        self._on_connect = on_connect
+        self._on_snapshot = on_snapshot
+
+    def _safe_hook(self, hook, *args):
+        """跑自动续玩的回调：任何异常都只记日志，不影响桥本身。"""
+        try:
+            hook(*args)
+        except Exception as e:
+            self._log(f"session hook failed: {e}")
 
     def _log(self, msg):
         if self._ui_queue is not None:
@@ -548,6 +581,17 @@ class WebSocketBridge:
                  ("ready", "hasGame", "foundKeys", "domKeys", "hasLZ",
                   "hasCompress", "hasLC")
                  if k in msg}))
+            hook = self._on_connect
+            if hook is not None:
+                # 单独线程：回调里会下发存档并等页面确认，不能在读取线程里等
+                threading.Thread(target=self._safe_hook, args=(hook,),
+                                 name="kgsm-session", daemon=True).start()
+            return
+        if mtype == "session_snapshot":
+            data = msg.get("data")
+            hook = self._on_snapshot
+            if hook is not None and isinstance(data, str) and data:
+                self._safe_hook(hook, data)
             return
         if mtype == "apply_ok":
             with self._lock:

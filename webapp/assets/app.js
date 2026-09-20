@@ -475,11 +475,7 @@
     fillSelect($("#set-launch-mode"),
                [["app", t("st.launch_app")], ["tab", t("st.launch_tab")]],
                cfg.launch_mode || "app");
-    fillSelect($("#set-window-state"),
-               [["normal", t("st.win_normal")], ["max", t("st.win_max")],
-                ["full", t("st.win_full")]],
-               cfg.window_state || "normal");
-    syncWindowState();
+    $("#set-auto-resume").checked = cfg.auto_resume !== false;
 
     $("#set-hint").textContent = t("st.hint", { path: (state.paths || {}).config || "" });
     const p = state.paths || {};
@@ -618,7 +614,7 @@
       port: $("#set-port").value.trim(),
       browser: $("#set-browser").value.trim(),
       launch_mode: $("#set-launch-mode").value,
-      window_state: $("#set-window-state").value,
+      auto_resume: $("#set-auto-resume").checked,
     };
   }
 
@@ -634,21 +630,11 @@
 
   function bindSettingsAutoSave() {
     ["#set-game-dir", "#set-port", "#set-browser", "#set-launch-mode",
-     "#set-window-state"].forEach((sel) => {
+     "#set-auto-resume"].forEach((sel) => {
       const el = $(sel);
       el.addEventListener("change", saveSettingsSoon);
       el.addEventListener("blur", saveSettingsSoon);
     });
-    $("#set-launch-mode").addEventListener("change", syncWindowState);
-  }
-
-  // 浏览器标签页里页面改不了窗口尺寸，所以窗口状态只对应用模式有意义
-  function syncWindowState() {
-    const tab = $("#set-launch-mode").value === "tab";
-    const stateSel = $("#set-window-state");
-    stateSel.disabled = tab;
-    stateSel.title = tab ? t("st.win_state_tab_hint") : "";
-    $("#win-state-hint").textContent = tab ? t("st.win_state_tab_hint") : "";
   }
 
   // 数据源切换（存档位文件 / 运行中的游戏）→ 同步存档位下拉的可用状态
@@ -662,22 +648,6 @@
       await call("open_doc", { name: (btn && btn.dataset.doc) || "guide" });
     },
     extlink: async (btn) => { await call("open_url", { url: btn.dataset.url }); },
-    "pick-dir": async (btn) => {
-      const target = document.getElementById(btn.dataset.target);
-      const res = await askDialog("text", t("dl.dir"), t("ui.browse"), target.value);
-      if (res.ok && res.text.trim()) {
-        target.value = res.text.trim();
-        if (btn.dataset.target.startsWith("set-")) { saveSettingsSoon(); }
-      }
-    },
-    "pick-file": async (btn) => {
-      const target = document.getElementById(btn.dataset.target);
-      const res = await askDialog("text", t("st.browser"), t("ui.browse"), target.value);
-      if (res.ok && res.text.trim()) {
-        target.value = res.text.trim();
-        if (btn.dataset.target.startsWith("set-")) { saveSettingsSoon(); }
-      }
-    },
     "browser-default": () => {
       $("#set-browser").value = "";
       saveSettingsSoon();

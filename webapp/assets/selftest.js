@@ -272,20 +272,21 @@
           !Object.prototype.hasOwnProperty.call(state.config || {}, "home_slot"),
           false);
 
-    // 游戏窗口位置/状态（只作用于「启动游戏」打开的窗口）
+    // 游戏窗口位置 + 自动续玩（只作用于「启动游戏」打开的窗口/进度）
     const launchSel = document.querySelector("#set-launch-mode");
-    const stateSel = document.querySelector("#set-window-state");
-    const winHint = document.querySelector("#win-state-hint");
-    check("配置页有游戏窗口位置与状态",
-          !!launchSel && !!stateSel &&
-          launchSel.options.length === 2 &&
-          stateSel.options.length === 3);
+    const resumeBox = document.querySelector("#set-auto-resume");
+    check("配置页有游戏窗口位置与自动续玩开关",
+          !!launchSel && !!resumeBox && launchSel.options.length === 2);
     check("窗口设置写明只作用于游戏窗口",
           (document.querySelector('#page-settings label[data-i18n="st.game_win_pos"]')
-            .textContent || "").indexOf("游戏") >= 0 &&
-          (document.querySelector('#page-settings label[data-i18n="st.game_win_state"]')
             .textContent || "").indexOf("游戏") >= 0);
-    // 切换下拉会触发自动保存：这里把 set_config 拦下来，既验证上报内容，
+    check("不再有假的浏览按钮（浏览器给不了本地路径）",
+          document.querySelectorAll('#page-settings [data-action="pick-dir"], '
+                                    + '#page-settings [data-action="pick-file"], '
+                                    + '#page-game [data-action="pick-dir"]')
+            .length === 0,
+          false);
+    // 切换会触发自动保存：这里把 set_config 拦下来，既验证上报内容，
     // 又不改动真实配置（自检只做只读或可回滚的操作）
     const savedSettings = [];
     const realFetch2 = window.fetch;
@@ -303,27 +304,29 @@
       }
       return realFetch2(url, opts);
     };
-    if (launchSel && stateSel) {
+    if (launchSel) {
       launchSel.value = "tab";
       launchSel.dispatchEvent(new Event("change"));
-      await sleep(80);
-      check("标签页模式下禁用窗口状态",
-            stateSel.disabled === true &&
-            (winHint.textContent || "").length > 4);
       await sleep(500);                       // 等去抖（350ms）后的一次写入
       launchSel.value = "app";
       launchSel.dispatchEvent(new Event("change"));
-      await sleep(80);
-      check("应用模式下窗口状态可用", stateSel.disabled === false);
+      await sleep(500);
+    }
+    if (resumeBox) {
+      resumeBox.checked = !resumeBox.checked;
+      resumeBox.dispatchEvent(new Event("change"));
+      await sleep(500);
+      resumeBox.checked = !resumeBox.checked;
+      resumeBox.dispatchEvent(new Event("change"));
       await sleep(500);
     }
     window.fetch = realFetch2;
-    check("游戏窗口设置随 set_config 一起上报（" +
+    check("游戏窗口设置与自动续玩随 set_config 一起上报（" +
           savedSettings.length + " 次）",
           savedSettings.length >= 2 &&
           savedSettings[0].launch_mode === "tab" &&
           Object.prototype.hasOwnProperty.call(savedSettings[0],
-                                               "window_state") &&
+                                               "auto_resume") &&
           savedSettings[savedSettings.length - 1].launch_mode === "app");
 
     // 槽位列表与编辑器下拉框使用同一格式（存档NN-名字）

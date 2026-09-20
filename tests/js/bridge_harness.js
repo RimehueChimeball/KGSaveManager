@@ -59,14 +59,25 @@ async function main() {
 
   let ws = null;
   class FakeWebSocket {
-    constructor(url) { this.url = url; ws = this; results.url = url; }
+    constructor(url) {
+      this.url = url;
+      this.readyState = 1;      // 像真 WebSocket 一样，连上后就是 OPEN
+      ws = this;
+      results.url = url;
+    }
     send(text) { results.sentByPage = results.sentByPage || []; }
   }
+  // 自动续玩：脚本会往 window 上挂 pagehide/beforeunload，这里收集起来手动触发
+  const listeners = {};
+  win.addEventListener = (name, fn) => {
+    listeners[name] = listeners[name] || [];
+    listeners[name].push(fn);
+  };
   global.window = win;
   global.WebSocket = FakeWebSocket;
   global.location = { reload() { results.reloads += 1; } };
 
-  const code = fs.readFileSync(bridgePath, 'utf8');
+  let code = fs.readFileSync(bridgePath, 'utf8');
   vm.runInThisContext(code, { filename: 'bridge.js' });
   check(!!ws, '注入脚本没有创建 WebSocket 连接');
   if (!ws) { finish(results); return; }
@@ -141,6 +152,32 @@ async function main() {
   check(save2.source === 'localStorage',
     '回退存档的 source 应为 localStorage，实际: ' + save2.source);
   check(save2.data === 'RAW-SNAPSHOT', '回退存档内容应为 localStorage 快照');
+
+  // ---- 场景 6：关闭游戏时把当前进度交给 KGSM（自动续玩）----
+  const snapshots = [];
+  const sendBefore = FakeWebSocket.prototype.send;
+  FakeWebSocket.prototype.send = function (text) {
+    const msg = JSON.parse(text);
+    if (msg.type === 'session_snapshot') { snapshots.push(msg.data); }
+    return sendBefore.call(this, text);
+  };
+  // 引擎的 save() 返回对象（和游戏里一样），压缩交给 compressLZData
+  win.game = {
+    save() { return { a: 1 }; },
+    compressLZData(json) { return 'LZ:' + json; },
+    resPool: {}, managers: {},
+  };
+  const handlers = listeners.pagehide || [];
+  check(handlers.length >= 1, '脚本未监听 pagehide（关闭游戏时无法保存进度）');
+  handlers.forEach((fn) => {
+    try {
+      fn();
+    } catch (err) {
+      failures.push('pagehide 处理器抛错: ' + (err && err.stack || err));
+    }
+  });
+  check(snapshots.length === 1 && snapshots[0] === 'LZ:{"a":1}',
+    '关闭游戏时应把当前存档发给 KGSM，实际: ' + JSON.stringify(snapshots));
 
   results.ok = failures.length === 0;
   finish(results);

@@ -84,12 +84,11 @@ class TestBrowserSelftest(unittest.TestCase):
         self.assertIn("PASS 打开存档后槽位下拉保留所选", report, report)
         self.assertIn("PASS 实时模式下禁用槽位下拉", report, report)
         self.assertIn("PASS 切回文件模式后槽位下拉恢复可用", report, report)
-        # 游戏窗口设置：标签页模式下窗口状态要禁用，且随 set_config 上报
-        self.assertIn("PASS 配置页有游戏窗口位置与状态", report, report)
+        # 游戏窗口位置 + 自动续玩开关
+        self.assertIn("PASS 配置页有游戏窗口位置与自动续玩开关", report, report)
         self.assertIn("PASS 窗口设置写明只作用于游戏窗口", report, report)
-        self.assertIn("PASS 标签页模式下禁用窗口状态", report, report)
-        self.assertIn("PASS 应用模式下窗口状态可用", report, report)
-        self.assertIn("PASS 游戏窗口设置随 set_config 一起上报", report,
+        self.assertIn("PASS 不再有假的浏览按钮", report, report)
+        self.assertIn("PASS 游戏窗口设置与自动续玩随 set_config 一起上报", report,
                       report)
 
     def test_page_serves_state_to_browser(self):

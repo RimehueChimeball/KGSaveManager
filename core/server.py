@@ -27,14 +27,18 @@ def _port_in_use(port, timeout=0.35):
 class ServerController:
     """启动/停止「启动游戏」用的本地静态服务与存档桥。"""
 
-    def __init__(self, *, ui, cfg, t, events, logger=None):
+    def __init__(self, *, ui, cfg, t, events, logger=None, paths=None):
         self.ui = ui
         self.cfg = cfg
         self.t = t
         self.logger = logger
+        self.paths = paths
         self._events = events
         self.lweb = LocalWebServer(events)
         self.bridge = None
+        # 自动续玩：这一轮服务里是否已经恢复过、以及上一次存下来的内容（去重）
+        self._session_restored = False
+        self._session_text = ""
 
     # ---------------- 状态 ----------------
     @property
@@ -101,9 +105,14 @@ class ServerController:
             self.stop()
 
         bridge = None
+        # 每一轮服务（= 一个新的端口/来源）都重新允许恢复一次：游戏的存档在
+        # localStorage 里按来源隔离，换端口就等于换了一个空存档。
+        self._session_restored = False
         try:
             bridge = WebSocketBridge()
             bridge.set_ui_queue(self._events)
+            bridge.set_session_hooks(on_connect=self._restore_session,
+                                     on_snapshot=self._store_session)
             bridge.start()
             url, actual_port = self.lweb.start(str(root_dir), port,
                                                bridge=bridge)
@@ -153,24 +162,71 @@ class ServerController:
         self._log_action("WEB_STOP", "服务与存档桥已停止")
 
     def open_game_window(self, url=None):
-        """按配置打开游戏页：应用窗口（最大化/全屏由 Win32 落实）或浏览器标签页。"""
+        """按配置打开游戏页：独立应用窗口，或浏览器标签页。"""
         url = url or self.url
         if not url:
             return False
         from web_server import open_game_window as _open_game
-        how, note = _open_game(self.cfg, url)
+        how = _open_game(self.cfg, url)
         if how:
             self.ui.web_log(self.t("msg.browser_opened", how=how),
                             self.t("tag.browser"))
-            if note == "full_fallback":
-                # 全屏参数只在本次启动创建浏览器进程时生效，这次被忽略了
-                self.ui.web_log(self.t("msg.full_fallback"),
-                                self.t("tag.browser"))
-                self._log_warn(self.t("msg.full_fallback"))
             return True
         self.ui.web_log(self.t("msg.browser_fail", url=url),
                         self.t("tag.error"))
         return False
+
+    # ---------------- 自动续玩 ----------------
+    def _session_path(self):
+        return Path(self.paths.session) if self.paths is not None else None
+
+    def _store_session(self, text):
+        """页面关闭/刷新前送来的当前进度：存一份，下次打开游戏灌回去。"""
+        if not self.cfg.auto_resume:
+            return
+        path = self._session_path()
+        if path is None or not text or text == self._session_text:
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".kgsav.tmp")
+            tmp.write_text(text, encoding="utf-8")
+            tmp.replace(path)
+        except Exception as e:
+            self._log_warn(f"保存本次进度失败: {e}")
+            return
+        self._session_text = text
+        self.ui.web_log(self.t("msg.session_saved"), self.t("tag.done"))
+        self._log_action("SESSION_SAVE", f"已保存本次进度: {path}")
+
+    def _restore_session(self):
+        """页面（重新）连上时自动恢复上次关闭游戏时的进度（每轮服务只做一次）。"""
+        if self._session_restored or not self.cfg.auto_resume:
+            return
+        path = self._session_path()
+        if path is None or not path.is_file():
+            return
+        try:
+            text = path.read_text(encoding="utf-8")
+        except Exception as e:
+            self._log_warn(f"读取上次进度失败: {e}")
+            return
+        if not text.strip():
+            return
+        self._session_restored = True
+        bridge = self.bridge
+        if bridge is None:
+            return
+        self.ui.web_log(self.t("msg.session_restoring"), self.t("tag.load"))
+        result = bridge.apply_save(text)
+        if result:
+            self._session_text = text
+            self.ui.web_log(self.t("msg.session_restored"), self.t("tag.done"))
+            self._log_action("SESSION_LOAD", f"已自动恢复上次进度: {path}")
+        elif result is False:
+            self.ui.web_log(self.t("msg.session_restore_fail"),
+                            self.t("tag.error"))
+            self._log_warn("自动恢复失败：页面没有确认写入")
 
     # ---------------- 内部 ----------------
     def _log_error(self, msg):

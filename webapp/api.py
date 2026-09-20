@@ -198,7 +198,7 @@ class WebApi:
                 "game_dir": core.cfg.game_dir,
                 "port": core.cfg.port,
                 "launch_mode": core.cfg.launch_mode,
-                "window_state": core.cfg.window_state,
+                "auto_resume": core.cfg.auto_resume,
             },
             "strings": core.tr.table(),
             "slots": self.slots(),
@@ -250,7 +250,7 @@ class WebApi:
     def set_config(self, **fields):
         allowed = {k: v for k, v in fields.items()
                    if k in ("game_dir", "port", "browser", "launch_mode",
-                            "window_state")}
+                            "auto_resume")}
         if allowed:
             self.core.cfg.update(**allowed)
         return self.state()
