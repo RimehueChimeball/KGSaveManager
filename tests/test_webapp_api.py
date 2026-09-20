@@ -193,6 +193,21 @@ class TestWebApp(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertFalse(body["ok"])
 
+    def test_default_slot_setting_is_gone(self):
+        """「默认存档位」是为已删除的首页功能做的设置入口，两版都已移除。
+
+        它原来只服务于 Tk 版首页的一个功能，功能删掉之后在 HTML 版连消费者
+        都没有（`default_slot` 字段前端根本不读），所以连同配置与 i18n 一起删。
+        """
+        state = self.h.api.state()
+        config = state["config"]
+        self.assertNotIn("home_slot", config)
+        self.assertNotIn("default_slot", state)
+        self.assertNotIn("st.home_slot", state["strings"])
+        index = (REPO / "webapp" / "assets" / "index.html").read_text(
+            encoding="utf-8")
+        self.assertNotIn("set-home-slot", index)
+
     def test_private_method_is_rejected(self):
         status, body = self.h.post_json("/api/call",
                                         {"method": "_close_manual",

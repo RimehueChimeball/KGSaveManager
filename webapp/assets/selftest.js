@@ -266,11 +266,16 @@
           !Array.from(document.querySelectorAll("#page-settings h2"))
             .some((h) => h.textContent === (state.strings["st.about"] || "关于")),
           false);
+    // 「默认存档位」是给已删除的首页功能做的设置入口，现在两版都不再有它
+    check("配置页不再有「默认存档位」设置",
+          !document.querySelector("#set-home-slot") &&
+          !Object.prototype.hasOwnProperty.call(state.config || {}, "home_slot"),
+          false);
 
-    // 槽位列表与下拉框使用同一格式（存档NN-名字）
+    // 槽位列表与编辑器下拉框使用同一格式（存档NN-名字）
     await gotoTab("saves");
     const firstCell = document.querySelector("#slot-rows tr td:nth-child(2)");
-    const firstOption = document.querySelector("#set-home-slot option");
+    const firstOption = document.querySelector("#ed-slot option");
     check("槽位显示与下拉框同格式且用短横杠（" +
           (firstCell ? firstCell.textContent : "") + "）",
           !!firstCell && /^\S+\d{2}-/.test(firstCell.textContent) &&

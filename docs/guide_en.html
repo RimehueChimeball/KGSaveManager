@@ -61,7 +61,7 @@
   <a class="l2" href="#external-i18n">External Translations</a>
   <a class="l2" href="#browser-cfg">Browser</a>
   <a class="l2" href="#paths">Paths &amp; Quotes</a>
-  <a class="l2" href="#other-cfg">Port &amp; Default Slot</a>
+  <a class="l2" href="#other-cfg">Port</a>
   <a class="l1" href="#data">Data &amp; Logs</a>
   <a class="l2" href="#kgsm-data">Folder Layout</a>
   <a class="l2" href="#logs">Run Logs</a>
@@ -279,7 +279,6 @@ folder is flattened; <code>index.html</code> must exist at the root. The
       on. If that port is occupied at a later start (another program, or a
       second copy of this program), the run falls back to an automatically
       assigned port, says so in the launch log and records the new port.</li>
-  <li><b>Default Save Slot</b>: the slot selected by default at startup.</li>
   <li><b>Browser</b>: executable used for the game page and for external
       links. Empty means the system default browser.</li>
 </ul>
@@ -318,7 +317,7 @@ program:</p>
 <tr><td>kgsm.*</td><td>home page</td><td>kgsm.guide_title, kgsm.step_doc</td></tr>
 <tr><td>sv.*</td><td>Save Management</td><td>sv.btn_auto_save, sv.btn_load</td></tr>
 <tr><td>la.*</td><td>Launch Game</td><td>la.btn_start, la.log_title</td></tr>
-<tr><td>st.*</td><td>Settings</td><td>st.game_dir, st.home_slot</td></tr>
+<tr><td>st.*</td><td>Settings</td><td>st.game_dir, st.browser</td></tr>
 <tr><td>ed.*</td><td>Save Editor</td><td>ed.btn_open, ed.value_title</td></tr>
 <tr><td>dl.*</td><td>Download Game</td><td>dl.mirror, dl.btn_test</td></tr>
 <tr><td>dlg.* / err.* / msg.*</td><td>dialogs, messages, logs</td><td>dlg.no_file, err.no_dir</td></tr>
@@ -341,10 +340,8 @@ executable, or reset to system default.</p>
 <p>Paths are normalized when saved. Surrounding quotes are removed and
 separators are converted to backslashes, so
 <code>"C:/Games/KG"</code> and <code>C:\Games\KG</code> are both accepted.</p>
-<h3 id="other-cfg">Port &amp; Default Slot</h3>
-<p>The port field is optional; empty means an automatic port. Default Save
-Slot is the slot selected by default when the program starts; Save
-Management and the save actions start from that selection. The About area
+<h3 id="other-cfg">Port</h3>
+<p>The port field is optional; empty means an automatic port. The About area
 links to the project and the author profile.</p>
 
 <h2 id="data">Data &amp; Logs</h2>

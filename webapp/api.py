@@ -197,7 +197,6 @@ class WebApi:
                 "browser": core.cfg.browser,
                 "game_dir": core.cfg.game_dir,
                 "port": core.cfg.port,
-                "home_slot": core.cfg.home_slot,
             },
             "strings": core.tr.table(),
             "slots": self.slots(),
@@ -206,7 +205,6 @@ class WebApi:
                       for label, key in core.download.repo_choices()],
             "mirrors": core.download.mirrors(),
             "default_target": core.download.default_target(),
-            "default_slot": core.cfg.home_slot,
             "paths": core.paths.as_dict(),
             "notes": [core.cfg.get_note(i) for i in range(core.slot_count)],
             "download_busy": core.download.busy,
@@ -249,7 +247,7 @@ class WebApi:
 
     def set_config(self, **fields):
         allowed = {k: v for k, v in fields.items()
-                   if k in ("game_dir", "port", "browser", "home_slot")}
+                   if k in ("game_dir", "port", "browser")}
         if allowed:
             self.core.cfg.update(**allowed)
         return self.state()

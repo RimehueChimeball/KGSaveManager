@@ -7,7 +7,6 @@
              空串 = 使用系统默认浏览器（运行时动态检测）。
 - game_dir : 游戏目录（同时是 Web 服务根目录），默认空
 - port     : 固定端口字符串，空 = 自动选择
-- home_slot: 默认存档位索引（0-based，程序启动时选中），默认 0
 - notes    : {str(i): 槽位备注}——配置文件只记录槽位对应的备注；
              槽位“名字/存档文件”一律由程序扫描存档库文件名与修改日期得到，
              不保存在配置里（删除配置文件不会丢失存档识别）。
@@ -20,8 +19,6 @@ import threading
 from pathlib import Path
 
 from i18n import LANG_ZH, detect_system_language
-
-SLOT_COUNT = 10  # 存档位数量（与主程序一致，避免循环导入）
 
 # 常见浏览器候选（用于检测失败时的回退与启动兜底）
 _BROWSER_CANDIDATES = [
@@ -118,7 +115,6 @@ class AppConfig:
         self.browser = ""
         self.game_dir = ""
         self.port = ""
-        self.home_slot = 0
         self.notes = {}
         self._lock = threading.Lock()
         self._load()
@@ -155,12 +151,6 @@ class AppConfig:
         port = data.get("port", "")
         self.port = str(port).strip() if port not in (None, "") else ""
 
-        try:
-            self.home_slot = int(data.get("home_slot", 0))
-        except (TypeError, ValueError):
-            self.home_slot = 0
-        self.home_slot = max(0, min(SLOT_COUNT - 1, self.home_slot))
-
         # 备注：优先取 notes 字段；旧文件（纯 {i: text}）自动迁移
         # （旧版 slot_names 字段已废弃，不再读取/保存：名字一律来自存档库文件名）
         notes = data.get("notes")
@@ -180,7 +170,6 @@ class AppConfig:
             "browser": self.browser,
             "game_dir": self.game_dir,
             "port": self.port,
-            "home_slot": self.home_slot,
             "notes": self.notes,
         }
         tmp = self.path.with_suffix(".json.tmp")
@@ -230,14 +219,6 @@ class AppConfig:
             v = str(kwargs["port"] or "").strip()
             if self.port != v:
                 self.port = v
-                changed = True
-        if "home_slot" in kwargs:
-            try:
-                v = max(0, min(SLOT_COUNT - 1, int(kwargs["home_slot"])))
-            except (TypeError, ValueError):
-                v = self.home_slot
-            if self.home_slot != v:
-                self.home_slot = v
                 changed = True
         if changed:
             self.save()

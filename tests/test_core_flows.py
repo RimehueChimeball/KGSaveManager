@@ -20,7 +20,7 @@ SAVE_TEXT = json.dumps({"saveVersion": 2, "resources": {}}, ensure_ascii=False)
 
 class FakeConfig:
     def __init__(self):
-        self.home_slot = 0
+        self.game_dir = ""
 
 
 class FakeBridge:

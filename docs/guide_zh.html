@@ -62,7 +62,7 @@
   <a class="l2" href="#external-i18n">外部翻译文件</a>
   <a class="l2" href="#browser-cfg">浏览器</a>
   <a class="l2" href="#paths">路径与引号</a>
-  <a class="l2" href="#other-cfg">端口与默认存档位</a>
+  <a class="l2" href="#other-cfg">端口</a>
   <a class="l1" href="#data">数据与日志</a>
   <a class="l2" href="#kgsm-data">目录结构</a>
   <a class="l2" href="#logs">运行日志</a>
@@ -226,11 +226,10 @@
   <li><b>固定端口</b>：本地服务使用的端口。留空表示自动分配——自动分配到的端口会
       写回这一项并在之后沿用；如果下次启动时该端口被占用（被别的程序或另一份本程序
       占用），本次会退回自动端口，在启动日志里说明，并把新端口记下来。</li>
-  <li><b>默认存档位</b>：程序启动时默认选中的槽位。</li>
   <li><b>浏览器</b>：打开游戏页面与外部链接使用的可执行文件；留空表示系统默认。</li>
 </ul>
-<p>配置页不需要点保存：「游戏目录」「固定端口」「浏览器」「默认存档位」改动后
-自动写入配置文件，界面左下角提示的路径就是配置文件位置。</p>
+<p>配置页不需要点保存：「游戏目录」「固定端口」「浏览器」改动后自动写入配置文件，
+界面左下角提示的路径就是配置文件位置。</p>
 <h3 id="language">语言</h3>
 <p>界面支持中文与英文；没有配置文件时按系统语言选择。Language 标签本身始终显示为
 英文。</p>
@@ -261,7 +260,7 @@ msgstr "Auto Save"</pre>
 <tr><td>kgsm.*</td><td>首页</td><td>kgsm.guide_title, kgsm.step_doc</td></tr>
 <tr><td>sv.*</td><td>存档管理</td><td>sv.btn_auto_save, sv.btn_load</td></tr>
 <tr><td>la.*</td><td>启动游戏</td><td>la.btn_start, la.log_title</td></tr>
-<tr><td>st.*</td><td>配置</td><td>st.game_dir, st.home_slot</td></tr>
+<tr><td>st.*</td><td>配置</td><td>st.game_dir, st.browser</td></tr>
 <tr><td>ed.*</td><td>修改存档</td><td>ed.btn_open, ed.value_title</td></tr>
 <tr><td>dl.*</td><td>下载游戏</td><td>dl.mirror, dl.btn_test</td></tr>
 <tr><td>dlg.* / err.* / msg.*</td><td>对话框、提示、日志</td><td>dlg.no_file, err.no_dir</td></tr>
@@ -279,9 +278,8 @@ msgstr "Auto Save"</pre>
 <h3 id="paths">路径与引号</h3>
 <p>保存时会规范化路径：去掉首尾引号、分隔符统一成反斜杠，所以
 <code>"C:/Games/KG"</code> 与 <code>C:\Games\KG</code> 都能用。</p>
-<h3 id="other-cfg">端口与默认存档位</h3>
-<p>端口可留空，留空即自动分配（并在首次使用后记为固定端口）。默认存档位是程序启动
-时选中的槽位，「存档管理」与该页的存档操作都从它开始。“关于”板块提供项目链接、
+<h3 id="other-cfg">端口</h3>
+<p>端口可留空，留空即自动分配（并在首次使用后记为固定端口）。“关于”板块提供项目链接、
 离线文档与更新日志入口。</p>
 
 <h2 id="data">数据与日志</h2>

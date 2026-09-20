@@ -131,10 +131,18 @@ All notable changes are listed by version.
   guide button opens the Chinese guide when the interface is Chinese. Both
   changelogs are bundled by the PyInstaller specs.
 - Settings are saved as you edit them: the “Write” button is gone and changes to
-  game directory, port, browser and default slot are written on change/blur
-  (matching the existing “all changes are saved automatically” hint). The
+  game directory, port and browser are written on change/blur (matching the
+  existing “all changes are saved automatically” hint). The
   sidebar button is now “Exit” with its own confirmation text, and the download
   page's dismiss button is “Cancel” instead of “Close”.
+- The “Default Save Slot” setting is gone from both versions. It was the
+  configuration entry for a Tk home-page feature that no longer exists; what
+  remained was “which slot is selected at startup”, and in the HTML version it
+  had no consumer at all — the page used `home_slot` only to fill its own
+  dropdown, while the slot table always selected the first row (there was also a
+  `default_slot` field in the API state that no frontend read). Configuration,
+  API and translation keys are removed; a leftover `home_slot` in an existing
+  config file is ignored and disappears on the next save.
 - Exiting no longer leaves an error behind. The page used to await the
   `shutdown` call, so the closed server produced
   `ERROR TypeError: Failed to fetch` in the log; the request is now

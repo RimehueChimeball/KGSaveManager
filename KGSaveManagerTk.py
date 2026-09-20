@@ -16,7 +16,7 @@ KGSaveManager Tk（Tkinter 界面）
 5. 剪贴板：内置 tkinter 剪贴板实现，零第三方依赖。
 6. 中英翻译：无配置文件时按系统语言探测，配置页可切换，自动保存。
 7. 六个标签页：KGSM（导航与新手引导）、启动游戏（Web 服务）、存档管理、
-   修改存档、下载游戏、配置（语言/游戏目录/固定端口/默认存档位）。
+   修改存档、下载游戏、配置（语言/游戏目录/固定端口/浏览器）。
 
 模块分层：`core/`（与界面无关的逻辑）、`ui_tk.py`（Tkinter 对界面端口的实现）、
 各页面 Mixin（视图）、i18n.py（翻译）、config_store.py（配置）、
@@ -107,11 +107,10 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
         self.max_save_size = MAX_SAVE_SIZE
         self.backup_dir = BACKUP_DIR
 
-        # 当前选中的存档位索引（0-based）：默认取配置页指定的存档位
-        home = self.cfg.home_slot
-        if not (0 <= home < SLOT_COUNT):
-            home = 0
-        self.selected_slot = tk.IntVar(value=home)
+        # 当前选中的存档位索引（0-based）：启动时选第 1 个
+        # （旧配置里的 home_slot / 「默认存档位」设置已删除：那个设置原本服务于
+        #  已被移除的首页功能，在 Tk 版只剩“启动时选中哪一格”这一个用途）
+        self.selected_slot = tk.IntVar(value=0)
 
         # 每个存档位的备注（来自配置，修改自动保存）
         self.notes = [self.cfg.get_note(i) for i in range(SLOT_COUNT)]
@@ -622,24 +621,11 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
                   foreground="#666666").grid(row=3, column=2, sticky="w",
                                              padx=(10, 0), pady=6)
 
-        # 默认存档位（启动时选中）
-        ttk.Label(frame, text=self.t("st.home_slot")).grid(row=4, column=0,
-                                                           sticky="w", pady=6,
-                                                           padx=(0, 10))
-        self.home_slot_var = tk.StringVar()
-        slot_box = ttk.Combobox(frame, textvariable=self.home_slot_var,
-                                state="readonly", width=20,
-                                takefocus=0)
-        slot_box.grid(row=4, column=1, sticky="w", pady=6)
-        slot_box.bind("<<ComboboxSelected>>", self._on_home_slot_selected)
-        self.home_slot_widget = slot_box
-        self._refresh_settings_slot_combo()
-
         # 提示
         self.settings_hint_lbl = ttk.Label(
             frame, text=self.t("st.hint", path=CONFIG_FILE),
             foreground="#888888")
-        self.settings_hint_lbl.grid(row=5, column=0, columnspan=3, sticky="w",
+        self.settings_hint_lbl.grid(row=4, column=0, columnspan=3, sticky="w",
                                     pady=(14, 0))
 
         # 关于（链接文案固定，不随语言翻译）
@@ -689,11 +675,6 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
             code = self._lang_codes[cur]
             if code != self.cfg.language:
                 self._change_language(code)
-
-    def _on_home_slot_selected(self, _event=None):
-        cur = self.home_slot_widget.current()
-        if 0 <= cur < SLOT_COUNT:
-            self.cfg.update(home_slot=cur)
 
     def _change_language(self, code):
         """切换语言：更新配置并重建界面。"""
@@ -803,21 +784,7 @@ class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
                 w['time_lbl'].config(text=info['time'])
             else:
                 w['time_lbl'].config(text="")
-        self._refresh_settings_slot_combo()
         self._refresh_edit_slots()
-
-    def _refresh_settings_slot_combo(self):
-        """让配置页「默认存档位」下拉框跟随槽位名字刷新。"""
-        if not hasattr(self, "home_slot_widget"):
-            return
-        if not self._widget_alive(self.home_slot_widget):
-            return
-        values = [self.slots.label(i) for i in range(SLOT_COUNT)]
-        self.home_slot_widget.configure(values=values)
-        cur = self.home_slot_widget.current()
-        target = self.cfg.home_slot
-        if cur != target or cur < 0:
-            self.home_slot_widget.current(target)
 
     def _on_slot_mousewheel(self, event):
         """滚轮滚动存档位列表：仅当指针位于该区域内时生效。"""

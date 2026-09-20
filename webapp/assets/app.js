@@ -460,16 +460,6 @@
       lang.appendChild(opt);
     });
 
-    const home = $("#set-home-slot");
-    home.innerHTML = "";
-    state.slots.forEach((slot) => {
-      const opt = document.createElement("option");
-      opt.value = slot.index;
-      opt.textContent = slot.label;
-      if (slot.index === (cfg.home_slot || 0)) { opt.selected = true; }
-      home.appendChild(opt);
-    });
-
     $("#set-hint").textContent = t("st.hint", { path: (state.paths || {}).config || "" });
     const p = state.paths || {};
     $("#about-paths").textContent = "data: " + (p.data || "") + "\nlogs: " +
@@ -606,7 +596,6 @@
       game_dir: $("#set-game-dir").value.trim(),
       port: $("#set-port").value.trim(),
       browser: $("#set-browser").value.trim(),
-      home_slot: parseInt($("#set-home-slot").value || "0", 10),
     };
   }
 
@@ -621,7 +610,7 @@
   }
 
   function bindSettingsAutoSave() {
-    ["#set-game-dir", "#set-port", "#set-browser", "#set-home-slot"]
+    ["#set-game-dir", "#set-port", "#set-browser"]
       .forEach((sel) => {
         const el = $(sel);
         el.addEventListener("change", saveSettingsSoon);
