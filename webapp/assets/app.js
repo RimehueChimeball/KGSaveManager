@@ -801,6 +801,13 @@
   });
 
   (async function boot() {
+    // 界面窗口关掉就退出（刷新不算）：pagehide 通知后端，后端等一小会儿，
+    // 期间没有页面重新连上才退出。打包成窗口程序后没有控制台，这条是主要退出方式。
+    window.addEventListener("pagehide", () => {
+      try {
+        navigator.sendBeacon("/api/pagehide");
+      } catch (e) { /* 忽略：退出还有页面里的按钮 */ }
+    });
     fitAppWindow();
     bindSettingsAutoSave();
     bindEditorMode();

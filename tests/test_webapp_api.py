@@ -444,6 +444,26 @@ class TestWebApp(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 404)
 
 
+    def test_closing_the_page_exits_but_a_reload_does_not(self):
+        """关掉界面窗口就退出；刷新（页面又连上）不算。
+
+        打包成窗口程序后没有控制台、没有 Ctrl+C，这是主要退出方式。
+        """
+        self.h.server.PAGE_GRACE = 0.4          # 测试里把宽限期压短
+        # 刷新：pagehide 之后马上又有 /api/state → 不该退出
+        status, _ = self.h.post_json("/api/pagehide", {})
+        self.assertEqual(status, 200)
+        self.h.get_json("/api/state")
+        time.sleep(0.8)
+        self.assertFalse(self.h.state["shutdown"], "刷新不该导致退出")
+        # 关窗口：pagehide 之后再没有页面 → 宽限期后退出
+        self.h.post_json("/api/pagehide", {})
+        deadline = time.time() + 5
+        while time.time() < deadline and not self.h.state["shutdown"]:
+            time.sleep(0.1)
+        self.assertTrue(self.h.state["shutdown"], "关掉页面后应退出")
+
+
 class TestAppWindow(unittest.TestCase):
     """HTML 版是用浏览器应用窗口打开的：这里只验证命令行构造，不真的启动浏览器。"""
 

@@ -2,7 +2,9 @@
 # KGSaveManager（主版本：HTML 界面）PyInstaller 配置
 # - 界面为 webapp/assets 下的 HTML/CSS/JS，由本地 HTTP 服务发给浏览器
 # - datas：docs（离线文档）与 webapp/assets（前端资源）都要带上
-# - console=True：启动时会打印页面地址，便于排错；改窗口模式时记得把地址显示到页面里
+# - console=False：不弹控制台窗口。地址、日志都在页面里（「启动游戏」页与各页日志），
+#   运行日志仍写在 kgsm_data/kgsm_log/；退出用页面里的「退出」按钮，或直接关掉界面
+#   窗口（后端等一会儿确认不是刷新后自行退出）
 # - upx=False：不依赖外部 UPX 压缩工具
 
 a = Analysis(
@@ -39,7 +41,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

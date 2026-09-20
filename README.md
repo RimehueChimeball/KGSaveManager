@@ -36,8 +36,10 @@ python KGSaveManagerTk.py     # Tk version (Tkinter UI)
 
 The main (HTML UI) version accepts `--port N`, `--no-browser` and `--verbose`.
 The page address is printed on startup; append `?selftest=1` to run its built-in
-self-test. It exits only through the page's Exit button or Ctrl+C: it never
-quits because the page stopped responding, since Chromium slows timers of a
+self-test. It exits through the page's Exit button, or simply by closing the
+interface window (a reload does not count). The packaged build has no console
+window — Ctrl+C is only available when running from source with a console. It
+never quits because the page stopped responding, since Chromium slows timers of a
 hidden window to about once a minute.
 
 ## Quick Start
@@ -106,7 +108,9 @@ pyinstaller KGSaveManagerTk.spec      # dist/KGSaveManagerTk/KGSaveManagerTk.exe
 ```
 
 Output: `dist/KGSaveManager/KGSaveManager.exe` (main, HTML UI; bundles
-`webapp/assets`) and `dist/KGSaveManagerTk/KGSaveManagerTk.exe` (Tk, Tkinter).
+`webapp/assets`, no console window) and `dist/KGSaveManagerTk/KGSaveManagerTk.exe`
+(Tk, Tkinter). The two frontends are packaged separately and do not depend on each
+other.
 
 ## License
 

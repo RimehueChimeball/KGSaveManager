@@ -108,6 +108,10 @@ class _Handler(BaseHTTPRequestHandler):
             self._file(self.server.assets / rel)
             return
         if route == "/api/state":
+            # 页面还在：取消「关窗口就退出」的宽限计时（刷新时页面的第一次请求就是它）
+            app = getattr(self.server, "kgsm_app", None)
+            if app is not None:
+                app.note_page_seen()
             self._json({"ok": True, "result": self.server.api.state()})
             return
         if route == "/api/events":
@@ -151,6 +155,13 @@ class _Handler(BaseHTTPRequestHandler):
                                        body.get("text"))
             self._json({"ok": bool(ok)})
             return
+        if route == "/api/pagehide":
+            # 页面关闭/刷新（sendBeacon）：宽限期后没有页面回来就退出
+            app = getattr(self.server, "kgsm_app", None)
+            if app is not None:
+                app.note_page_left()
+            self._json({"ok": True})
+            return
         if route == "/api/shutdown":
             self._json({"ok": True})
             if self.server.on_shutdown is not None:
@@ -165,7 +176,15 @@ class _ThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
 
 
 class AppServer:
-    """页面与 API 的宿主机（生命周期管理）。"""
+    """页面与 API 的宿主机（生命周期管理）。
+
+    还负责「界面窗口关掉就退出」：页面关闭/刷新时 `pagehide` 会打一次
+    `/api/pagehide`，这里等一小会儿；只要期间有页面重新连上（刷新）就取消，
+    否则调用 `on_shutdown`。这样打包成窗口程序（没有控制台、没有 Ctrl+C）时，
+    关掉界面窗口就是退出，而不是留下一个看不见的进程。
+    """
+
+    PAGE_GRACE = 6.0          # 关页面到真正退出之间的宽限（秒），刷新会重新连上
 
     def __init__(self, api, ui_port, outbox, assets, port=0,
                  on_shutdown=None, verbose=False):
@@ -178,11 +197,43 @@ class AppServer:
         self.verbose = verbose
         self._server = None
         self._thread = None
+        self._exit_timer = None
+        self._lock = threading.Lock()
         self.url = ""
 
     @property
     def running(self):
         return self._server is not None
+
+    # ---------------- 页面进出 ----------------
+    def note_page_seen(self):
+        """页面还在（或又回来了）：取消待执行的退出。"""
+        with self._lock:
+            timer, self._exit_timer = self._exit_timer, None
+        if timer is not None:
+            timer.cancel()
+
+    def note_page_left(self):
+        """页面关闭/刷新：宽限期后如果没有页面回来就退出。"""
+        if self.on_shutdown is None:
+            return
+        with self._lock:
+            if self._exit_timer is not None:
+                self._exit_timer.cancel()
+            timer = threading.Timer(self.PAGE_GRACE, self._exit_if_no_page)
+            timer.daemon = True
+            self._exit_timer = timer
+        timer.start()
+
+    def _exit_if_no_page(self):
+        with self._lock:
+            self._exit_timer = None
+        if self.verbose:
+            print("[webapp] 界面页面已关闭，退出。", flush=True)
+        try:
+            self.on_shutdown()
+        except Exception:
+            pass
 
     def start(self):
         handler = _Handler
@@ -193,6 +244,7 @@ class AppServer:
         self._server.assets = self.assets
         self._server.on_shutdown = self.on_shutdown
         self._server.kgsm_verbose = self.verbose
+        self._server.kgsm_app = self        # 处理器需要回调页面进出状态
         self.port = self._server.server_address[1]
         self._thread = threading.Thread(target=self._server.serve_forever,
                                         name="webapp-http", daemon=True)

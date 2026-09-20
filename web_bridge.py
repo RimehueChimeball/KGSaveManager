@@ -163,10 +163,32 @@ def bridge_js(ws_url, save_wait_ms=5000, hello_timeout_ms=120000):
         "        send();\n"
         "      } else if(msg.type==='apply_save' && typeof msg.data==='string' && msg.data){\n"
         "        try{\n"
+        "          var eng=findEngine(true).engine;\n"
+        "          if(eng && typeof eng.isReadOnly==='function' && eng.isReadOnly()){\n"
+        "            ws.send(JSON.stringify({type:'apply_err',id:msg.id,"
+        "err:'read-only preview'}));\n"
+        "            return;\n"
+        "          }\n"
         "          var ls=window.LCstorage||window.localStorage;\n"
+        "          // 与游戏自己的导入一致：先确认能解出以 { 开头的 JSON，再写进存储\n"
+        "          if(eng && typeof eng.decompressLZData==='function'){\n"
+        "            var probe=(msg.data[0]==='{')?msg.data:eng.decompressLZData(msg.data);\n"
+        "            if(!probe || probe[0]!=='{'){ throw new Error('Integrity check failure'); }\n"
+        "          }\n"
         "          if(ls){ ls.setItem(KGSM_SAVE_KEY, msg.data); }\n"
         "          ws.send(JSON.stringify({type:'apply_ok',id:msg.id}));\n"
-        "          setTimeout(function(){ location.reload(); }, 120);\n"
+        "          if(eng && typeof eng.load==='function'){\n"
+        "            // 就地重新载入（游戏自己的导入就是这么做的）：直接刷新页面会被\n"
+        "            // 游戏退出时的自动保存覆盖掉，看起来就像「自动读档没反应」\n"
+        "            setTimeout(function(){\n"
+        "              try{\n"
+        "                eng.load();\n"
+        "                if(typeof eng.render==='function'){ eng.render(); }\n"
+        "              }catch(e3){ console.log('KGSM: engine reload failed', e3); }\n"
+        "            }, 120);\n"
+        "          } else {\n"
+        "            setTimeout(function(){ location.reload(); }, 120);\n"
+        "          }\n"
         "        }catch(e2){ ws.send(JSON.stringify({type:'apply_err',id:msg.id,err:String(e2)})); }\n"
         "      }\n"
         "    }catch(e){}\n"
@@ -177,19 +199,21 @@ def bridge_js(ws_url, save_wait_ms=5000, hello_timeout_ms=120000):
         "  // 关闭游戏（关窗口/关标签/刷新）时把当前进度交给 KGSM：\n"
         "  // 游戏的存档在 localStorage 里按来源（含端口）隔离，端口一变就是新来源，\n"
         "  // 所以由 KGSM 自己存一份，下次打开再灌回去（自动续玩）。\n"
+        "  //\n"
+        "  // cleared 表示游戏自己的 localStorage 里已经没有存档了：\n"
+        "  //   - 游戏内删档/重置就是这种状态，KGSM 存的那份必须一起删掉，否则下次\n"
+        "  //     打开会把旧存档灌回来，看起来像「删档没用」；\n"
+        "  //   - 但刚开局、游戏还没自动保存过时 localStorage 也是空的，那时引擎里\n"
+        "  //     的进度是真的，要照常存下来。\n"
+        "  // 区分办法：由 KGSM 侧决定——已存过就按删档处理，没存过就照常保存。\n"
         "  try{\n"
         "    if(!ws){ return; }\n"
         "    var ls=window.LCstorage||window.localStorage;\n"
         "    var raw=ls?ls.getItem(KGSM_SAVE_KEY):null;\n"
-        "    if(!raw){\n"
-        "      // 存档已经不在 localStorage 里（游戏内删档/重置）：必须把 KGSM 存的那份\n"
-        "      // 也清掉，否则下次打开会把旧存档灌回去，看起来就像「删档没用」。\n"
-        "      ws.send(JSON.stringify({type:'session_snapshot',data:''}));\n"
-        "      return;\n"
-        "    }\n"
         "    var res=currentSave();\n"
-        "    ws.send(JSON.stringify("
-        "{type:'session_snapshot',data:(res&&res.data)||raw}));\n"
+        "    var data=(res&&res.data)||raw||'';\n"
+        "    ws.send(JSON.stringify({type:'session_snapshot',data:data,"
+        "cleared:!raw}));\n"
         "  }catch(e){}\n"
         "}\n"
         "window.addEventListener('pagehide',sendSessionSnapshot);\n"
@@ -597,10 +621,10 @@ class WebSocketBridge:
             return
         if mtype == "session_snapshot":
             data = msg.get("data")
+            cleared = bool(msg.get("cleared"))
             hook = self._on_snapshot
-            # 空字符串是有意义的：页面里已经没有存档了（游戏内删档/重置）
             if hook is not None and isinstance(data, str):
-                self._safe_hook(hook, data)
+                self._safe_hook(hook, data, cleared)
             return
         if mtype == "apply_ok":
             with self._lock:

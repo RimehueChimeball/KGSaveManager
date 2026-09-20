@@ -344,12 +344,17 @@ class TestServerController(unittest.TestCase):
             ctl._restore_session()
             self.assertEqual(applied, ["BLOB-STATE"], "只应在每轮服务里恢复一次")
 
-            # 游戏内删档：页面送来空内容 → 存的那份要删掉，否则下次会把旧存档灌回去
-            ctl._store_session("")
+            # 游戏内删档：带 cleared 标记且已经存过 → 存的那份要删掉
+            ctl._store_session("BLOB-STATE", cleared=True)
             self.assertFalse(paths.session.is_file(),
                              "游戏删档后不该留着旧进度")
             self.assertTrue(any("msg.session_cleared" in line
                                 for _tag, line in ui.logs))
+
+            # 但刚开局、游戏还没自动保存过时 cleared 也是真：那时要照常保存
+            ctl._store_session("FIRST-RUN", cleared=True)
+            self.assertEqual(paths.session.read_text(encoding="utf-8"),
+                             "FIRST-RUN", "没存过时 cleared 不该丢掉真实进度")
 
     def test_auto_resume_off_and_missing_file(self):
         from core.paths import AppPaths

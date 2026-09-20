@@ -34,8 +34,9 @@ python KGSaveManagerTk.py     # Tk 版（Tkinter 界面）
 ```
 
 主版本支持 `--port N`、`--no-browser`、`--verbose`；启动时会打印页面地址，地址后加
-`?selftest=1` 可跑它的自检。退出只有两种方式：页面里的「退出」按钮，或 Ctrl+C；
-它不会因为页面停止响应而自行退出（浏览器会把隐藏窗口的定时器降频到约每分钟一次）。
+`?selftest=1` 可跑它的自检。退出：页面里的「退出」按钮，或直接关掉界面窗口（刷新不算）；
+打包后的 HTML 版没有控制台窗口，Ctrl+C 只在从源码带控制台运行时可用。它不会因为页面停止响应
+而自行退出（浏览器会把隐藏窗口的定时器降频到约每分钟一次）。
 
 ## 快速开始
 
@@ -95,8 +96,8 @@ pyinstaller KGSaveManager.spec        # dist/KGSaveManager/KGSaveManager.exe（�
 pyinstaller KGSaveManagerTk.spec      # dist/KGSaveManagerTk/KGSaveManagerTk.exe（Tk）
 ```
 
-产物：主版本 `dist/KGSaveManager/KGSaveManager.exe`（已把 `webapp/assets` 打进包）；
-Tk 版 `dist/KGSaveManagerTk/KGSaveManagerTk.exe`。
+产物：主版本 `dist/KGSaveManager/KGSaveManager.exe`（已把 `webapp/assets` 打进包，无控制台窗口）；
+Tk 版 `dist/KGSaveManagerTk/KGSaveManagerTk.exe`。两个前端分别打包，互不依赖。
 
 ## 许可
 

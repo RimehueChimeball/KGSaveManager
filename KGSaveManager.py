@@ -18,6 +18,7 @@
 """
 
 import argparse
+import os
 import sys
 import threading
 
@@ -48,6 +49,15 @@ def build_app(base_dir=None, port=0, verbose=False):
 
 
 def main(argv=None):
+    # 打包成窗口程序（console=False）时没有控制台：sys.stdout/stderr 是 None，
+    # 直接 print 会抛异常，所以先接到空设备上（页面里照旧能看到地址与日志）
+    if sys.stdout is None or sys.stderr is None:
+        devnull = open(os.devnull, "w", encoding="utf-8")
+        if sys.stdout is None:
+            sys.stdout = devnull
+        if sys.stderr is None:
+            sys.stderr = devnull
+
     parser = argparse.ArgumentParser(description=f"{APP_NAME} (main version)")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--no-browser", action="store_true")

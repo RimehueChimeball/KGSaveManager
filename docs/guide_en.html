@@ -122,11 +122,15 @@ identically in both.</p>
       page (<code>favicon.ico</code> / <code>icon-192.png</code>); Edge also
       fetches <code>manifest.webmanifest</code>, so the app can additionally be
       installed as a standalone app from the browser menu.</li>
-  <li>The program exits only through the page's <b>Exit</b> button or with
-      Ctrl+C / closing the console window. It never quits merely because the
-      page stopped responding: browsers slow the timers of a hidden page
-      (minimised or fully covered) to about once a minute, so "no contact" cannot
-      be told apart from "the user walked away".</li>
+  <li>Exiting: the page's <b>Exit</b> button, or simply closing the interface
+      window (the backend waits a moment first, so a reload does not count).
+      The packaged HTML version has <b>no console window</b>: the page address and
+      the logs live in the page, and run logs are written to
+      <code>kgsm_data/kgsm_log/</code>. Ctrl+C is only available when you run the
+      program from source with a console. The program never quits merely because
+      the page stopped responding — browsers slow the timers of a hidden page
+      (minimised or fully covered) to about once a minute, so “no contact” cannot
+      be told apart from “the user walked away”.</li>
   <li>Append <code>?selftest=1</code> to the address to run the built-in
       self-test: navigation, slot table, notes, download options, editor tree
       and the event channel.</li>

@@ -156,7 +156,7 @@ _ZH = {
     # ---- 自动读档 / 存档编辑 ----
     "sv.btn_auto_load": "自动读档",
     "msg.auto_load_ask": "自动读档将覆盖游戏当前进度并载入 {slot} 的存档，确认？",
-    "msg.auto_load_sent": "已发送存档到游戏，页面将自动刷新载入。",
+    "msg.auto_load_sent": "已发送存档到游戏，游戏会立即就地载入。",
     "msg.auto_load_fail": "发送到游戏失败（页面未连接）。",
     "tab.editor": "修改存档",
     "ed.mode_file": "存档槽位（文件）",
@@ -178,7 +178,7 @@ _ZH = {
     "ed.parse_err": "源码不是合法 JSON：{err}",
     "ed.saved": "已保存到 {dest}",
     "ed.backup": "已备份原存档: {path}",
-    "ed.sent": "已发送到游戏，页面将刷新载入。",
+    "ed.sent": "已发送到游戏，游戏会立即就地载入。",
     "ed.value_title": "修改数值",
     "ed.value_prompt": "输入新值（自动识别 JSON 类型，无法解析则存为字符串）：",
 
@@ -426,8 +426,7 @@ _EN = {
     "sv.btn_auto_load": "Auto Load",
     "msg.auto_load_ask": "Auto-load will overwrite the current in-game "
                          "progress with the {slot} save. Continue?",
-    "msg.auto_load_sent": "Save sent to the game; the page will reload to "
-                          "load it.",
+    "msg.auto_load_sent": "Save sent to the game; the game loads it in place.",
     "msg.auto_load_fail": "Failed to send to the game (page not connected).",
     "tab.editor": "Edit Save",
     "ed.mode_file": "Save slot (file)",
@@ -451,7 +450,7 @@ _EN = {
     "ed.parse_err": "The source is not valid JSON: {err}",
     "ed.saved": "Saved to {dest}",
     "ed.backup": "Original save backed up: {path}",
-    "ed.sent": "Sent to the game; the page will reload to load it.",
+    "ed.sent": "Sent to the game; the game loads it in place.",
     "ed.value_title": "Edit Value",
     "ed.value_prompt": "Enter a new value (JSON type auto-detected; falls "
                        "back to a string if unparsable):",

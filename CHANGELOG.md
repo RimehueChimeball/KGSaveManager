@@ -4,100 +4,69 @@ All notable changes are listed by version.
 
 ## v1.3.0
 
-What changed since v1.2.4, which shipped the Tkinter frontend only.
-
-**New: an HTML interface, now the main version**
-
-- A new HTML frontend became the main version and kept the plain name
-  `KGSaveManager.py` (backend in `webapp/`, assets in `webapp/assets/`): the
-  interface is served on `127.0.0.1` and opened as a browser app window
-  (Edge/Chrome `--app=`, no address bar or tabs), with the window size, title and
-  icon provided by the page. The Tkinter frontend became the Tk version
-  (`KGSaveManagerTk.py`) and is still shipped; both share `core/` and the same
-  `kgsm_data/`.
-- Six pages: home, Launch Game (live log), Save Management (10 slots with notes),
-  Edit Save (view/source, collapsible), Download Game and Settings. The address
-  accepts `?page=…` deep links, and `?selftest=1` runs the page's self-test.
-- Look: ice-white background with a single misty blue-violet accent, hairline
-  borders instead of drop shadows, serif headings with monospace eyebrow labels
-  and a numbered pill navigation. Body colours were checked against WCAG AA
-  (5.5:1 – 16.9:1 measured); fill and ink are a fixed pair (`--accent-fill` with
-  white text, 4.69:1). Pages are single-column with their own vertical scrolling,
-  and card grids use `minmax(0, 1fr)` so content cannot blow the layout out.
-- Settings keep only what is actually used: language, browser, game directory,
-  fixed port, where the game window opens (separate window (app mode) / browser
-  tab) and resume automatically. Changes are saved as you edit them; the “Write”
-  button is gone.
-- Resume automatically (on by default): closing the game window or tab (a reload
-  counts) stores the progress at that moment as `kgsm_data/session.kgsav`, and the
-  next time the game is opened the page is fed that save as soon as it connects —
-  which makes it independent of the port, because the game's own save lives in
-  browser storage isolated per origin (port included). Deleting or resetting the
-  save inside the game clears this stored progress too.
-- “Where the game window opens” applies only to the window “Launch Game” opens;
-  the program's own interface window is always an app window that sizes itself
-  into a centred landscape window on load. The game window starts at the same size
-  as the interface window and reuses the browser's remembered size after that.
-- The HTML version has no Browse buttons: a browser does not hand a page a local
-  path (picking a file yields only its name), so paths are typed or pasted.
-  Manual import uses the browser's own file picker. The Tk version keeps real
-  system dialogs.
-- Two ways out: the page's Exit button (closing the window does the same) and
-  Ctrl+C in the console. There is no heartbeat-based auto-exit — browsers slow the
-  timers of a hidden page to about once a minute, so “no contact” cannot be told
-  apart from “the user walked away”.
-
-**Layering**
-
-- `core/` holds all UI-agnostic logic (paths, config, logging, slots, save flows,
-  web server and bridge lifecycle, downloader, save editor) and reaches the screen
-  only through `core/ui_port.UiPort`. `ui_tk.py` and `webapp/` implement that port;
-  page code only builds widgets, calls `core` and renders events.
-
-**Save handling**
-
-- Manual Save is an explicit import now: pick a file (a system dialog in Tk, the
-  browser's file picker in HTML) or paste the save text. The temp folder is no
-  longer monitored, `kgsm_data/kgsm_temp` is not created or cleaned up any more,
-  and the file you pick is never modified or deleted. Overwriting a slot still
-  backs the old file up to `kgsm_data/backups/`.
-- Port: with an empty port field the automatically assigned port is remembered and
-  reused from then on; when a configured port is busy, this run falls back to an
-  automatic port and **the configured port stays as it was** (an automatic port no
-  longer replaces the value you set).
-- The v1.2.3 and v1.2.4 fixes were ported into this line: default-branch
-  detection, a ten-minute version-list cache, concurrent bridge requests and write
-  confirmation, save payloads no longer being stripped, Manual Save no longer
-  getting stuck, backup before overwrite, and more — each is described in full in
-  the v1.2.3 / v1.2.4 sections above. Both of those releases shipped the Tkinter
-  frontend only.
-
-**Interface details**
-
-- The download page's two checkboxes line up with the first line of their labels;
-  selects have a self-drawn chevron with room for it; slot labels read
-  “存档NN-名字” / “Save NN-name” everywhere; a “Copy Path” button that should have
-  been hidden no longer shows up in dialogs; the editor toolbar matches the Tk
-  version (view/source on the left, open/write on the right) and starts with only
-  the root level expanded; in live mode the slot dropdown is disabled.
-
-**Documentation and tests**
-
+- Added an HTML interface as the main version, keeping the name `KGSaveManager.py` (backend in
+  `webapp/`, assets in `webapp/assets/`): the interface is served on `127.0.0.1` and opened as a
+  browser app window (Edge/Chrome `--app=`, no address bar or tabs), with the window size, title
+  and icon provided by the page. The Tkinter frontend became the Tk version
+  (`KGSaveManagerTk.py`) and is still shipped; both share `core/` and the same `kgsm_data/`.
+- The HTML interface has six pages (home, Launch Game with a live log, Save Management with 10
+  slots and notes, Edit Save with view/source modes and collapsible nodes, Download Game,
+  Settings), supports `?page=…` deep links and runs a built-in self-test with `?selftest=1`.
+- Interface style: ice-white background with a single misty blue-violet accent, hairline borders
+  instead of drop shadows, serif headings with monospace eyebrow labels and a numbered pill
+  navigation. Body colours were checked against WCAG AA (5.5:1 – 16.9:1 measured), and fill/ink
+  is a fixed pair (4.69:1). Pages are single-column with their own vertical scrolling, and card
+  grids use `minmax(0, 1fr)` so content cannot blow the layout out.
+- Settings keep only what is actually used: language, browser, game directory, fixed port, where
+  the game window opens (separate window (app mode) / browser tab) and resume automatically.
+  Changes are saved as you edit them; the “Write” button is gone.
+- Resume automatically (on by default): closing the game window or tab (a reload counts) stores
+  the progress at that moment as `kgsm_data/session.kgsav`, and the next time the game is opened
+  that save is restored as soon as the page connects — which makes it independent of the port,
+  because the game's own save lives in browser storage isolated per origin (port included).
+  Deleting or resetting the save inside the game clears this stored progress too.
+- “Where the game window opens” applies only to the window “Launch Game” opens, which starts at
+  the same size as the interface window; the program's own interface window is always an app
+  window that sizes itself into a centred landscape window on load.
+- The HTML version has no Browse buttons: a browser does not hand a page a local path (picking a
+  file yields only its name), so paths are typed or pasted. Manual import uses the browser's own
+  file picker; the Tk version keeps real system dialogs.
+- Exiting: the page's Exit button, or simply closing the interface window (the backend waits a
+  moment to be sure it is not a reload). The packaged HTML version has no console window — the
+  address and logs live in the page, and run logs are still written to `kgsm_data/kgsm_log/`.
+- Layering: `core/` holds all UI-agnostic logic (paths, config, logging, slots, save flows, web
+  server and bridge lifecycle, downloader, save editor) and reaches the screen only through
+  `core/ui_port.UiPort`. `ui_tk.py` and `webapp/` implement that port; page code only builds
+  widgets, calls `core` and renders events.
+- Manual Save is an explicit import now: pick a file (a system dialog in Tk, the browser's file
+  picker in HTML) or paste the save text. The temp folder is no longer monitored,
+  `kgsm_data/kgsm_temp` is not created or cleaned up any more, and the file you pick is never
+  modified or deleted. Overwriting a slot still backs the old file up to `kgsm_data/backups/`.
+- Port: with an empty port field the automatically assigned port is remembered and reused from
+  then on; when a configured port is busy, this run falls back to an automatic port and the
+  configured port stays as it was (an automatic port no longer replaces the value you set).
+- The v1.2.3 and v1.2.4 fixes were ported into this line: default-branch detection, a ten-minute
+  version-list cache, concurrent bridge requests and write confirmation, save payloads no longer
+  being stripped, Manual Save no longer getting stuck, backup before overwrite, and more — each
+  is described in full in the v1.2.3 / v1.2.4 sections above. Both of those releases shipped the
+  Tkinter frontend only.
+- The download page's two checkboxes line up with the first line of their labels; selects have a
+  self-drawn chevron with room for it; slot labels read “存档NN-名字” / “Save NN-name”
+  everywhere; a “Copy Path” button that should have been hidden no longer shows up in dialogs;
+  the editor toolbar matches the Tk version (view/source on the left, open/write on the right)
+  and starts with only the root level expanded; in live mode the slot dropdown is disabled.
 - Offline documentation ships in English and Chinese (`docs/guide_en.html`,
-  `docs/guide_zh.html`) plus a Chinese changelog `CHANGELOG_zh.md`. The in-app
-  entries follow the interface language, and a file with the same name in `i18n/`
-  can replace them.
-- 220 tests, standard library only: save codec (compared against the game's own
-  `lib/lz-string.js` when Node.js is available), slot scanning, save flows, editor,
-  downloader, server and WebSocket bridge (including a Node harness for the
-  injected script), i18n consistency across Python and the web assets, and
-  dead-code checks. With Edge/Chrome installed, a headless browser also runs the
-  HTML page's self-test.
-
-**Packaging**
-
-- Two PyInstaller specs: `KGSaveManager.spec` (main version, bundles
-  `webapp/assets`) and `KGSaveManagerTk.spec` (Tk version); both build onedir.
+  `docs/guide_zh.html`) plus a Chinese changelog `CHANGELOG_zh.md`. The in-app entries follow the
+  interface language, and a file with the same name in `i18n/` can replace them.
+- 221 tests, standard library only: save codec (compared against the game's own
+  `lib/lz-string.js` when Node.js is available), slot scanning, save flows, editor, downloader,
+  server and WebSocket bridge (including a Node harness for the injected script), i18n
+  consistency across Python and the web assets, and dead-code checks. With Edge/Chrome
+  installed, a headless browser also runs the HTML page's self-test.
+- Two PyInstaller specs: `KGSaveManager.spec` (main version, bundles `webapp/assets`) and
+  `KGSaveManagerTk.spec` (Tk version); both build an onedir bundle, and the two frontends are
+  packaged separately as `KGSaveManager-v1.3.0-win-portable.zip` and
+  `KGSaveManagerTk-v1.3.0-win-portable.zip`.
 
 ## v1.2.4
 

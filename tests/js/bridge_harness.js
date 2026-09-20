@@ -158,7 +158,7 @@ async function main() {
   const sendBefore = FakeWebSocket.prototype.send;
   FakeWebSocket.prototype.send = function (text) {
     const msg = JSON.parse(text);
-    if (msg.type === 'session_snapshot') { snapshots.push(msg.data); }
+    if (msg.type === 'session_snapshot') { snapshots.push(msg); }
     return sendBefore.call(this, text);
   };
   // 引擎的 save() 返回对象（和游戏里一样），压缩交给 compressLZData
@@ -176,23 +176,78 @@ async function main() {
       failures.push('pagehide 处理器抛错: ' + (err && err.stack || err));
     }
   });
-  check(snapshots.length === 1 && snapshots[0] === 'LZ:{"a":1}',
-    '关闭游戏时应把当前存档发给 KGSM，实际: ' + JSON.stringify(snapshots));
+  check(snapshots.length === 1 && snapshots[0].data === 'LZ:{"a":1}'
+    && snapshots[0].cleared === false,
+  '关闭游戏时应把当前存档发给 KGSM，实际: ' + JSON.stringify(snapshots));
 
-  // ---- 场景 7：游戏内删档（localStorage 已清空）→ 要发空内容，让 KGSM 也删掉 ----
+  // ---- 场景 7：游戏内删档（localStorage 已清空）→ 要带上 cleared 标记 ----
   // 真实情况：点删档/重置时游戏清掉 localStorage 并刷新，而刷新前那一刻引擎里
-  // 还留着旧进度；若这里发旧进度，下次打开就会被灌回来，看起来像「删档没用」。
+  // 还留着旧进度；KGSM 侧看到 cleared 且自己已经存过，就会把那份删掉，
+  // 否则下次打开会把旧存档灌回来，看起来像「删档没用」。
   snapshots.length = 0;
   win.__stored = null;                  // LCstorage.getItem 返回 null = 已清空
   ws.readyState = 1;
   (listeners.pagehide || []).forEach((fn) => fn());
-  check(snapshots.length === 1 && snapshots[0] === '',
-    '删档后应发空内容（实际: ' + JSON.stringify(snapshots) + '）');
+  check(snapshots.length === 1 && snapshots[0].cleared === true,
+    '删档后应带 cleared 标记（实际: ' + JSON.stringify(snapshots) + '）');
+  check(snapshots[0].data !== '', '即使引擎里还有旧进度也照发数据（由 KGSM 侧决定）');
+
+  // ---- 场景 8：有引擎时按游戏自己的导入方式就地载入，不刷新页面 ----
+  // 真实原因：刷新页面会被游戏退出时的自动保存覆盖，看起来像「自动读档没反应」
+  let engineLoads = 0;
+  const reloadsBefore = results.reloads;
+  win.game = {
+    save() { return { a: 1 }; },
+    compressLZData(json) { return 'LZ:' + json; },
+    decompressLZData(blob) {
+      return (typeof blob === 'string' && blob.indexOf('LZ:') === 0)
+        ? blob.slice(3) : null;
+    },
+    load() { engineLoads += 1; return true; },
+    render() {},
+    isReadOnly() { return false; },
+    resPool: {}, managers: {},
+  };
+  const appliedBefore = results.applied.length;
+  ws.onmessage({
+    data: JSON.stringify({ type: 'apply_save', id: 11, data: 'LZ:{"b":2}' }),
+  });
+  await waitFor(() => results.applied.length > appliedBefore, 2000, 20);
+  await waitFor(() => engineLoads > 0, 2000, 20);
+  check(results.applied[results.applied.length - 1]
+    && results.applied[results.applied.length - 1].type === 'apply_ok',
+  '就地载入时也要回 apply_ok');
+  check(results.setItems['com.nuclearunicorn.kittengame.savedata'] === 'LZ:{"b":2}',
+    '存档要先写进 localStorage');
+  check(engineLoads === 1, '应调用引擎的 load() 就地载入，实际: ' + engineLoads);
+  check(results.reloads === reloadsBefore,
+    '有引擎时不该刷新页面（会被游戏退出保存覆盖）');
+
+  // 坏数据要被挡下来（游戏自己的导入会抛 Integrity check failure）
+  const badBefore = results.applied.length;
+  ws.onmessage({
+    data: JSON.stringify({ type: 'apply_save', id: 12, data: 'NOT-A-SAVE' }),
+  });
+  await waitFor(() => results.applied.length > badBefore, 2000, 20);
+  const badReply = results.applied[results.applied.length - 1] || {};
+  check(badReply.type === 'apply_err',
+    '解不出来的存档要回 apply_err，实际: ' + JSON.stringify(badReply));
+
+  // 预览模式（游戏自己的只读预览）不许写
+  win.game.isReadOnly = () => true;
+  const roBefore = results.applied.length;
+  ws.onmessage({
+    data: JSON.stringify({ type: 'apply_save', id: 13, data: 'LZ:{"c":3}' }),
+  });
+  await waitFor(() => results.applied.length > roBefore, 2000, 20);
+  const roReply = results.applied[results.applied.length - 1] || {};
+  check(roReply.type === 'apply_err' && /read-only/.test(roReply.err || ''),
+    '只读预览时不许写入，实际: ' + JSON.stringify(roReply));
+  win.game.isReadOnly = () => false;
 
   results.ok = failures.length === 0;
   finish(results);
 }
-
 function finish(results) {
   process.stdout.write(JSON.stringify(results));
   if (failures.length) {
