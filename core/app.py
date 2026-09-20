@@ -1,6 +1,6 @@
 """应用核心：把配置、日志、槽位、存档流程、服务/桥、下载、编辑器组装起来。
 
-两个前端（主版本 HTML 界面 `KGSaveManager.py`、Lite 版 Tkinter 界面 `KGSaveManagerLite.py`）
+两个前端（主版本 HTML 界面 `KGSaveManager.py`、Tk 版 Tkinter 界面 `KGSaveManagerTk.py`）
 都只创建一次 `AppCore`，然后把界面端口 `UiPort` 传进来；core 内部不含任何
 GUI 代码，也不需要知道自己被哪个前端驱动。
 """

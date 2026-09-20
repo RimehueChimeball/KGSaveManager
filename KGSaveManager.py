@@ -2,8 +2,8 @@
 
 界面是 `webapp/assets/` 里的 HTML/CSS/JS，由纯标准库的本地 HTTP 服务
 （`webapp/`）发给系统浏览器，并以应用窗口方式打开（Edge/Chrome 的
-`--app=`，无地址栏与标签页）。逻辑与旁边的 Tkinter 版
-（`KGSaveManagerLite.py`）完全共用 `core/`。
+`--app=`，无地址栏与标签页）。逻辑与旁边的 Tk 版
+（`KGSaveManagerTk.py`）完全共用 `core/`。
 
 用法：
     python KGSaveManager.py [--port N] [--no-browser] [--verbose]

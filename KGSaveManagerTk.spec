@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# KGSaveManager Lite（Tkinter 界面）PyInstaller 配置
+# KGSaveManager Tk（Tkinter 界面）PyInstaller 配置
 # - 与主版本共用 core/，界面是 Tkinter（标准库），适合只想用经典窗口的用户
 # - console=False：GUI 程序不弹出控制台
 # - hiddenimports：显式声明拆分的模块（含 core 逻辑层与 Tkinter 界面端口实现），
@@ -8,7 +8,7 @@
 # - upx=False：不依赖外部 UPX 压缩工具，避免构建告警（体积差异可忽略）
 
 a = Analysis(
-    ['KGSaveManagerLite.py'],
+    ['KGSaveManagerTk.py'],
     pathex=[],
     binaries=[],
     datas=[('docs', 'docs'),
@@ -36,7 +36,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='KGSaveManagerLite',
+    name='KGSaveManagerTk',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -56,5 +56,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='KGSaveManagerLite',
+    name='KGSaveManagerTk',
 )

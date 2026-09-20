@@ -35,7 +35,7 @@ class TestGuide(unittest.TestCase):
 
     def test_mentions_both_frontends(self):
         self.assertIn("KGSaveManager.py", self.html)
-        self.assertIn("KGSaveManagerLite.py", self.html)
+        self.assertIn("KGSaveManagerTk.py", self.html)
 
     def test_chinese_guide_mirrors_structure(self):
         """中文指南必须存在，锚点与英文版一一对应，且带上当前版本号。"""
@@ -51,7 +51,7 @@ class TestGuide(unittest.TestCase):
         self.assertEqual(sorted(self.anchors - zh_anchors), [],
                          "中文指南缺少英文版里的锚点（结构不对应）")
         self.assertIn("KGSaveManager.py", zh)
-        self.assertIn("KGSaveManagerLite.py", zh)
+        self.assertIn("KGSaveManagerTk.py", zh)
 
     def test_chinese_changelog_exists(self):
         self.assertTrue(CHANGELOG_ZH.is_file(), "缺少中文更新日志 CHANGELOG_zh.md")
@@ -123,7 +123,7 @@ class TestReadme(unittest.TestCase):
         for name in ("README.md", "README_zh.md"):
             text = (ROOT / name).read_text(encoding="utf-8")
             self.assertIn("KGSaveManager.py", text)
-            self.assertIn("KGSaveManagerLite.py", text)
+            self.assertIn("KGSaveManagerTk.py", text)
 
     def test_readme_lists_current_modules(self):
         text = (ROOT / "README.md").read_text(encoding="utf-8")

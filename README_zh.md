@@ -6,8 +6,9 @@ Kittens Game 存档管理器（Windows，Python 编写，零第三方依赖）�
 - **主版本 · HTML 界面**（`KGSaveManager.py` + `webapp/`）——界面是本地网页，
   以浏览器应用窗口打开；窗口标题与图标由页面决定（`<title>`、`favicon.ico`、
   `manifest.webmanifest`），也可以在浏览器菜单里把它装成独立应用。
-- **Lite 版 · Tkinter 界面**（`KGSaveManagerLite.py`）——经典桌面窗口，适合偏好
-  传统窗口或机器上没有 Edge/Chrome 的情况。
+- **Tk 版 · Tkinter 界面**（`KGSaveManagerTk.py`）——经典桌面窗口，不依赖浏览器、
+  也不开放本地端口（选文件夹用系统对话框），适合偏好传统窗口或机器上没有
+  Edge/Chrome 的情况。
 
 ## 功能
 
@@ -26,7 +27,7 @@ Kittens Game 存档管理器（Windows，Python 编写，零第三方依赖）�
 
 ```powershell
 python KGSaveManager.py        # 主版本（HTML 界面，自动打开浏览器应用窗口）
-python KGSaveManagerLite.py   # Lite 版（Tkinter 界面）
+python KGSaveManagerTk.py     # Tk 版（Tkinter 界面）
 ```
 
 主版本支持 `--port N`、`--no-browser`、`--verbose`；启动时会打印页面地址，地址后加
@@ -55,7 +56,7 @@ python KGSaveManagerLite.py   # Lite 版（Tkinter 界面）
 ```
 程序目录/
 ├─ KGSaveManager.py              主版本入口（HTML 界面）
-├─ KGSaveManagerLite.py          Lite 版入口（Tkinter 界面）
+├─ KGSaveManagerTk.py            Tk 版入口（Tkinter 界面）
 ├─ i18n.py / config_store.py / web_server.py / web_bridge.py
 ├─ savecodec.py / downloader.py
 ├─ pages_download.py / pages_editor.py / pages_manual.py  (Tkinter 视图)
@@ -88,11 +89,11 @@ python -m unittest discover -s tests -t .
 ```powershell
 pip install pyinstaller
 pyinstaller KGSaveManager.spec        # dist/KGSaveManager/KGSaveManager.exe（主版本）
-pyinstaller KGSaveManagerLite.spec    # dist/KGSaveManagerLite/KGSaveManagerLite.exe（Lite）
+pyinstaller KGSaveManagerTk.spec      # dist/KGSaveManagerTk/KGSaveManagerTk.exe（Tk）
 ```
 
 产物：主版本 `dist/KGSaveManager/KGSaveManager.exe`（已把 `webapp/assets` 打进包）；
-Lite 版 `dist/KGSaveManagerLite/KGSaveManagerLite.exe`。
+Tk 版 `dist/KGSaveManagerTk/KGSaveManagerTk.exe`。
 
 ## 许可
 

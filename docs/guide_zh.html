@@ -75,8 +75,8 @@
 <h1>KGSaveManager — 离线文档</h1>
 <p>KGSaveManager 是 Windows 上的 Kittens Game 存档管理工具，用 Python 编写，界面中英双语，不依赖任何第三方库。版本：v1.3.0。</p>
 <p>两套前端共用同一份数据目录与配置文件：主版本是 HTML 界面
-（<code>KGSaveManager.py</code>），在系统浏览器里显示；Lite 版是传统 Tkinter
-窗口（<code>KGSaveManagerLite.py</code>）。本文档描述的行为两者一致（界面差异会单独说明）。</p>
+（<code>KGSaveManager.py</code>），在系统浏览器里显示；Tk 版是传统 Tkinter
+窗口（<code>KGSaveManagerTk.py</code>）。本文档描述的行为两者一致（界面差异会单独说明）。</p>
 
 <h2 id="html-ui">主版本（HTML 界面）</h2>
 <p>启动方式：</p>
@@ -94,7 +94,7 @@
   <li>窗口尺寸：应用窗口的尺寸由浏览器按配置记住，命令行 <code>--window-size</code>
       只在首次（干净配置）生效，因此页面会在加载时自行把窗口调整成横向并居中；
       如果你已经手动调整过窗口，程序不会再改动它。</li>
-  <li>界面本身是网页，所以“选择文件夹”是文本输入：粘贴路径后确认（Lite 版则是
+  <li>界面本身是网页，所以“选择文件夹”是文本输入：粘贴路径后确认（Tk 版则是
       系统文件对话框）。</li>
   <li>退出只有两种方式：页面里的「退出」按钮，或 Ctrl+C / 关闭控制台窗口。程序<strong>不会</strong>
       因为页面停止响应而自行退出——浏览器会把隐藏（最小化或被完全遮住）页面的定时器降频到约
@@ -107,8 +107,9 @@
 文件是共享的。</p>
 
 <h2 id="quick-start">快速开始</h2>
-<p>Lite 版用 <code>python KGSaveManagerLite.py</code> 启动，页面与行为相同，
-只是窗口是 Tkinter 的。</p>
+<p>Tk 版用 <code>python KGSaveManagerTk.py</code> 启动，页面与行为相同，
+只是窗口是 Tkinter 的。它不需要浏览器、也不开放本地端口，选文件夹用系统对话框
+而不是文本框。</p>
 <ol>
   <li>先读这份文档。</li>
   <li>打开「下载游戏」页：保持默认仓库与版本，下载源先选

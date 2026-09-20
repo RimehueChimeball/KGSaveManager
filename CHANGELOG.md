@@ -38,20 +38,24 @@ All notable changes are listed by version.
   Copy Path button and states that a save's slot comes from its file name
   (`name_1.kgsav` … `name_10.kgsav`), so files can be renamed in the file
   manager and picked up with Refresh.
-- Both frontends now ship an application icon: the executables use `assets/KGSaveManager.ico`, the Lite window and its dialogs use the same icon, and the HTML version serves it as its favicon (`webapp/assets/favicon.ico` plus a PNG generated from it).
+- Both frontends now ship an application icon: the executables use `assets/KGSaveManager.ico`, the Tk window and its dialogs use the same icon, and the HTML version serves it as its favicon (`webapp/assets/favicon.ico` plus a PNG generated from it).
 
 - Ported the v1.2.3 fixes into this line (bug fixes only, no feature changes):
   the default branch is now detected reliably instead of being guessed as `main`
   (the original repository only has `master`, so guessing made every download
   source answer 404 when the GitHub API was rate limited); the version list is
   cached for ten minutes and only refetched when the button is pressed; the
-  download log explains why a fallback happened. The Lite (Tkinter) frontend also
+  download log explains why a fallback happened. The Tk (Tkinter) frontend also
   reports unhandled interface-callback exceptions (run log, page log and a dialog
   with the log path) instead of failing silently, and cancels its pending UI poll
   job on exit.
 - The HTML frontend is now the main version and keeps the plain name
-  `KGSaveManager.py`; the Tkinter frontend is the Lite version
-  (`KGSaveManagerLite.py`). Both share `kgsm_data/` and behave identically.
+  `KGSaveManager.py`; the Tkinter frontend is the Tk version
+  (`KGSaveManagerTk.py`, packaged as `KGSaveManagerTk.exe`). Both share
+  `kgsm_data/` and behave identically. The Tkinter frontend was called the Lite
+  version while v1.3.0 was in development; the name was changed to Tk because
+  “portable” describes both frontends equally and the difference between them is
+  the interface technology.
 - HTML interface: the whole UI is rendered in the system browser (Edge/Chrome
   app window) and talks to the same logic layer over a local HTTP/JSON API. No
   third-party dependency.
@@ -123,7 +127,7 @@ All notable changes are listed by version.
 - Documentation now ships in Chinese as well: `docs/guide_zh.html` (same
   structure and anchors as the English guide) and `CHANGELOG_zh.md` (mirrors
   this file section by section). The in-app entries pick the language: the
-  about box offers “Offline guide” and “Changelog”, and the Lite version's
+  about box offers “Offline guide” and “Changelog”, and the Tk version's
   guide button opens the Chinese guide when the interface is Chinese. Both
   changelogs are bundled by the PyInstaller specs.
 - Settings are saved as you edit them: the “Write” button is gone and changes to
@@ -148,11 +152,11 @@ All notable changes are listed by version.
   `docs/guide_zh.html` on a Chinese UI and `docs/guide_en.html` otherwise (the
   changelog link picks `CHANGELOG_zh.md` / `CHANGELOG.md`), and a file with the
   same name in `i18n/` wins over the bundled one, so a translated guide or
-  changelog can be shipped without touching the program. The Lite version used
+  changelog can be shipped without touching the program. The Tk version used
   to label its guide link with a hard-coded English file name.
 - The document entries live on the home page only; the Settings page keeps a
   “Paths” card for the data folder instead of a second “About” block.
-- Lite editor fixes: its slot dropdown was empty at startup, so pressing Open
+- Tk editor fixes: its slot dropdown was empty at startup, so pressing Open
   only produced “please select a slot that contains a save” even with saves in
   the library — the list is now filled while the page is built; and the
   view/source row no longer stretches vertically (two rows shared the extra

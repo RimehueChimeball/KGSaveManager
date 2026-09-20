@@ -1,5 +1,5 @@
 """
-KGSaveManager Lite（Tkinter 界面）
+KGSaveManager Tk（Tkinter 界面）
 =================================
 
 《Kittens Game》存档管理器的经典窗口版：纯 Tkinter 界面，零第三方依赖，
@@ -70,7 +70,7 @@ TAB_ORDER = ("kgsm", "game", "saves", "editor", "download", "settings")
 class KGSaveManager(ManualSaveMixin, EditorPageMixin, DownloadPageMixin):
     def __init__(self, root):
         self.root = root
-        self.app_name = f"{APP_NAME} Lite"
+        self.app_name = f"{APP_NAME} Tk"
         self.root.title(f"{self.app_name} {APP_VERSION}")
         self.root.geometry("1120x640")
         self.root.minsize(800, 480)

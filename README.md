@@ -8,8 +8,9 @@ Two frontends share one logic layer and the same `kgsm_data/` folder:
   local web page opened as a browser app window; the window title and icon come
   from the page (`<title>`, `favicon.ico`, `manifest.webmanifest`), and the page
   can be installed as a standalone app from the browser menu.
-- **Lite version — Tkinter UI** (`KGSaveManagerLite.py`) — the classic desktop
-  window, for users who prefer it or have no Edge/Chrome available.
+- **Tk version — Tkinter UI** (`KGSaveManagerTk.py`) — the classic desktop
+  window; it needs no browser and opens no local port (folders are picked with
+  the system dialog), for users who prefer it or have no Edge/Chrome available.
 
 ## Features
 
@@ -28,7 +29,7 @@ Two frontends share one logic layer and the same `kgsm_data/` folder:
 
 ```powershell
 python KGSaveManager.py        # main version (HTML UI; opens a browser app window)
-python KGSaveManagerLite.py   # lite version (Tkinter UI)
+python KGSaveManagerTk.py     # Tk version (Tkinter UI)
 ```
 
 The main (HTML UI) version accepts `--port N`, `--no-browser` and `--verbose`.
@@ -59,7 +60,7 @@ hidden window to about once a minute.
 ```
 program/
 ├─ KGSaveManager.py              main entry (HTML UI)
-├─ KGSaveManagerLite.py          lite entry (Tkinter UI)
+├─ KGSaveManagerTk.py            Tk entry (Tkinter UI)
 ├─ i18n.py / config_store.py / web_server.py / web_bridge.py
 ├─ savecodec.py / downloader.py
 ├─ pages_download.py / pages_editor.py / pages_manual.py  (Tkinter views)
@@ -99,11 +100,11 @@ in the code.
 ```powershell
 pip install pyinstaller
 pyinstaller KGSaveManager.spec        # dist/KGSaveManager/KGSaveManager.exe (main)
-pyinstaller KGSaveManagerLite.spec    # dist/KGSaveManagerLite/KGSaveManagerLite.exe
+pyinstaller KGSaveManagerTk.spec      # dist/KGSaveManagerTk/KGSaveManagerTk.exe (Tk)
 ```
 
 Output: `dist/KGSaveManager/KGSaveManager.exe` (main, HTML UI; bundles
-`webapp/assets`) and `dist/KGSaveManagerLite/KGSaveManagerLite.exe` (lite, Tkinter).
+`webapp/assets`) and `dist/KGSaveManagerTk/KGSaveManagerTk.exe` (Tk, Tkinter).
 
 ## License
 

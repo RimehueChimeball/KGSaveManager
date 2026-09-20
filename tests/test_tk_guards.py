@@ -1,4 +1,4 @@
-"""Lite 版（Tkinter 界面）的防护测试。
+"""Tk 版（Tkinter 界面）的防护测试。
 
 覆盖 v1.2.3 回迁到主线的两处：
 - 界面回调里的未处理异常必须留下痕迹（运行日志 + 页面日志 + 弹窗），
@@ -29,12 +29,12 @@ def _tk_available():
 
 
 @unittest.skipUnless(_tk_available(), "无可用 Tk 环境")
-class TestLiteGuards(unittest.TestCase):
+class TestTkGuards(unittest.TestCase):
     def setUp(self):
         self.tmp = TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        import KGSaveManagerLite as lite
-        self.lite = lite
+        import KGSaveManagerTk as tkmod
+        self.tkmod = tkmod
         self.app = None
 
     def _build(self):
@@ -42,7 +42,7 @@ class TestLiteGuards(unittest.TestCase):
         root = tk.Tk()
         root.withdraw()
         core_base = Path(self.tmp.name)
-        app = self.lite.KGSaveManager(root)
+        app = self.tkmod.KGSaveManager(root)
         self.addCleanup(self._close, app, root)
         self.app = app
         return app, root
@@ -84,15 +84,15 @@ class TestLiteGuards(unittest.TestCase):
         blob = savecodec.compress_base64('{"a":1}')
         (library / "自检_3.kgsav").write_text(blob, encoding="utf-8")
         # 让程序数据与存档库落在临时目录里，避免污染仓库
-        saved = (self.lite.BASE_DIR, self.lite.SAVE_LIBRARY,
-                 self.lite.BACKUP_DIR)
-        self.lite.BASE_DIR = tmp
-        self.lite.SAVE_LIBRARY = library
-        self.lite.BACKUP_DIR = tmp / "kgsm_data" / "backups"
+        saved = (self.tkmod.BASE_DIR, self.tkmod.SAVE_LIBRARY,
+                 self.tkmod.BACKUP_DIR)
+        self.tkmod.BASE_DIR = tmp
+        self.tkmod.SAVE_LIBRARY = library
+        self.tkmod.BACKUP_DIR = tmp / "kgsm_data" / "backups"
 
         def restore():
-            (self.lite.BASE_DIR, self.lite.SAVE_LIBRARY,
-             self.lite.BACKUP_DIR) = saved
+            (self.tkmod.BASE_DIR, self.tkmod.SAVE_LIBRARY,
+             self.tkmod.BACKUP_DIR) = saved
         self.addCleanup(restore)
 
         app, root = self._build()
@@ -109,7 +109,7 @@ class TestLiteGuards(unittest.TestCase):
         app, root = self._build()
         root.update()
         page = app.notebook.nametowidget(
-            app.notebook.tabs()[self.lite.TAB_ORDER.index("editor")])
+            app.notebook.tabs()[self.tkmod.TAB_ORDER.index("editor")])
         rows = sorted(page.winfo_children(), key=lambda w: w.winfo_y())
         view_row = rows[1] if len(rows) > 1 else None
         self.assertIsNotNone(view_row)
