@@ -150,6 +150,23 @@ All notable changes are listed by version.
 - The run log gained a page-side note channel: the page can forward a message to
   the run log (`ui_note`), which is how “why was this window not full screen”
   ends up somewhere that survives closing the page.
+- The launch settings now cover the <b>game window</b> as well: “Launch Game” used
+  to always open a plain browser window (with a tab strip and address bar), so
+  choosing app mode changed nothing there. The game page now follows the same two
+  settings (separate app window / browser tab). The game page is not this
+  program's page and its layout cannot be touched from here, so maximized / full
+  screen is applied by the script injected into it (measured: app mode with
+  maximized gives a 1920×1032 game window filling the work area; before the change
+  it was a plain 1936×1048 browser window).
+- Fixed the configured port being overwritten by an automatically assigned one:
+  when the configured port is busy, the run falls back to an automatic port, but
+  it no longer writes that new port back into the configuration. The old code
+  cleared the “configured port” flag before deciding, so the user's fixed port was
+  silently replaced — with a second copy of the program running (or the port taken
+  by anything else), every start moved to a new random port, which is exactly what
+  the repeated “fixed port N is busy, using an automatic port” lines in the run
+  logs were. The configured value is now kept; the auto port is recorded only when
+  the field was empty to begin with.
 - The “Default Save Slot” setting is gone from both versions. It was the
   configuration entry for a Tk home-page feature that no longer exists; what
   remained was “which slot is selected at startup”, and in the HTML version it

@@ -8,7 +8,7 @@ import socket
 from pathlib import Path
 
 from web_bridge import WebSocketBridge
-from web_server import LocalWebServer, open_in_browser
+from web_server import LocalWebServer
 
 
 def _port_in_use(port, timeout=0.35):
@@ -27,13 +27,11 @@ def _port_in_use(port, timeout=0.35):
 class ServerController:
     """启动/停止「启动游戏」用的本地静态服务与存档桥。"""
 
-    def __init__(self, *, ui, cfg, t, events, logger=None,
-                 browser_new_window=True):
+    def __init__(self, *, ui, cfg, t, events, logger=None):
         self.ui = ui
         self.cfg = cfg
         self.t = t
         self.logger = logger
-        self.browser_new_window = browser_new_window
         self._events = events
         self.lweb = LocalWebServer(events)
         self.bridge = None
@@ -76,6 +74,9 @@ class ServerController:
 
         port = 0
         port_text = self.cfg.port.strip()
+        # 只有"配置里本来没写端口"时才把自动端口写回配置。端口被占用退回自动端口
+        # 是本次运行的事，不能拿它覆盖用户配置里的端口。
+        save_auto_port = not port_text
         if port_text:
             try:
                 port = int(port_text)
@@ -91,20 +92,27 @@ class ServerController:
                 self.ui.web_log(
                     self.t("msg.port_busy_fallback", port=port),
                     self.t("tag.error"))
-                self._log_warn(f"固定端口 {port} 已被占用，本次改用自动端口")
-                port_text, port = "", 0
+                self._log_warn(f"固定端口 {port} 已被占用，本次改用自动端口"
+                               f"（配置里的端口保持不变）")
+                port = 0
 
         if self.running:
             self.ui.web_log(self.t("msg.server_restart"), self.t("tag.start"))
             self.stop()
 
         bridge = None
+        # 游戏页不是本程序的页面，窗口状态只能由注入脚本落实（命令行参数在浏览器
+        # 已在运行时会被忽略）；标签页模式下页面改不了窗口尺寸，因此不注入。
+        bridge_state = (self.cfg.window_state
+                        if getattr(self.cfg, "launch_mode", "app") == "app"
+                        else "")
         try:
             bridge = WebSocketBridge()
             bridge.set_ui_queue(self._events)
             bridge.start()
             url, actual_port = self.lweb.start(str(root_dir), port,
-                                               bridge=bridge)
+                                               bridge=bridge,
+                                               window_state=bridge_state)
         except OSError as e:
             if bridge is not None:
                 try:
@@ -112,15 +120,15 @@ class ServerController:
                 except Exception:
                     pass
             self.ui.web_log(self.t("msg.server_fail", e=e), self.t("tag.error"))
-            self._log_error(f"服务启动失败 port={port_text or '(auto)'}: {e}")
-            self.ui.fail(f"port={port_text or '(auto)'}: {e}",
+            self._log_error(f"服务启动失败 port={port or '(auto)'}: {e}")
+            self.ui.fail(f"port={port or '(auto)'}: {e}",
                          self.t("err.launch_fail"))
             return None
         self.bridge = bridge
 
         # 没配固定端口时，把这次实际用的端口记为固定端口（下次默认用它）。
-        # 若下次该端口被占用，上面那段会退回自动端口并再次记下来，不会卡死。
-        if not port_text:
+        # 端口被占用退回自动端口的那一次不写回：用户配的端口要留住。
+        if save_auto_port:
             self.cfg.update(port=str(actual_port))
             self.ui.web_log(self.t("msg.port_auto_saved", port=actual_port),
                             self.t("tag.start"))
@@ -151,12 +159,12 @@ class ServerController:
         self._log_action("WEB_STOP", "服务与存档桥已停止")
 
     def open_game_window(self, url=None):
-        """用配置的浏览器打开游戏页（新窗口）。"""
+        """按配置打开游戏页：应用窗口（可最大化/全屏）或浏览器标签页。"""
         url = url or self.url
         if not url:
             return False
-        how = open_in_browser(url, browser_path=self.cfg.browser,
-                              new_window=self.browser_new_window)
+        from web_server import open_game_window as _open_game
+        how = _open_game(self.cfg, url)
         if how:
             self.ui.web_log(self.t("msg.browser_opened", how=how),
                             self.t("tag.browser"))

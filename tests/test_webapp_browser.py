@@ -84,10 +84,12 @@ class TestBrowserSelftest(unittest.TestCase):
         self.assertIn("PASS 打开存档后槽位下拉保留所选", report, report)
         self.assertIn("PASS 实时模式下禁用槽位下拉", report, report)
         self.assertIn("PASS 切回文件模式后槽位下拉恢复可用", report, report)
-        # 启动位置/窗口状态：标签页模式下窗口状态要禁用
+        # 启动位置/窗口状态：标签页模式下窗口状态要禁用，且随 set_config 上报
         self.assertIn("PASS 配置页有启动位置与窗口状态", report, report)
         self.assertIn("PASS 标签页模式下禁用窗口状态", report, report)
         self.assertIn("PASS 应用模式下窗口状态可用", report, report)
+        self.assertIn("PASS 启动位置与窗口状态随 set_config 一起上报", report,
+                      report)
 
     def test_page_serves_state_to_browser(self):
         """页面加载后应拿到真实数据（不依赖自检脚本）。"""

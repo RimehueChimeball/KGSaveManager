@@ -49,7 +49,9 @@ class _BridgeWebHandler(_WebHandler):
         bridge = self._bridge()
         path = urllib.parse.urlsplit(self.path).path
         if bridge is not None and path == "/kgsm-bridge.js":
-            js = bridge_js(getattr(self.server, "kgsm_ws_url", ""))
+            js = bridge_js(getattr(self.server, "kgsm_ws_url", ""),
+                           window_state=getattr(self.server,
+                                                "kgsm_window_state", ""))
             body = js.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type",
@@ -111,12 +113,14 @@ class LocalWebServer:
     def url(self):
         return self._url
 
-    def start(self, directory, port=0, bridge=None):
+    def start(self, directory, port=0, bridge=None, window_state=""):
         """启动服务。
 
         :param directory: 服务根目录（需已存在）
         :param port: 端口号，0 表示自动分配空闲端口
         :param bridge: WebSocketBridge 实例；提供时启用页面注入
+        :param window_state: 注入脚本要落实的窗口状态（''/'max'/'full'），
+            只影响由本程序打开的游戏页面
         :return: (url, actual_port)
         :raises OSError: 端口被占用/绑定失败等
         """
@@ -131,6 +135,7 @@ class LocalWebServer:
             setattr(self._server, "kgsm_bridge", bridge)
             setattr(self._server, "kgsm_ws_url",
                     f"ws://127.0.0.1:{bridge.port}/")
+            setattr(self._server, "kgsm_window_state", window_state or "")
         actual_port = self._server.server_address[1]
         self._thread = __import__("threading").Thread(
             target=self._server.serve_forever, name="web-server", daemon=True)
@@ -169,26 +174,44 @@ def _launch(exe, url, new_window):
     subprocess.Popen(args)
 
 
+def _window_plan(cfg):
+    """从配置取出 (启动位置, 页面侧窗口状态, 窗口状态)。
+
+    :return: (mode, fit, state)：mode 为 'app'/'tab'；fit 为 'auto'/'max'/'full'
+    """
+    mode = getattr(cfg, "launch_mode", "app")
+    state = getattr(cfg, "window_state", "normal")
+    fit = {"normal": "auto", "max": "max", "full": "full"}.get(state, "auto")
+    return mode, fit, state
+
+
 def app_window_args(exe, url, width=1320, height=840, fit="auto",
-                    fullscreen=False):
+                    fullscreen=False, maximized=False, window_size=None):
     """应用窗口模式（无地址栏/标签页）的启动参数。
 
-    URL 上带 `fit=<auto|max|full>`：页面加载后自己调整窗口。命令行的
-    `--window-size` 与 `--start-fullscreen` 只在"浏览器进程由本次启动创建"时
-    生效（实测：浏览器已经在运行时两者都会被忽略，窗口沿用记忆尺寸），所以
-    两种方式都做——页面还会在发现没进全屏时退而求其次最大化。
+    :param fit: 写进 URL 的窗口状态（auto/max/full，页面自己据此调整窗口）；
+        传空串表示这个页面不认识该参数（例如游戏页，由注入脚本落实）
+    :param fullscreen/maximized: 命令行开关，只在"浏览器进程由本次启动创建"时
+        生效（实测：浏览器已经在运行时会被忽略，窗口沿用记忆尺寸）
+    :param window_size: 是否带 --window-size；默认只在 fit=auto 时带
     """
-    sep = "&" if "?" in url else "?"
-    args = [exe, f"--app={url}{sep}fit={fit}"]
-    if fit == "auto":
+    if fit:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}fit={fit}"
+    if window_size is None:
+        window_size = fit == "auto"
+    args = [exe, f"--app={url}"]
+    if window_size:
         args.append(f"--window-size={int(width)},{int(height)}")
+    if maximized:
+        args.append("--start-maximized")
     if fullscreen:
         args.append("--start-fullscreen")
     return args
 
 
 def open_app_window(url, browser_path="", width=1320, height=840, fit="auto",
-                    fullscreen=False):
+                    fullscreen=False, maximized=False, window_size=None):
     """以「应用窗口」方式打开地址（Edge/Chrome 的 --app=，无地址栏与标签页）。
 
     :return: 'app'（应用窗口）/ 其他打开方式字符串 / None（失败）
@@ -203,7 +226,8 @@ def open_app_window(url, browser_path="", width=1320, height=840, fit="auto",
     if exe and os.path.isfile(exe) and _is_known_engine(exe):
         try:
             subprocess.Popen(app_window_args(exe, url, width, height, fit,
-                                             fullscreen))
+                                             fullscreen, maximized,
+                                             window_size))
             return "app"
         except OSError:
             pass
@@ -219,14 +243,31 @@ def open_ui_window(cfg, url, width=1320, height=840):
 
     :return: 打开方式描述字符串（给启动横幅用）
     """
-    mode = getattr(cfg, "launch_mode", "app")
-    state = getattr(cfg, "window_state", "normal")
-    browser = getattr(cfg, "browser", "")
+    mode, fit, state = _window_plan(cfg)
     if mode == "tab":
-        return open_in_browser(url, browser_path=browser, new_window=False)
-    fit = {"normal": "auto", "max": "max", "full": "full"}.get(state, "auto")
-    return open_app_window(url, browser_path=browser, width=width, height=height,
-                           fit=fit, fullscreen=(state == "full"))
+        return open_in_browser(url, browser_path=cfg.browser,
+                               new_window=False)
+    return open_app_window(url, browser_path=cfg.browser, width=width,
+                           height=height, fit=fit,
+                           fullscreen=(state == "full"))
+
+
+def open_game_window(cfg, url, width=1320, height=840):
+    """按配置打开游戏页（「启动游戏」用它）。
+
+    游戏页不是本程序的页面，不能用 fit 参数让页面自己调整窗口；`max`/`full` 由
+    注入到游戏页的脚本落实（`web_server.LocalWebServer.start(window_state=...)`），
+    命令行开关只是尽量同步（浏览器已经在运行时会被忽略）。
+
+    :return: 打开方式描述字符串（失败返回 None）
+    """
+    mode, _fit, state = _window_plan(cfg)
+    if mode == "tab":
+        return open_in_browser(url, browser_path=cfg.browser,
+                               new_window=False)
+    return open_app_window(url, browser_path=cfg.browser, width=width,
+                           height=height, fit="", maximized=(state == "max"),
+                           fullscreen=(state == "full"), window_size=True)
 
 
 def open_in_browser(url, browser_path="", new_window=True):

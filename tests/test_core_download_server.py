@@ -22,6 +22,8 @@ class FakeConfig:
         self.game_dir = ""
         self.port = ""
         self.browser = ""
+        self.launch_mode = "app"
+        self.window_state = "normal"
         self.updates = []
 
     def update(self, **kw):
@@ -357,7 +359,12 @@ class TestServerController(unittest.TestCase):
             self.assertFalse(ctl.status()["running"])
 
     def test_busy_fixed_port_falls_back_to_auto(self):
-        """配置的固定端口被占用时改用自动端口，并把新端口记进配置。"""
+        """配置的固定端口被占用时本次改用自动端口，但配置里的端口要留住。
+
+        早先这里会把自动端口写回配置，于是用户设的固定端口被悄悄换掉：只要
+        另有一份程序在跑，每次启动都会换成新的随机端口（实测日志里一串
+        「固定端口 N 已被占用，本次改用自动端口」就是这样来的）。
+        """
         import socket as _socket
         with TemporaryDirectory() as tmp:
             game = Path(tmp) / "game"
@@ -377,7 +384,10 @@ class TestServerController(unittest.TestCase):
                 self.assertIsNotNone(url, "占用端口应退回自动端口而不是失败")
                 used = int(url.rsplit(":", 1)[1].strip("/"))
                 self.assertNotEqual(used, busy_port)
-                self.assertEqual(cfg.port, str(used))
+                self.assertEqual(cfg.port, str(busy_port),
+                                 "占用退回是本次运行的事，不该覆盖配置里的端口")
+                self.assertFalse(cfg.updates,
+                                 "退回自动端口时不应写配置")
                 self.assertTrue(any("msg.port_busy_fallback" in m
                                     for _tag, m in ui.logs),
                                 "应提示固定端口被占用")
@@ -388,23 +398,61 @@ class TestServerController(unittest.TestCase):
             finally:
                 blocker.close()
 
-    def test_open_game_window_uses_browser(self):
+    def test_open_game_window_follows_launch_settings(self):
+        """游戏窗口也按「启动位置/窗口状态」打开（应用窗口或浏览器标签页）。"""
+        import web_server
         calls = []
-        orig = core_server.open_in_browser
-        core_server.open_in_browser = (
-            lambda url, browser_path="", new_window=True:
-            calls.append((url, new_window)) or "custom")
+
+        def fake_open(cfg, url, width=1320, height=840):
+            calls.append((cfg, url))
+            return "app"
+
+        orig = web_server.open_game_window
+        web_server.open_game_window = fake_open
         try:
             with TemporaryDirectory() as tmp:
                 game = Path(tmp) / "game"
                 game.mkdir()
-                ctl, _cfg, _ui = self._controller(tmp, str(game))
+                ctl, cfg, _ui = self._controller(tmp, str(game))
                 ctl.start()
                 self.assertTrue(ctl.open_game_window())
-                self.assertEqual(calls[-1][1], True)
+                self.assertEqual(calls[-1][1], ctl.url)
+                self.assertIs(calls[-1][0], cfg)
                 ctl.stop()
         finally:
-            core_server.open_in_browser = orig
+            web_server.open_game_window = orig
+
+    def test_game_window_args_follow_config(self):
+        """应用模式下游戏窗口用 --app=（带窗口状态参数）；标签页模式不新开窗口。"""
+        import web_server
+        calls = []
+        orig_popen = web_server.subprocess.Popen
+        web_server.subprocess.Popen = lambda args: calls.append(args)
+        try:
+            with TemporaryDirectory() as tmp:
+                exe = Path(tmp) / "msedge.exe"
+                exe.write_bytes(b"")
+                cfg = FakeConfig()
+                cfg.browser = str(exe)
+                url = "http://127.0.0.1:9/"
+                cfg.window_state = "normal"
+                web_server.open_game_window(cfg, url)
+                self.assertIn(f"--app={url}", calls[-1], "游戏页不该带 fit 参数")
+                self.assertIn("--window-size=1320,840", calls[-1])
+                cfg.window_state = "max"
+                web_server.open_game_window(cfg, url)
+                self.assertIn("--start-maximized", calls[-1])
+                cfg.window_state = "full"
+                web_server.open_game_window(cfg, url)
+                self.assertIn("--start-fullscreen", calls[-1])
+                self.assertNotIn("--start-maximized", calls[-1])
+                cfg.launch_mode = "tab"
+                web_server.open_game_window(cfg, url)
+                self.assertNotIn("--app=", " ".join(calls[-1]))
+                self.assertNotIn("--new-window", calls[-1],
+                                 "标签页模式不新开窗口")
+        finally:
+            web_server.subprocess.Popen = orig_popen
 
     def test_open_game_window_without_url(self):
         with TemporaryDirectory() as tmp:

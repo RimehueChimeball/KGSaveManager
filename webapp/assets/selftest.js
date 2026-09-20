@@ -275,22 +275,51 @@
     // 启动位置（标签页/应用窗口）与窗口状态（窗口/最大化/全屏）
     const launchSel = document.querySelector("#set-launch-mode");
     const stateSel = document.querySelector("#set-window-state");
+    const winHint = document.querySelector("#win-state-hint");
     check("配置页有启动位置与窗口状态",
           !!launchSel && !!stateSel &&
           launchSel.options.length === 2 &&
           stateSel.options.length === 3);
+    // 切换下拉会触发自动保存：这里把 set_config 拦下来，既验证上报内容，
+    // 又不改动真实配置（自检只做只读或可回滚的操作）
+    const savedSettings = [];
+    const realFetch2 = window.fetch;
+    window.fetch = (url, opts) => {
+      if (String(url).indexOf("/api/call") >= 0 && opts && opts.body) {
+        let payload = null;
+        try { payload = JSON.parse(opts.body); } catch (e) { payload = null; }
+        if (payload && payload.method === "set_config") {
+          savedSettings.push(payload.params || {});
+          return Promise.resolve(new Response(
+            JSON.stringify({ ok: true, result: {} }),
+            { status: 200,
+              headers: { "Content-Type": "application/json" } }));
+        }
+      }
+      return realFetch2(url, opts);
+    };
     if (launchSel && stateSel) {
       launchSel.value = "tab";
       launchSel.dispatchEvent(new Event("change"));
       await sleep(80);
-      check("标签页模式下禁用窗口状态", stateSel.disabled === true &&
-            (document.querySelector("#win-state-hint").textContent || "")
-              .length > 4);
+      check("标签页模式下禁用窗口状态",
+            stateSel.disabled === true &&
+            (winHint.textContent || "").length > 4);
+      await sleep(500);                       // 等去抖（350ms）后的一次写入
       launchSel.value = "app";
       launchSel.dispatchEvent(new Event("change"));
       await sleep(80);
       check("应用模式下窗口状态可用", stateSel.disabled === false);
+      await sleep(500);
     }
+    window.fetch = realFetch2;
+    check("启动位置与窗口状态随 set_config 一起上报（" +
+          savedSettings.length + " 次）",
+          savedSettings.length >= 2 &&
+          savedSettings[0].launch_mode === "tab" &&
+          Object.prototype.hasOwnProperty.call(savedSettings[0],
+                                               "window_state") &&
+          savedSettings[savedSettings.length - 1].launch_mode === "app");
 
     // 槽位列表与编辑器下拉框使用同一格式（存档NN-名字）
     await gotoTab("saves");
