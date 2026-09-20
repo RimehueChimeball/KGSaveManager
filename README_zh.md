@@ -6,9 +6,9 @@ Kittens Game 存档管理器（Windows，Python 编写，零第三方依赖）�
 - **主版本 · HTML 界面**（`KGSaveManager.py` + `webapp/`）——界面是本地网页，
   以浏览器应用窗口打开；窗口标题与图标由页面决定（`<title>`、`favicon.ico`、
   `manifest.webmanifest`），也可以在浏览器菜单里把它装成独立应用。
-- **Tk 版 · Tkinter 界面**（`KGSaveManagerTk.py`）——经典桌面窗口，不依赖浏览器、
-  也不开放本地端口（选文件夹用系统对话框），适合偏好传统窗口或机器上没有
-  Edge/Chrome 的情况。
+- **Tk 版 · Tkinter 界面**（`KGSaveManagerTk.py`）——经典桌面窗口，界面自身不依赖
+  浏览器、也不开放本地端口（选文件夹用系统对话框；游戏本身仍是网页，仍需浏览器打开），
+  适合偏好传统窗口或机器上没有 Edge/Chrome 的情况。
 
 ## 功能
 

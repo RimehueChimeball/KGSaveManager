@@ -9,8 +9,9 @@ Two frontends share one logic layer and the same `kgsm_data/` folder:
   from the page (`<title>`, `favicon.ico`, `manifest.webmanifest`), and the page
   can be installed as a standalone app from the browser menu.
 - **Tk version — Tkinter UI** (`KGSaveManagerTk.py`) — the classic desktop
-  window; it needs no browser and opens no local port (folders are picked with
-  the system dialog), for users who prefer it or have no Edge/Chrome available.
+  window: its own interface needs no browser and opens no local port (folders are
+  picked with the system dialog; the game itself is still a web page and still
+  opens in the browser), for users who prefer it or have no Edge/Chrome.
 
 ## Features
 
