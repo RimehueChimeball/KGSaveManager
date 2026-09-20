@@ -192,6 +192,87 @@ All notable changes are listed by version.
   `AccessibilityObject.Bounds` recursion error and hangs. The browser-based
   frontend needs no third-party dependency at all.
 
+## v1.2.4
+
+This version shipped the Tkinter frontend only (the HTML frontend arrives in
+v1.3.0). It was released from the `release/1.2.x` branch; the fixes were ported
+into the v1.3.0 line, see the “ported from v1.2.4” entry above.
+
+- The application now ships its own icon: the executable shows it in Explorer and
+  on the taskbar, and the main window and its dialogs use the same icon at
+  runtime.
+- Fixed Manual Save getting stuck forever: once a half-finished file (for
+  example a browser's `.crdownload`) had been picked as the candidate and was
+  then renamed or deleted, the dialog kept polling that path and never imported
+  anything again. The candidate is now reset and rescanned when it disappears or
+  when it does not stop changing for two minutes, and half-finished names
+  (`.crdownload`, `.part`, `.tmp`, …) are ignored entirely.
+- Manual Save now also works in the natural order “export the file first, then
+  click Manual Save”: a file that is already in the temp folder is picked up as
+  the candidate (the download log says so).
+- Saves are no longer altered on import: only trailing line endings are removed
+  instead of stripping the whole payload. UTF-16 saves end with padding spaces
+  that are part of the data, so the old behaviour both changed the file and made
+  the format check report “possibly invalid” for perfectly good saves.
+  The codec now recognises the format first (JSON / Base64 / UTF-16) and the
+  decoder tolerates the trailing padding being cut off, matching the game's
+  JavaScript implementation.
+- Auto Load and the editor's live write now wait for the page to confirm the
+  result (`apply_ok` / `apply_err`) instead of reporting success as soon as the
+  data was sent. If the page does not confirm in time, the dialog says so instead
+  of claiming success. Both run in the background, so the window no longer
+  freezes while waiting.
+- The editor's “open from the running game” no longer blocks the window: the
+  fetch runs in the background and the result is applied when it arrives.
+- A slot file is backed up to `kgsm_data/backups/` before being overwritten by
+  Manual Save or Auto Save, using the same naming as the editor.
+- The automatically assigned port is no longer written into the configuration:
+  it was stored as if it were a fixed port, so the next start failed whenever
+  that port happened to be busy.
+- Concurrent bridge requests no longer fail instantly: a request that arrives
+  while another one is in flight waits for it instead of returning “no data”
+  immediately, and the caller's timeout is honoured.
+- Fixed the version-list cache log line printing the source where the branch
+  belongs.
+- Tests: added `tests/test_manual_save.py` (manual-save state machine) and
+  extended the bridge tests (apply confirmation, concurrent requests).
+
+## v1.2.3
+
+This version shipped the Tkinter frontend only. It was released from the
+`release/1.2.x` branch; the fixes were ported into the v1.3.0 line, see the
+“ported from v1.2.3” entry above.
+
+- Fixed the download page failing for the original repository
+  (`nuclear-unicorn/kittensgame`) with every source reporting 404, while the
+  community repository worked. The default branch was guessed as `main` whenever
+  the GitHub API call failed; the original repository only has `master`, so all
+  four sources answered 404. The branch is now detected properly: the API is
+  queried first and, if it is unavailable (unauthenticated GitHub API calls are
+  limited to 60 per hour per IP), the candidates are probed against the archive
+  URL and the branch that actually exists is used. The download log now says why
+  (for example “GitHub API unavailable (possibly rate limited), detected default
+  branch: master”).
+- The version list is cached for ten minutes and only refetched when the
+  “Refresh versions” button is pressed, so browsing the page or switching
+  language no longer burns the API quota.
+- Fixed the Download Game page doing nothing when the download button was
+  clicked: the version list stored the repository ref as a string while the
+  start routine unpacked it as a `(kind, ref)` pair, so every click raised
+  `ValueError: too many values to unpack` inside the Tkinter callback. In the
+  packaged window build there is no console, so the failure was completely
+  silent. The button now starts the download. (Broken since v1.2.0.)
+- Unhandled exceptions in UI callbacks are no longer silent: they are written to
+  the run log and the page log and shown in a message box with the log path.
+- The download worker no longer touches Tkinter variables from its background
+  thread (writing the game directory and syncing the input fields now happens on
+  the UI thread after the `dl_done` event), which previously could raise
+  `main thread is not in main loop`.
+- The pending UI poll job is cancelled on exit, avoiding a Tcl error while
+  shutting down.
+- Added `tests/test_download_page.py`: it drives the download page with a stubbed
+  downloader and fails if the button stops starting a download again.
+
 ## v1.2.2
 
 - Bridge diagnosis corrected: `<div id="game">` is exposed as `window.game`

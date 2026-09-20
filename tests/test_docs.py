@@ -57,10 +57,27 @@ class TestGuide(unittest.TestCase):
         self.assertTrue(CHANGELOG_ZH.is_file(), "缺少中文更新日志 CHANGELOG_zh.md")
         zh = CHANGELOG_ZH.read_text(encoding="utf-8")
         en = CHANGELOG.read_text(encoding="utf-8")
-        # 中文版要覆盖英文版提到的每个版本段
+        # 两份文件的版本段必须一一对应（任一方向缺少都算错）
+        self.assertEqual(re.findall(r"^## (v[0-9.]+)", en, re.M),
+                         re.findall(r"^## (v[0-9.]+)", zh, re.M),
+                         "中英更新日志的版本段不一致")
+
+    def test_changelog_covers_every_released_version(self):
+        """已发布的版本都要有自己的段落，且按版本号降序排列。
+
+        v1.2.3 / v1.2.4 发布时只在 release/1.2.x 分支上写了段落，main 的更新
+        日志里只有一句「移植了这两个版本的修复」，读更新日志的人根本看不到
+        这两个版本。现在用测试把这件事钉住。
+        """
+        en = CHANGELOG.read_text(encoding="utf-8")
         versions = re.findall(r"^## (v[0-9.]+)", en, re.M)
-        for version in versions:
-            self.assertIn(f"## {version}", zh, f"中文更新日志缺少 {version}")
+        self.assertIn(APP_VERSION, versions, "缺少当前版本的段落")
+        for released in ("v1.2.3", "v1.2.4"):
+            self.assertIn(released, versions, f"更新日志缺少已发布的 {released}")
+        keys = [tuple(int(p) for p in v.lstrip("v").split("."))
+                for v in versions]
+        self.assertEqual(keys, sorted(keys, reverse=True),
+                         "版本段没有按降序排列（新段落插错位置）")
 
     def test_open_doc_targets_exist(self):
         """程序里“离线文档/更新日志”入口指向的文件必须存在。"""
