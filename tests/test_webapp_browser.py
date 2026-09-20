@@ -47,20 +47,23 @@ class TestBrowserSelftest(unittest.TestCase):
         self.h = WebHarness(self.tmp.name)
         self.addCleanup(self.tmp.cleanup)
         self.addCleanup(self.h.close)
-        # 放一个存档，让自检里的编辑器/折叠检查真的跑起来（临时目录，测完即删）
+        # 放两个存档，让自检里的编辑器检查真的跑起来（临时目录，测完即删）：
+        # 两个槽位才能验证「打开后保留所选槽位」不会被重置回第一项
         import savecodec
-        blob = savecodec.compress_base64(
-            '{"saveVersion":2,"resources":{"catnip":{"value":12.5}},'
-            '"buildings":[{"name":"hut","val":3}]}')
-        self.h.core.slots.write(2, blob, 1024 * 1024)
+        for index in (2, 5):
+            blob = savecodec.compress_base64(
+                '{"saveVersion":2,"resources":{"catnip":{"value":12.5}},'
+                '"buildings":[{"name":"hut","val":3}]}')
+            self.h.core.slots.write(index, blob, 1024 * 1024)
 
     def test_page_selftest_passes(self):
-        # 自检需要一点真实时间（备注往返、事件轮询）；窗口尺寸按应用窗口给，
-        # 这样布局检查（宽屏分列）才在真实条件下执行。
+        # 自检需要一点真实时间（备注往返、事件轮询、样式测量）；窗口尺寸按应用
+        # 窗口给，这样布局检查（宽屏分列）才在真实条件下执行。
+        # 虚拟时间预算给足：页面里的等待都算在预算内，太短会在自检跑完前 dump。
         proc = subprocess.run(
             [self.browser, "--headless=new", "--disable-gpu", "--no-first-run",
              "--window-size=1280,860",
-             "--virtual-time-budget=20000", "--dump-dom",
+             "--virtual-time-budget=45000", "--dump-dom",
              self.h.url.rstrip("/") + "/?selftest=1"],
             capture_output=True, encoding="utf-8", errors="replace",
             timeout=180)
@@ -77,6 +80,10 @@ class TestBrowserSelftest(unittest.TestCase):
         self.assertIn("PASS 宽屏下卡片横向分列", report, report)
         self.assertIn("PASS 页面不出现横向滚动", report, report)
         self.assertIn("PASS 卡片分成多行排布", report, report)
+        # 编辑器下拉：选择要保留、实时模式要禁用（seed 了两个存档，这里必须真跑）
+        self.assertIn("PASS 打开存档后槽位下拉保留所选", report, report)
+        self.assertIn("PASS 实时模式下禁用槽位下拉", report, report)
+        self.assertIn("PASS 切回文件模式后槽位下拉恢复可用", report, report)
 
     def test_page_serves_state_to_browser(self):
         """页面加载后应拿到真实数据（不依赖自检脚本）。"""

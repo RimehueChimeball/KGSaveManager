@@ -115,10 +115,11 @@ All notable changes are listed by version.
 - The editor toolbar mirrors the Tkinter layout again: view/source as a
   segmented switch on the left with a visible selection, open/write on the
   right.
-- Button and pill fills use a lighter accent (`oklch(54% 0.115 262)`,
-  rgb(73,109,177)) than the text accent (`oklch(46% 0.105 262)`): the darker
-  tone read as too heavy as a fill, while white text on the lighter fill still
-  measures 5.1:1.
+- Button and pill fills use a lighter accent than the text accent: the text
+  accent stays dark (`oklch(46% 0.105 262)`, hairlines and eyebrow labels) while
+  fills use `oklch(56% 0.115 262)` (rgb(78,115,184)) with white ink (4.69:1,
+  WCAG AA). The original dark fill read as too heavy, and anything paler than
+  this step fails with white text.
 - Documentation now ships in Chinese as well: `docs/guide_zh.html` (same
   structure and anchors as the English guide) and `CHANGELOG_zh.md` (mirrors
   this file section by section). The in-app entries pick the language: the
@@ -156,6 +157,29 @@ All notable changes are listed by version.
   the library — the list is now filled while the page is built; and the
   view/source row no longer stretches vertically (two rows shared the extra
   height, leaving ~66px above and below it; now the content area takes it all).
+- The main version no longer exits on its own. Chromium throttles the timers of a
+  hidden page to about once a minute, so “the page has not spoken to us for a
+  while” cannot tell an idle user apart from a minimised or covered window — the
+  12-second watchdog first went to 180s, and the watchdog, its heartbeat
+  endpoint (`/api/ping`) and the `--serve` flag it needed are now removed
+  entirely. The program exits in exactly two ways: the Exit button in the page
+  (closing the window triggers it too) and Ctrl+C in the console.
+- Editor: the slot dropdown keeps the slot you picked. The list is redrawn from
+  the backend on every refresh and used to jump back to the first entry each
+  time you pressed Open. In live mode the dropdown is disabled and explains that
+  live mode reads and writes the running game instead of a save slot.
+- A merged design-system reference was added outside this repo at
+  `Web_project/kgsm-design-system/`: this interface's own styling plus the
+  elements the reference design has and this project did not use (tags, status
+  badges, timeline rows, image placeholders, empty states, snow dividers,
+  sparkle atmosphere, footer, frosted top nav, drawer, lift cards, scroll
+  reveal, grid primitives), with a showroom page, split CSS
+  (`tokens.css` / `base.css` / `components.css`), machine-readable
+  `tokens.json`, and `README.md` / `AGENTS.md` / `SOURCES.md`.
+- The HTML button fill uses the original accent hue lightened by one step
+  instead of the cyan-leaning variant; the fill/ink pair, the active nav pill
+  colours and the editor dropdown behaviour are asserted in the browser
+  self-test.
 - Tests: 208 cases covering core (slots, flows, editor, download, server),
   bridge protocol and keepalive, injected script, downloader, i18n across
   Python and web assets, dead-code checks, and the browser self-test run.

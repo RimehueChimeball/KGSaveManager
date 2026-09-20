@@ -184,8 +184,6 @@ class WebApi:
         self.core = core
         self.ui = ui_port
         self.on_shutdown = on_shutdown
-        self._last_seen = time.time()
-        self.ever_seen = False
 
     # ---------------- 状态 ----------------
     def state(self):
@@ -374,15 +372,6 @@ class WebApi:
                 "state": self.editor_state()}
 
     # ---------------- 生命周期 ----------------
-    def ping(self):
-        """页面心跳：用于判断窗口是否已关闭。"""
-        self._last_seen = time.time()
-        self.ever_seen = True
-        return {"time": self._last_seen}
-
-    def last_seen(self):
-        return self._last_seen
-
     def shutdown(self):
         if self.on_shutdown is not None:
             threading.Thread(target=self.on_shutdown, daemon=True).start()

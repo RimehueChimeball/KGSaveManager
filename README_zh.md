@@ -29,8 +29,9 @@ python KGSaveManager.py        # 主版本（HTML 界面，自动打开浏览器
 python KGSaveManagerLite.py   # Lite 版（Tkinter 界面）
 ```
 
-主版本支持 `--port N`、`--no-browser`、`--serve`（窗口关闭后继续常驻）、
-`--verbose`；启动时会打印页面地址，地址后加 `?selftest=1` 可跑它的自检。
+主版本支持 `--port N`、`--no-browser`、`--verbose`；启动时会打印页面地址，地址后加
+`?selftest=1` 可跑它的自检。退出只有两种方式：页面里的「退出」按钮，或 Ctrl+C；
+它不会因为页面停止响应而自行退出（浏览器会把隐藏窗口的定时器降频到约每分钟一次）。
 
 ## 快速开始
 

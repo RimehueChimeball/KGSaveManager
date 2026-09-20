@@ -119,10 +119,6 @@ class _Handler(BaseHTTPRequestHandler):
             events, seq = self.server.outbox.since(since)
             self._json({"ok": True, "events": events, "next": seq})
             return
-        if route == "/api/ping":
-            self.server.api.ping()
-            self._json({"ok": True})
-            return
         self.send_error(404, "not found")
 
     def do_POST(self):

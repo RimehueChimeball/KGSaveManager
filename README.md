@@ -31,9 +31,11 @@ python KGSaveManager.py        # main version (HTML UI; opens a browser app wind
 python KGSaveManagerLite.py   # lite version (Tkinter UI)
 ```
 
-The main (HTML UI) version accepts `--port N`, `--no-browser`, `--serve` (keep running after the
-window closes) and `--verbose`. The page address is printed on startup; append
-`?selftest=1` to run its built-in self-test.
+The main (HTML UI) version accepts `--port N`, `--no-browser` and `--verbose`.
+The page address is printed on startup; append `?selftest=1` to run its built-in
+self-test. It exits only through the page's Exit button or Ctrl+C: it never
+quits because the page stopped responding, since Chromium slows timers of a
+hidden window to about once a minute.
 
 ## Quick Start
 

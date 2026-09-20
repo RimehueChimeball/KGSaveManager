@@ -154,6 +154,7 @@ _ZH = {
     "ed.mode_file": "存档槽位（文件）",
     "ed.mode_live": "运行中的游戏（实时）",
     "ed.slot": "槽位",
+    "ed.slot_live_tip": "实时模式直接读写运行中的游戏，不使用存档槽位。",
     "ed.source": "数据源",
     "ed.col_key": "键",
     "ed.col_value": "值",
@@ -410,6 +411,8 @@ _EN = {
     "ed.mode_file": "Save slot (file)",
     "ed.mode_live": "Running game (live)",
     "ed.slot": "Slot",
+    "ed.slot_live_tip": "Live mode reads and writes the running game "
+                        "directly and does not use save slots.",
     "ed.source": "Data Source",
     "ed.col_key": "Key",
     "ed.col_value": "Value",

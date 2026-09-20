@@ -416,10 +416,17 @@ class TestWebApp(unittest.TestCase):
         self.assertTrue(self.h.call("shutdown"))
         self.assertTrue(self.h.state["shutdown"])
 
-    def test_ping_marks_page_seen(self):
-        status, _body = self.h.get_json("/api/ping")
-        self.assertEqual(status, 200)
-        self.assertTrue(self.h.api.ever_seen)
+    def test_no_heartbeat_endpoint(self):
+        """没有页面心跳，也没有"页面多久没响应就退出"的看门狗。
+
+        浏览器会把隐藏页面的定时器降频到约每分钟一次，心跳无法区分
+        「用户离开了」与「窗口被最小化了」，因此这套机制已移除。
+        """
+        self.assertFalse(hasattr(self.h.api, "ping"))
+        self.assertFalse(hasattr(self.h.api, "last_seen"))
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.h.get_json("/api/ping")
+        self.assertEqual(ctx.exception.code, 404)
 
 
 class TestAppWindow(unittest.TestCase):

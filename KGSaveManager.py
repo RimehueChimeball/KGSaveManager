@@ -6,17 +6,20 @@
 （`KGSaveManagerLite.py`）完全共用 `core/`。
 
 用法：
-    python KGSaveManager.py [--port N] [--no-browser] [--serve] [--verbose]
+    python KGSaveManager.py [--port N] [--no-browser] [--verbose]
 
 - `--port N`     固定页面服务端口（默认自动分配）
 - `--no-browser` 不自动打开窗口（只打印地址）
-- `--serve`      不随页面关闭而退出（常驻服务）
 - `--verbose`    打印访问日志
+
+退出方式只有两种：页面里的「退出」按钮，或 Ctrl+C / 关闭控制台窗口。
+程序**不会**因为页面停止响应而自行退出：浏览器会把最小化/被遮住页面的定时器
+降频到约每分钟一次，"页面多久没心跳"无法区分"用户离开了"和"窗口被最小化了"。
 """
 
 import argparse
 import sys
-import time
+import threading
 
 from utils import setup_dpi_and_scaling
 from web_server import open_app_window
@@ -24,9 +27,6 @@ from webapp.api import EventPump, WebApi, WebUiPort
 from webapp.server import AppServer, EventBuffer
 
 from core.app import APP_NAME, APP_VERSION, AppCore
-
-# 页面停止心跳多久后退出（秒）；页面每 2 秒心跳一次
-IDLE_EXIT_SECONDS = 12.0
 
 
 def build_app(base_dir=None, port=0, verbose=False):
@@ -51,7 +51,6 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=f"{APP_NAME} (main version)")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--no-browser", action="store_true")
-    parser.add_argument("--serve", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
 
@@ -65,22 +64,19 @@ def main(argv=None):
     print(f"{APP_NAME} {APP_VERSION}")
     print(f"  页面地址: {url}")
     print(f"  数据目录: {core.paths.data}")
-    print("  关闭窗口或按 Ctrl+C 退出")
+    print("  退出：页面里的「退出」按钮，或按 Ctrl+C")
 
     if not args.no_browser:
         how = open_app_window(url, browser_path=core.cfg.browser)
         print(f"  打开方式: {how or '(失败，请手动打开上面的地址)'}")
 
+    # 只等两种退出信号：页面的「退出」按钮（state["shutdown"]）与 Ctrl+C。
+    # 不做"页面多久没心跳就退出"的看门狗——浏览器会降低隐藏页面的定时器频率，
+    # 无法区分"用户离开了"和"窗口被最小化了"。
+    stop = threading.Event()
     try:
-        while not app["state"]["shutdown"]:
-            time.sleep(0.3)
-            if args.serve:
-                continue
-            api = app["api"]
-            if (api.ever_seen
-                    and time.time() - api.last_seen() > IDLE_EXIT_SECONDS):
-                print("页面已关闭，退出。")
-                break
+        while not app["state"]["shutdown"] and not stop.wait(0.3):
+            pass
     except KeyboardInterrupt:
         print("\n收到 Ctrl+C，退出。")
     finally:

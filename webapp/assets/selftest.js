@@ -203,13 +203,6 @@
                                               el.clientWidth + 1);
     check("路径文本自动换行（无溢出的元素）", overflowing.length === 0, false);
 
-    // 导航选中态有过渡动画（背景层 + 颜色）
-    const navBtn = document.querySelector("#nav button");
-    const dur = parseFloat(css(navBtn, "transition-duration")) || 0;
-    const layer = getComputedStyle(navBtn, "::before");
-    check("导航选中态有过渡动画", dur > 0 &&
-          (parseFloat(layer.transitionDuration) || 0) > 0);
-
     // 退出按钮与弹窗：名字是"退出"，且不该出现复制路径按钮
     const exitBtn = document.getElementById("btn-exit");
     check("侧栏退出按钮叫「退出」",
@@ -349,6 +342,35 @@
           segBtns.filter((b) => b.classList.contains("active")).length === 1);
     check("默认选中「视图」", segBtns[0].classList.contains("active"));
 
+    // 编辑器：打开存档后保留所选槽位；实时模式下禁用槽位下拉
+    const edSlot = document.getElementById("ed-slot");
+    const edMode = document.getElementById("ed-mode");
+    const edState = await api("refresh");
+    const existsSet = (edState.slots || []).filter((s) => s.exists)
+      .map((s) => String(s.index));
+    const other = Array.from(edSlot.options).map((o) => o.value)
+      .filter((v) => existsSet.indexOf(v) >= 0)[1];
+    if (other) {
+      edSlot.value = other;
+      openBtn.click();
+      await sleep(700);
+      check("打开存档后槽位下拉保留所选（槽位 " + other + "）",
+            edSlot.value === other);
+    } else {
+      check("至少两个已存在的存档位（跳过选择保留检查）", true, false);
+    }
+    edMode.value = "live";
+    edMode.dispatchEvent(new Event("change"));
+    await sleep(80);
+    check("实时模式下禁用槽位下拉", edSlot.disabled === true);
+    check("实时模式下槽位下拉带说明文字",
+          (edSlot.title || "").length > 4 &&
+          edSlot.title.indexOf("ed.") !== 0);
+    edMode.value = "file";
+    edMode.dispatchEvent(new Event("change"));
+    await sleep(80);
+    check("切回文件模式后槽位下拉恢复可用", edSlot.disabled === false);
+
     // 折叠功能的默认状态：只展开根节点，其余全部收起
     // （每次点击后 DOM 会整体重建，所以每次都要重新查询节点，不能用旧引用）
     const treeBranches = () => Array.from(
@@ -397,6 +419,22 @@
 
     // 新样式是否真的生效（计算值，不看截图）
     await gotoTab("saves");
+
+    // 先确认过渡动画存在（无头浏览器不产生帧，过渡会停在起始值，
+    // 所以下面量颜色/透明度前会临时关掉过渡与动画）
+    const navProbe = document.querySelector("#nav button");
+    const navDur = parseFloat(css(navProbe, "transition-duration")) || 0;
+    const layerDur =
+      parseFloat(getComputedStyle(navProbe, "::before").transitionDuration) || 0;
+    check("导航选中态有过渡动画（" + navDur + "s / " + layerDur + "s）",
+          navDur > 0 && layerDur > 0);
+    const noMotion = document.createElement("style");
+    noMotion.textContent =
+      "*, *::before, *::after { transition: none !important;" +
+      " animation: none !important; }";
+    document.head.appendChild(noMotion);
+    await sleep(80);
+
     const card = cards[0];
     // 计算值可能是 oklch(...)，用画布真实绘制后再读回 sRGB 像素
     const cvs = document.createElement("canvas");
@@ -457,16 +495,22 @@
       return (hi + 0.05) / (lo + 0.05);
     };
     const fillRgb = rgb(css(accentBtn, "background-color"));
+    const fillInk = rgb(css(accentBtn, "color"));
     const eyebrowRgb = rgb(css(eyebrow, "color"));
-    check("按钮填充比眉题文字色更浅（" + fillRgb.join(",") + " vs " +
-          eyebrowRgb.join(",") + "）",
-          relLum(fillRgb) > relLum(eyebrowRgb));
-    check("白字在按钮填充上仍达 AA（" +
-          contrast([255, 255, 255], fillRgb).toFixed(2) + ":1）",
-          contrast([255, 255, 255], fillRgb) >= 4.5);    const activeNav = document.querySelector("#nav button.active");
-    check("侧栏当前项为强调色填充药丸",
+    check("按钮填充为蓝底（" + fillRgb.join(",") + "，蓝-红差 " +
+          (fillRgb[2] - fillRgb[0]) + "）",
+          relLum(fillRgb) > relLum(eyebrowRgb) &&
+          fillRgb[2] > fillRgb[1] && fillRgb[2] - fillRgb[0] >= 80);
+    const nearWhite = (c) => c.every((v) => v >= 250);
+    check("填充上的文字为白色且达 AA（" +
+          contrast(fillInk, fillRgb).toFixed(2) + ":1）",
+          nearWhite(fillInk) && contrast(fillInk, fillRgb) >= 4.5);
+    const activeNav = document.querySelector("#nav button.active");
+    const navInk = activeNav ? rgb(css(activeNav, "color")) : [];
+    check("侧栏当前项为蓝色药丸 + 白字（" + navInk.join(",") + "）",
           !!activeNav && !!activeNav.querySelector(".side-no") &&
-          parseFloat(css(activeNav, "border-radius")) >= 40);
+          parseFloat(css(activeNav, "border-radius")) >= 40 &&
+          nearWhite(navInk));
     check("侧栏编号为等宽字体",
           !!activeNav &&
           /mono|Consolas|Menlo/i.test(css(activeNav.querySelector(".side-no"),
@@ -489,6 +533,7 @@
     check("日志面板为浅色等宽面板",
           rgb(css(logPanel, "background-color")).every((v) => v >= 240) &&
           /mono|Consolas|Menlo/i.test(css(logPanel, "font-family")), false);
+    noMotion.remove();       // 恢复过渡/动画，后面的交互检查按正常状态跑
     if (nav.length) { nav[0].click(); }
     await sleep(120);
 

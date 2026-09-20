@@ -189,14 +189,27 @@ class EditorPageMixin:
             self._rebuild_edit_tree()
 
     def _refresh_edit_slots(self):
-        """让槽位下拉跟随存档库刷新（由主类 update_slots_display 调用）。"""
+        """让槽位下拉跟随存档库刷新（由主类 update_slots_display 调用）。
+
+        重画选项时要保留当前选择：`configure(values=…)` 会清空文本框，
+        若之后又退回第一项，用户每次点「打开」都会看到选择被重置。
+        """
         if not hasattr(self, "edit_slot_combo"):
             return
         if not self._widget_alive(self.edit_slot_combo):
             return
+        cur = self.edit_slot_var.get()
         mapping = {text: index for text, index in self.editor.slot_choices()}
         values = list(mapping.keys())
         self.edit_slot_combo.configure(values=values)
-        cur = self.edit_slot_var.get()
-        if self.edit_mode_var.get() == "file" and cur not in mapping:
-            self.edit_slot_var.set(values[0] if values else "")
+        if cur in mapping:
+            self.edit_slot_var.set(cur)          # 选择还在：原样保留
+            return
+        if self.edit_mode_var.get() == "file":
+            # 没选过、或选中的项已消失：跟随编辑器当前打开的槽位，其次第一项
+            opened = self.editor.slot
+            want = next((text for text, index in mapping.items()
+                         if index == opened), None)
+            self.edit_slot_var.set(want or (values[0] if values else ""))
+        else:
+            self.edit_slot_var.set("")

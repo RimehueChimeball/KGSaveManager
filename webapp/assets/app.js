@@ -17,6 +17,7 @@
     paths: {},
     config: {},
     selectedSlot: 0,
+    editorSlot: null,      // 编辑器选中的槽位（重画下拉时保留，避免跳回第一项）
     eventSeq: 0,
     page: "kgsm",
   };
@@ -257,6 +258,9 @@
 
   function renderEditorChoices() {
     const sel = $("#ed-slot");
+    // 重画下拉时保留用户当前的选择（否则每次点「打开」都会跳回第一项）
+    const keep = state.editorSlot !== null && state.editorSlot !== undefined
+      ? String(state.editorSlot) : sel.value;
     sel.innerHTML = "";
     (state.editorChoices || []).forEach((item) => {
       const opt = document.createElement("option");
@@ -264,6 +268,25 @@
       opt.textContent = item.label;
       sel.appendChild(opt);
     });
+    if (keep !== "" && keep !== undefined && keep !== null) {
+      const hit = Array.from(sel.options).some((o) => o.value === String(keep));
+      if (hit) { sel.value = String(keep); }
+    }
+    if (sel.value === "" && sel.options.length) {
+      sel.value = sel.options[0].value;
+      state.editorSlot = parseInt(sel.value, 10);
+    }
+  }
+
+  // 实时模式没有"存档位"概念：把下拉禁用并给出去重提示
+  function syncEditorMode() {
+    const live = $("#ed-mode").value === "live";
+    const sel = $("#ed-slot");
+    sel.disabled = live;
+    sel.title = live ? t("ed.slot_live_tip") : "";
+    if (!live) {
+      state.editorSlot = parseInt(sel.value || "0", 10);
+    }
   }
 
   function leafNode(row) {
@@ -575,11 +598,6 @@
     }
   }
 
-  async function heartbeat() {
-    try { await fetch("/api/ping"); } catch (e) { /* ignore */ }
-    setTimeout(heartbeat, 2000);
-  }
-
   // ---------------- 动作 ----------------
   let settingsTimer = null;
 
@@ -609,6 +627,11 @@
         el.addEventListener("change", saveSettingsSoon);
         el.addEventListener("blur", saveSettingsSoon);
       });
+  }
+
+  // 数据源切换（存档位文件 / 运行中的游戏）→ 同步存档位下拉的可用状态
+  function bindEditorMode() {
+    $("#ed-mode").addEventListener("change", syncEditorMode);
   }
 
   const actions = {
@@ -697,11 +720,12 @@
       // 打开新的存档：折叠状态清零（默认只展开根节点）
       state.editorExpanded = {};
       if (mode === "file") {
-        const res = await call("editor_open_file",
-                               { slot: parseInt($("#ed-slot").value || "0", 10) });
+        const want = parseInt($("#ed-slot").value || "0", 10);
+        state.editorSlot = want;
+        const res = await call("editor_open_file", { slot: want });
         if (res && res.ok) {
           state.editorChoices = res.state.choices;
-          renderEditorChoices();
+          renderEditorChoices();     // 保留刚才选中的槽位，不跳回第一项
           await loadEditorData();
         }
         return;
@@ -787,6 +811,7 @@
   (async function boot() {
     fitAppWindow();
     bindSettingsAutoSave();
+    bindEditorMode();
     let init = null;
     try {
       init = await fetch("/api/state").then((r) => r.json());
@@ -794,8 +819,8 @@
     if (init && init.ok) { applyState(init.result); }
     const want = new URLSearchParams(window.location.search).get("page");
     showPage(want || "kgsm");
+    syncEditorMode();
     await call("download_versions", { repo: "author" });
     pollEvents();
-    heartbeat();
   })();
 })();

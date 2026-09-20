@@ -19,8 +19,9 @@
   --muted:        oklch(50% 0.018 260);     /* 次级文字 */
   --border:       oklch(91.5% 0.008 245);   /* 发丝线 */
   --accent:       oklch(46% 0.105 262);     /* 雾蓝紫 · 文字/眉题/描边 */
-  --accent-fill:  oklch(54% 0.115 262);     /* 填充用（按钮/药丸），比文字色浅 */
-  --accent-fill-hover: oklch(48% 0.12 262);
+  --accent-fill:  oklch(56% 0.115 262);     /* 高亮填充：原版色系提亮一档 */
+  --accent-fill-hover: oklch(51% 0.115 262);
+  --accent-fill-ink: var(--surface);        /* 填充上使用白色文字 */
 
   --accent-soft:   color-mix(in oklch, var(--accent) 12%, transparent);
   --accent-softer: color-mix(in oklch, var(--accent) 6%, transparent);
@@ -156,9 +157,9 @@ body {
   transition: opacity .24s ease, transform .32s cubic-bezier(.22, 1, .36, 1);
 }
 #nav button.active {
-  border-color: var(--accent-fill);
-  color: var(--surface);
-  font-weight: 500;
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--accent-fill));
+  color: var(--accent-fill-ink);
+  font-weight: 600;
   transform: none;
 }
 #nav button.active::before { opacity: 1; transform: scale(1); }
@@ -172,7 +173,7 @@ body {
   font-variant-numeric: tabular-nums;
   transition: color .22s ease;
 }
-#nav button.active .side-no { color: var(--surface); }
+#nav button.active .side-no { color: var(--accent-fill-ink); }
 #nav button.active::after {
   content: '→';
   position: relative;
@@ -340,8 +341,9 @@ button:hover { border-color: var(--fg); background: var(--fg-soft); }
 button:active { transform: translateY(1px); }
 button.primary {
   background: var(--accent-fill);
-  border-color: var(--accent-fill);
-  color: var(--surface);
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--accent-fill));
+  color: var(--accent-fill-ink);
+  font-weight: 600;
 }
 button.primary:hover {
   background: var(--accent-fill-hover);
