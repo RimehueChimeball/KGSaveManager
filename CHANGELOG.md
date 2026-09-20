@@ -135,6 +135,21 @@ All notable changes are listed by version.
   existing “all changes are saved automatically” hint). The
   sidebar button is now “Exit” with its own confirmation text, and the download
   page's dismiss button is “Cancel” instead of “Close”.
+- Two new settings, both taking effect on the next start: <b>launch position</b>
+  (separate window (app mode) / browser tab) and <b>window state</b> (window /
+  maximized / full screen). Measured on a 1920×1080 screen with a 1032-high work
+  area: app mode with “window” gives a centred 1320×805 window, “maximized” fills
+  the work area (1920×1032), and “full screen” reaches 1920×1080 (covering the
+  taskbar) when this launch starts the browser process. When the browser is
+  already running, `--start-fullscreen` is ignored (the window keeps its
+  remembered size), so the program falls back to maximized and writes the reason
+  to the run log and to the page. Tab mode was measured to add a tab to the
+  existing window instead of opening a new one (window count unchanged, title
+  becomes “… and 1 other page”), and the window state is greyed out there with
+  that explanation.
+- The run log gained a page-side note channel: the page can forward a message to
+  the run log (`ui_note`), which is how “why was this window not full screen”
+  ends up somewhere that survives closing the page.
 - The “Default Save Slot” setting is gone from both versions. It was the
   configuration entry for a Tk home-page feature that no longer exists; what
   remained was “which slot is selected at startup”, and in the HTML version it

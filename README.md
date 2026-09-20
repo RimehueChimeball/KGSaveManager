@@ -5,7 +5,8 @@ third-party dependencies.
 
 Two frontends share one logic layer and the same `kgsm_data/` folder:
 - **Main version — HTML UI** (`KGSaveManager.py` + `webapp/`) — the interface is a
-  local web page opened as a browser app window; the window title and icon come
+  local web page opened as a browser app window (or as a browser tab, a setting on
+  the Settings page); the window title and icon come
   from the page (`<title>`, `favicon.ico`, `manifest.webmanifest`), and the page
   can be installed as a standalone app from the browser menu.
 - **Tk version — Tkinter UI** (`KGSaveManagerTk.py`) — the classic desktop
@@ -21,7 +22,7 @@ Two frontends share one logic layer and the same `kgsm_data/` folder:
 - Edit Save: open a slot file or the running game; view/source modes; value editing; backup (`.bak`); write-back re-encodes to the game format
 - Launch Game: local static web server (127.0.0.1) with an injected save bridge; opens the game in a new browser window; the bridge reports whether the save came from the running game or from the browser autosave snapshot
 - Download Game: two GitHub repositories, GitHub direct or mirror sources, connectivity test, flattened extraction with `index.html` check
-- Settings: language, browser, game directory, port; changes are saved automatically
+- Settings: language, browser, game directory, port, launch position (separate app window / browser tab) and window state (window / maximized / full screen); changes are saved automatically
 - External translations: JSON or PO files in the `i18n/` folder next to the program
 - Runtime data in `kgsm_data/`; run logs in `kgsm_data/kgsm_log/`, one file per launch
 - Layered code: `core/` holds all UI-agnostic logic and reaches the screen only through a UI port (`core/ui_port.py`), so another frontend (for example an HTML/webview UI) can reuse it unchanged

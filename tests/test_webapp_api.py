@@ -248,6 +248,13 @@ class TestWebApp(unittest.TestCase):
         result = self.h.call("refresh")
         self.assertEqual(result["slots"][3]["note"], "钢铁")
 
+    def test_ui_note_writes_run_log(self):
+        """页面把提示转写到运行日志（窗口没能全屏时用得上），未知键不写。"""
+        self.assertTrue(self.h.call("ui_note", key="msg.full_fallback"))
+        log = Path(self.h.core.logger.path).read_text(encoding="utf-8")
+        self.assertIn("已改为最大化", log)
+        self.assertFalse(self.h.call("ui_note", key="no.such.key"))
+
     def test_rename_slot_roundtrip(self):
         self.h.core.slots.write(1, '{"a":1}', 1024 * 1024)
         out = self.h.call("rename_slot", slot=1, name="新名")
@@ -452,15 +459,29 @@ class TestAppWindow(unittest.TestCase):
                                           "http://127.0.0.1:1234/",
                                           1200, 800)
         self.assertEqual(args[0], "C:/x/msedge.exe")
-        # 页面用 fit=1 自己把窗口调成横向尺寸（命令行尺寸只在干净配置下生效）
-        self.assertIn("--app=http://127.0.0.1:1234/?fit=1", args)
+        # 页面用 fit=auto 自己把窗口调成横向尺寸（命令行尺寸只在干净配置下生效）
+        self.assertIn("--app=http://127.0.0.1:1234/?fit=auto", args)
         self.assertIn("--window-size=1200,800", args)
 
     def test_app_window_args_append_fit_flag(self):
         args = web_server.app_window_args("C:/x/msedge.exe",
                                           "http://127.0.0.1:1234/?page=saves")
-        self.assertIn("--app=http://127.0.0.1:1234/?page=saves&fit=1", args)
+        self.assertIn("--app=http://127.0.0.1:1234/?page=saves&fit=auto", args)
         self.assertIn("--window-size=1320,840", args, "默认尺寸应为横向")
+
+    def test_window_state_args(self):
+        """最大化/全屏：窗口尺寸交给页面，全屏额外传 --start-fullscreen。"""
+        exe = "C:/x/msedge.exe"
+        url = "http://127.0.0.1:1234/"
+        maxed = web_server.app_window_args(exe, url, fit="max")
+        self.assertIn(f"--app={url}?fit=max", maxed)
+        self.assertNotIn("--window-size=1320,840", maxed,
+                         "最大化时由页面自己铺满工作区")
+        self.assertNotIn("--start-fullscreen", maxed)
+        full = web_server.app_window_args(exe, url, fit="full",
+                                          fullscreen=True)
+        self.assertIn(f"--app={url}?fit=full", full)
+        self.assertIn("--start-fullscreen", full)
 
     def test_open_app_window_uses_app_mode(self):
         calls = []
@@ -476,7 +497,38 @@ class TestAppWindow(unittest.TestCase):
             web_server.subprocess.Popen = orig_popen
         self.assertEqual(how, "app")
         self.assertEqual(len(calls), 1)
-        self.assertIn("--app=http://127.0.0.1:9/?fit=1", calls[0])
+        self.assertIn("--app=http://127.0.0.1:9/?fit=auto", calls[0])
+
+    def test_open_ui_window_follows_config(self):
+        """按配置选启动位置与窗口状态；标签页模式不带 fit、也不开新窗口。"""
+        import config_store
+        calls = []
+        orig_popen = web_server.subprocess.Popen
+        web_server.subprocess.Popen = lambda args: calls.append(args)
+        try:
+            with TemporaryDirectory() as tmp:
+                exe = Path(tmp) / "msedge.exe"
+                exe.write_bytes(b"")
+                cfg = config_store.AppConfig(Path(tmp) / "cfg.json")
+                cfg.update(browser=str(exe), port="")
+                url = "http://127.0.0.1:9/"
+                web_server.open_ui_window(cfg, url)          # 默认：应用窗口
+                self.assertIn("--app=", calls[-1][1])
+                self.assertIn(f"--app={url}?fit=auto", calls[-1])
+                cfg.update(window_state="max")
+                web_server.open_ui_window(cfg, url)
+                self.assertIn(f"--app={url}?fit=max", calls[-1])
+                cfg.update(window_state="full")
+                web_server.open_ui_window(cfg, url)
+                self.assertIn("--start-fullscreen", calls[-1])
+                cfg.update(launch_mode="tab")
+                web_server.open_ui_window(cfg, url)
+                self.assertNotIn("--app=", " ".join(calls[-1]))
+                self.assertNotIn("--new-window", calls[-1],
+                                 "标签页模式不新开窗口")
+                self.assertEqual(calls[-1][-1], url, "标签页模式不带 fit 参数")
+        finally:
+            web_server.subprocess.Popen = orig_popen
 
     def test_open_app_window_falls_back_without_browser(self):
         """配置的浏览器无效且系统默认浏览器也探测不到时，退回普通打开。"""

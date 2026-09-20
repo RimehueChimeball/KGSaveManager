@@ -25,6 +25,17 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
 
+  function fillSelect(sel, pairs, value) {
+    sel.innerHTML = "";
+    pairs.forEach((pair) => {
+      const opt = document.createElement("option");
+      opt.value = pair[0];
+      opt.textContent = pair[1];
+      if (pair[0] === value) { opt.selected = true; }
+      sel.appendChild(opt);
+    });
+  }
+
   function t(key, params) {
     let text = state.strings[key] !== undefined ? state.strings[key] : key;
     if (params) {
@@ -137,17 +148,62 @@
     }
   }
 
-  // 应用窗口按横向尺寸调整自己。
-  // 背景：Edge/Chrome 的应用窗口尺寸由浏览器配置记住，命令行 --window-size
-  // 只在"干净配置"时生效，所以默认配置里窗口常常是方的甚至竖的。
-  // 页面自己 resizeTo/moveTo 在应用窗口里是生效的（实测 700x500 / moveTo 均生效），
-  // 普通标签页里浏览器会忽略这两个调用，因此可以无条件尝试。
-  function fitAppWindow() {
+  // 应用窗口按配置的窗口状态调整自己（URL 上的 fit 参数来自启动器）。
+  // 背景：Edge/Chrome 的应用窗口尺寸由浏览器配置记住，命令行 --window-size 与
+  // --start-fullscreen 只在"浏览器进程由本次启动创建"时生效，所以默认配置里窗口
+  // 常常是方的甚至竖的，全屏参数也常被忽略。页面自己 resizeTo/moveTo 在应用窗口里
+  // 是生效的（实测 700x500、moveTo、铺满工作区均生效），普通标签页里浏览器会忽略
+  // 这两个调用，因此可以无条件尝试。
+  function applyWindowState() {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("fit") !== "1") { return; }
-    if (window.sessionStorage.getItem("kgsm-fit") === "1") { return; }
+    const fit = params.get("fit") || "";
+    if (fit !== "auto" && fit !== "max" && fit !== "full") { return; }
+    if (window.sessionStorage.getItem("kgsm-fit") === fit) { return; }
     const availW = window.screen.availWidth || 1280;
     const availH = window.screen.availHeight || 800;
+    const fullH = window.screen.height || availH;
+    const done = () => window.sessionStorage.setItem("kgsm-fit", fit);
+    const tellFallback = () => {
+      // 浏览器已经在运行时 --start-fullscreen 会被忽略：说明原因。
+      // 启动早期字符串还没到（t() 会返回键名），那就等一会儿再报。
+      const tell = () => {
+        const text = t("msg.full_fallback");
+        if (text === "msg.full_fallback") { return false; }
+        pushLog("game", text);
+        toast("info", text);
+        call("ui_note", { key: "msg.full_fallback" });
+        return true;
+      };
+      if (!tell()) { setTimeout(tell, 700); }
+    };
+
+    if (fit === "full") {
+      // --start-fullscreen 生效时窗口高度等于屏幕高度。全屏切换有一点动画延迟，
+      // 所以先等几轮再判断，别把已经全屏的窗口又缩回工作区大小。
+      const check = (tries) => {
+        if (window.outerHeight >= fullH - 2) { done(); return; }
+        if (tries > 0) { setTimeout(() => check(tries - 1), 250); return; }
+        try {
+          window.moveTo(0, 0);
+          window.resizeTo(availW, availH);
+        } catch (e) { /* 普通标签页里会被忽略 */ }
+        done();
+        tellFallback();
+      };
+      check(6);
+      return;
+    }
+
+    if (fit === "max") {
+      try {
+        window.moveTo(0, 0);
+        window.resizeTo(availW, availH);
+      } catch (e) { /* 普通标签页里会被忽略 */ }
+      done();
+      return;
+    }
+
+    // 默认：横向窗口
     let w = Math.min(1320, Math.round(availW * 0.76));
     let h = Math.min(840, Math.round(availH * 0.78));
     if (w / h < 1.5) { w = Math.round(h * 1.55); }   // 保证是横向窗口
@@ -161,7 +217,7 @@
       window.moveTo(Math.max(0, Math.round((availW - w) / 2)),
                     Math.max(0, Math.round((availH - h) / 2)));
       window.resizeTo(w, h);
-      window.sessionStorage.setItem("kgsm-fit", "1");
+      done();
     } catch (e) { /* 普通标签页里会被忽略 */ }
   }
 
@@ -459,6 +515,14 @@
       if (pair[0] === state.lang) { opt.selected = true; }
       lang.appendChild(opt);
     });
+    fillSelect($("#set-launch-mode"),
+               [["app", t("st.launch_app")], ["tab", t("st.launch_tab")]],
+               cfg.launch_mode || "app");
+    fillSelect($("#set-window-state"),
+               [["normal", t("st.win_normal")], ["max", t("st.win_max")],
+                ["full", t("st.win_full")]],
+               cfg.window_state || "normal");
+    syncWindowState();
 
     $("#set-hint").textContent = t("st.hint", { path: (state.paths || {}).config || "" });
     const p = state.paths || {};
@@ -596,6 +660,8 @@
       game_dir: $("#set-game-dir").value.trim(),
       port: $("#set-port").value.trim(),
       browser: $("#set-browser").value.trim(),
+      launch_mode: $("#set-launch-mode").value,
+      window_state: $("#set-window-state").value,
     };
   }
 
@@ -610,12 +676,22 @@
   }
 
   function bindSettingsAutoSave() {
-    ["#set-game-dir", "#set-port", "#set-browser"]
-      .forEach((sel) => {
-        const el = $(sel);
-        el.addEventListener("change", saveSettingsSoon);
-        el.addEventListener("blur", saveSettingsSoon);
-      });
+    ["#set-game-dir", "#set-port", "#set-browser", "#set-launch-mode",
+     "#set-window-state"].forEach((sel) => {
+      const el = $(sel);
+      el.addEventListener("change", saveSettingsSoon);
+      el.addEventListener("blur", saveSettingsSoon);
+    });
+    $("#set-launch-mode").addEventListener("change", syncWindowState);
+  }
+
+  // 浏览器标签页里页面改不了窗口尺寸，所以窗口状态只对应用模式有意义
+  function syncWindowState() {
+    const tab = $("#set-launch-mode").value === "tab";
+    const stateSel = $("#set-window-state");
+    stateSel.disabled = tab;
+    stateSel.title = tab ? t("st.win_state_tab_hint") : "";
+    $("#win-state-hint").textContent = tab ? t("st.win_state_tab_hint") : "";
   }
 
   // 数据源切换（存档位文件 / 运行中的游戏）→ 同步存档位下拉的可用状态
@@ -798,7 +874,7 @@
   });
 
   (async function boot() {
-    fitAppWindow();
+    applyWindowState();
     bindSettingsAutoSave();
     bindEditorMode();
     let init = null;

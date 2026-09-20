@@ -197,6 +197,8 @@ class WebApi:
                 "browser": core.cfg.browser,
                 "game_dir": core.cfg.game_dir,
                 "port": core.cfg.port,
+                "launch_mode": core.cfg.launch_mode,
+                "window_state": core.cfg.window_state,
             },
             "strings": core.tr.table(),
             "slots": self.slots(),
@@ -247,13 +249,26 @@ class WebApi:
 
     def set_config(self, **fields):
         allowed = {k: v for k, v in fields.items()
-                   if k in ("game_dir", "port", "browser")}
+                   if k in ("game_dir", "port", "browser", "launch_mode",
+                            "window_state")}
         if allowed:
             self.core.cfg.update(**allowed)
         return self.state()
 
     def save_note(self, index, text):
         self.core.cfg.set_note(int(index), text)
+        return True
+
+    def ui_note(self, key, **params):
+        """页面把一条提示转写到运行日志（例如窗口没能全屏的原因）。
+
+        页面自己的日志只存在于当前页面里，关掉就没了；写进运行日志才能在事后
+        排查"为什么这次窗口没全屏"。未知键返回 False，不写日志。
+        """
+        text = self.core.tr.t(key, **params)
+        if text == key:
+            return False
+        self.core.logger.action("WEB_UI", text)
         return True
 
     def refresh(self):

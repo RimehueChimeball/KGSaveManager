@@ -85,9 +85,24 @@ identically in both.</p>
 <pre>python KGSaveManager.py [--port N] [--no-browser] [--verbose]</pre>
 <ul>
   <li>It serves the interface from <code>127.0.0.1</code> and opens it as a
-      browser app window (Edge/Chrome <code>--app=</code>, no address bar or
-      tabs). The address is printed at startup and can be opened manually on
-      the same machine.</li>
+      browser app window by default (Edge/Chrome <code>--app=</code>, no address
+      bar or tabs). The address is printed at startup and can be opened manually
+      on the same machine.</li>
+  <li>Where it opens is a setting on the Settings page, and it applies to the
+      <b>next</b> start: launch position is “Separate window (app mode)” or
+      “Browser tab”; window state is “Window”, “Maximized” or “Full screen”. A
+      browser tab cannot resize its own window, so the window state only applies
+      to app mode (in tab mode the option is greyed out with that explanation),
+      and tab mode never opens a new window — the page is added as a tab to the
+      browser window you already have.</li>
+  <li>Window size: the browser remembers an app window's size, and the
+      <code>--window-size</code> / <code>--start-fullscreen</code> flags only take
+      effect when the browser process is started by this launch. The page
+      therefore applies the chosen state itself on load (the default is a
+      landscape window, centred). If you resized the window yourself, the page
+      leaves it alone. Choosing “Full screen” while the browser is already
+      running makes the flag being ignored visible: the program falls back to
+      maximized and writes the reason to the run log and to the page.</li>
   <li>The window title and icon come from the page:
       <code>&lt;title&gt;</code> (updated by the page at runtime) and
       <code>webapp/assets/favicon.ico</code> plus

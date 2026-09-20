@@ -1,8 +1,9 @@
 """KGSaveManager（主版本：HTML 界面）入口。
 
 界面是 `webapp/assets/` 里的 HTML/CSS/JS，由纯标准库的本地 HTTP 服务
-（`webapp/`）发给系统浏览器，并以应用窗口方式打开（Edge/Chrome 的
-`--app=`，无地址栏与标签页）。逻辑与旁边的 Tk 版
+（`webapp/`）发给系统浏览器，默认以应用窗口方式打开（Edge/Chrome 的
+`--app=`，无地址栏与标签页），也可以在配置页改成浏览器标签页；窗口状态可选
+窗口/最大化/全屏。逻辑与旁边的 Tk 版
 （`KGSaveManagerTk.py`）完全共用 `core/`。
 
 用法：
@@ -22,7 +23,7 @@ import sys
 import threading
 
 from utils import setup_dpi_and_scaling
-from web_server import open_app_window
+from web_server import open_ui_window
 from webapp.api import EventPump, WebApi, WebUiPort
 from webapp.server import AppServer, EventBuffer
 
@@ -67,8 +68,10 @@ def main(argv=None):
     print("  退出：页面里的「退出」按钮，或按 Ctrl+C")
 
     if not args.no_browser:
-        how = open_app_window(url, browser_path=core.cfg.browser)
-        print(f"  打开方式: {how or '(失败，请手动打开上面的地址)'}")
+        how = open_ui_window(core.cfg, url)
+        print(f"  打开方式: {how or '(失败，请手动打开上面的地址)'}"
+              f"（启动位置 {core.cfg.launch_mode}，窗口状态 "
+              f"{core.cfg.window_state}）")
 
     # 只等两种退出信号：页面的「退出」按钮（state["shutdown"]）与 Ctrl+C。
     # 不做"页面多久没心跳就退出"的看门狗——浏览器会降低隐藏页面的定时器频率，

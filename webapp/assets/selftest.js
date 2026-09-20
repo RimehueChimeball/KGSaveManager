@@ -272,6 +272,26 @@
           !Object.prototype.hasOwnProperty.call(state.config || {}, "home_slot"),
           false);
 
+    // 启动位置（标签页/应用窗口）与窗口状态（窗口/最大化/全屏）
+    const launchSel = document.querySelector("#set-launch-mode");
+    const stateSel = document.querySelector("#set-window-state");
+    check("配置页有启动位置与窗口状态",
+          !!launchSel && !!stateSel &&
+          launchSel.options.length === 2 &&
+          stateSel.options.length === 3);
+    if (launchSel && stateSel) {
+      launchSel.value = "tab";
+      launchSel.dispatchEvent(new Event("change"));
+      await sleep(80);
+      check("标签页模式下禁用窗口状态", stateSel.disabled === true &&
+            (document.querySelector("#win-state-hint").textContent || "")
+              .length > 4);
+      launchSel.value = "app";
+      launchSel.dispatchEvent(new Event("change"));
+      await sleep(80);
+      check("应用模式下窗口状态可用", stateSel.disabled === false);
+    }
+
     // 槽位列表与编辑器下拉框使用同一格式（存档NN-名字）
     await gotoTab("saves");
     const firstCell = document.querySelector("#slot-rows tr td:nth-child(2)");

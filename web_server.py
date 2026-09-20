@@ -169,18 +169,26 @@ def _launch(exe, url, new_window):
     subprocess.Popen(args)
 
 
-def app_window_args(exe, url, width=1320, height=840):
+def app_window_args(exe, url, width=1320, height=840, fit="auto",
+                    fullscreen=False):
     """应用窗口模式（无地址栏/标签页）的启动参数。
 
-    URL 上带 `fit=1`：页面加载后会自己把窗口调整成横向尺寸。命令行的
-    `--window-size` 只在浏览器还没有记住该应用窗口尺寸时生效，所以两者都做。
+    URL 上带 `fit=<auto|max|full>`：页面加载后自己调整窗口。命令行的
+    `--window-size` 与 `--start-fullscreen` 只在"浏览器进程由本次启动创建"时
+    生效（实测：浏览器已经在运行时两者都会被忽略，窗口沿用记忆尺寸），所以
+    两种方式都做——页面还会在发现没进全屏时退而求其次最大化。
     """
     sep = "&" if "?" in url else "?"
-    return [exe, f"--app={url}{sep}fit=1",
-            f"--window-size={int(width)},{int(height)}"]
+    args = [exe, f"--app={url}{sep}fit={fit}"]
+    if fit == "auto":
+        args.append(f"--window-size={int(width)},{int(height)}")
+    if fullscreen:
+        args.append("--start-fullscreen")
+    return args
 
 
-def open_app_window(url, browser_path="", width=1320, height=840):
+def open_app_window(url, browser_path="", width=1320, height=840, fit="auto",
+                    fullscreen=False):
     """以「应用窗口」方式打开地址（Edge/Chrome 的 --app=，无地址栏与标签页）。
 
     :return: 'app'（应用窗口）/ 其他打开方式字符串 / None（失败）
@@ -194,11 +202,31 @@ def open_app_window(url, browser_path="", width=1320, height=840):
             exe = ""
     if exe and os.path.isfile(exe) and _is_known_engine(exe):
         try:
-            subprocess.Popen(app_window_args(exe, url, width, height))
+            subprocess.Popen(app_window_args(exe, url, width, height, fit,
+                                             fullscreen))
             return "app"
         except OSError:
             pass
     return open_in_browser(url, browser_path=browser_path, new_window=True)
+
+
+def open_ui_window(cfg, url, width=1320, height=840):
+    """按配置打开界面（HTML 版的入口用它）。
+
+    - `launch_mode == 'tab'`：在浏览器里开一个标签页（不新开窗口，页面也改不了
+      窗口尺寸，所以不带 fit 参数）；
+    - 否则：独立应用窗口，窗口状态按 `window_state`（窗口/最大化/全屏）。
+
+    :return: 打开方式描述字符串（给启动横幅用）
+    """
+    mode = getattr(cfg, "launch_mode", "app")
+    state = getattr(cfg, "window_state", "normal")
+    browser = getattr(cfg, "browser", "")
+    if mode == "tab":
+        return open_in_browser(url, browser_path=browser, new_window=False)
+    fit = {"normal": "auto", "max": "max", "full": "full"}.get(state, "auto")
+    return open_app_window(url, browser_path=browser, width=width, height=height,
+                           fit=fit, fullscreen=(state == "full"))
 
 
 def open_in_browser(url, browser_path="", new_window=True):
