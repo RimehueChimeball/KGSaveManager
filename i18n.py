@@ -128,6 +128,7 @@ _ZH = {
     "msg.auto_saved": "已自动存档: {dest}",
     "msg.auto_timeout": "自动存档超时：游戏页面没有响应。",
     "msg.session_saved": "游戏已关闭，本次进度已保存（下次打开自动恢复）。",
+    "msg.session_cleared": "游戏里的存档已清空（删档/重置），本次保存的进度也一并删除。",
     "msg.session_restoring": "正在恢复上次关闭游戏时的进度……",
     "msg.session_restored": "已自动恢复上次关闭游戏时的进度。",
     "msg.session_restore_fail": "自动恢复失败：页面没有确认写入，本次按新开局进行。",
@@ -383,6 +384,8 @@ _EN = {
     "msg.auto_timeout": "Auto-save timed out: no response from the game.",
     "msg.session_saved": "The game was closed; this progress was saved and will "
                          "be restored next time.",
+    "msg.session_cleared": "The game's save was cleared (deleted/reset), so the "
+                           "stored progress was removed as well.",
     "msg.session_restoring": "Restoring the progress from when you last closed "
                              "the game...",
     "msg.session_restored": "Restored the progress from when you last closed "

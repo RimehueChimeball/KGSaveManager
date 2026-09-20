@@ -178,10 +178,18 @@ def bridge_js(ws_url, save_wait_ms=5000, hello_timeout_ms=120000):
         "  // 游戏的存档在 localStorage 里按来源（含端口）隔离，端口一变就是新来源，\n"
         "  // 所以由 KGSM 自己存一份，下次打开再灌回去（自动续玩）。\n"
         "  try{\n"
-        "    if(!ws || ws.readyState!==1){ return; }\n"
+        "    if(!ws){ return; }\n"
+        "    var ls=window.LCstorage||window.localStorage;\n"
+        "    var raw=ls?ls.getItem(KGSM_SAVE_KEY):null;\n"
+        "    if(!raw){\n"
+        "      // 存档已经不在 localStorage 里（游戏内删档/重置）：必须把 KGSM 存的那份\n"
+        "      // 也清掉，否则下次打开会把旧存档灌回去，看起来就像「删档没用」。\n"
+        "      ws.send(JSON.stringify({type:'session_snapshot',data:''}));\n"
+        "      return;\n"
+        "    }\n"
         "    var res=currentSave();\n"
-        "    if(res && res.data){ ws.send(JSON.stringify("
-        "{type:'session_snapshot',data:res.data})); }\n"
+        "    ws.send(JSON.stringify("
+        "{type:'session_snapshot',data:(res&&res.data)||raw}));\n"
         "  }catch(e){}\n"
         "}\n"
         "window.addEventListener('pagehide',sendSessionSnapshot);\n"
@@ -590,7 +598,8 @@ class WebSocketBridge:
         if mtype == "session_snapshot":
             data = msg.get("data")
             hook = self._on_snapshot
-            if hook is not None and isinstance(data, str) and data:
+            # 空字符串是有意义的：页面里已经没有存档了（游戏内删档/重置）
+            if hook is not None and isinstance(data, str):
                 self._safe_hook(hook, data)
             return
         if mtype == "apply_ok":

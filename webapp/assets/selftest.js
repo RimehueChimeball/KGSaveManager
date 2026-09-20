@@ -333,11 +333,17 @@
     await gotoTab("saves");
     const firstCell = document.querySelector("#slot-rows tr td:nth-child(2)");
     const firstOption = document.querySelector("#ed-slot option");
-    check("槽位显示与下拉框同格式且用短横杠（" +
+    check("槽位显示为「存档NN-名字」且用短横杠（" +
           (firstCell ? firstCell.textContent : "") + "）",
           !!firstCell && /^\S+\d{2}-/.test(firstCell.textContent) &&
-          !!firstOption && /^\S+\d{2}-/.test(firstOption.textContent) &&
           firstCell.textContent.indexOf(" · ") < 0);
+    // 下拉框要跟列表同格式；存档库为空时（全新安装）没有可选槽位，跳过这条
+    if (firstOption) {
+      check("编辑器下拉与列表同格式（" + firstOption.textContent + "）",
+            /^\S+\d{2}-/.test(firstOption.textContent));
+    } else {
+      check("编辑器下拉与列表同格式（存档库为空，跳过）", true, false);
+    }
 
     // 下载页两个复选框：各自与所属文字首行对齐；同一行时顶端必须齐平
     // （曾因 .form label 覆盖 .check 变成 block + 外边距而"高低肩"）
@@ -454,19 +460,25 @@
           " 个，可见 " + visibleNodes() + " 个）",
           branches.length >= 3 && expandedBranches.length === 2 &&
           expandedBranches[0] === branches[0] &&
-          expandedBranches[1] === branches[1]);
+          expandedBranches[1] === branches[1],
+          branches.length > 0);   // 存档库为空时（全新安装）没有树可查，跳过
     void collapsedCount;
 
     // 展开一个非根分支 → 可见节点变多；再收起 → 回到原样
     if (branches.length >= 3) {
       const base = visibleNodes();
-      await clickToggle(treeBranches()[2]);
+      const target = treeBranches()[2];
+      const childCount = target
+        ? target.querySelectorAll("ul > li").length : 0;
+      await clickToggle(target);
       const expanded = visibleNodes();
       await clickToggle(treeBranches()[2]);
       const restored = visibleNodes();
+      // 分支底下没有子节点（例如存档里是空对象）时无从展开，跳过
       check("非根分支可展开/收起（可见节点 " + base + " → " + expanded +
             " → " + restored + "）",
-            expanded > base && restored === base);
+            childCount === 0 ? true : (expanded > base && restored === base),
+            childCount > 0);
     }
 
     // 根节点收起 → 只剩根自己；再展开 → 回到原样

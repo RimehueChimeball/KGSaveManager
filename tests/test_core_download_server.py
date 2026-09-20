@@ -344,6 +344,13 @@ class TestServerController(unittest.TestCase):
             ctl._restore_session()
             self.assertEqual(applied, ["BLOB-STATE"], "只应在每轮服务里恢复一次")
 
+            # 游戏内删档：页面送来空内容 → 存的那份要删掉，否则下次会把旧存档灌回去
+            ctl._store_session("")
+            self.assertFalse(paths.session.is_file(),
+                             "游戏删档后不该留着旧进度")
+            self.assertTrue(any("msg.session_cleared" in line
+                                for _tag, line in ui.logs))
+
     def test_auto_resume_off_and_missing_file(self):
         from core.paths import AppPaths
         with TemporaryDirectory() as tmp:
@@ -496,7 +503,9 @@ class TestServerController(unittest.TestCase):
                 cfg.browser = str(exe)
                 web_server.open_game_window(cfg, url)
                 self.assertIn(f"--app={url}", calls[-1], "游戏页不带 fit 参数")
-                self.assertIn("--window-size=1320,840", calls[-1])
+                w, h = web_server.landscape_window_size()
+                self.assertIn(f"--window-size={w},{h}", calls[-1],
+                              "游戏窗口初始尺寸应与界面窗口一致")
                 self.assertNotIn("--start-fullscreen", calls[-1],
                                  "窗口状态功能已删除")
                 cfg.launch_mode = "tab"

@@ -14,6 +14,7 @@ import http.server
 import os
 import socketserver
 import subprocess
+import sys
 import urllib.parse
 import webbrowser
 
@@ -172,6 +173,37 @@ def _launch(exe, url, new_window):
     subprocess.Popen(args)
 
 
+def _work_area():
+    """屏幕工作区尺寸（宽, 高）；取不到时退回 1920×1080。"""
+    if sys.platform != "win32":
+        return (1920, 1080)
+    try:
+        import ctypes
+        from ctypes import wintypes
+        rect = wintypes.RECT()
+        ok = ctypes.windll.user32.SystemParametersInfoW(
+            0x0030, 0, ctypes.byref(rect), 0)      # SPI_GETWORKAREA
+        if ok and rect.right > rect.left and rect.bottom > rect.top:
+            return (rect.right - rect.left, rect.bottom - rect.top)
+    except Exception:
+        pass
+    return (1920, 1080)
+
+
+def landscape_window_size():
+    """界面窗口的初始横向尺寸——游戏窗口也用同一套尺寸。
+
+    与页面里 `fit=auto` 的算法保持一致（页面自己会再按这套规则调一次），
+    所以两个窗口打开时大小相同。
+    """
+    avail_w, avail_h = _work_area()
+    w = min(1320, round(avail_w * 0.76))
+    h = min(840, round(avail_h * 0.78))
+    if h and w / h < 1.5:
+        w = round(h * 1.55)                        # 保证是横向窗口
+    return min(w, avail_w), min(h, avail_h)
+
+
 def _window_plan(cfg):
     """从配置取出游戏窗口的打开方式。
 
@@ -182,14 +214,17 @@ def _window_plan(cfg):
     return mode
 
 
-def app_window_args(exe, url, width=1320, height=840, fit="auto",
+def app_window_args(exe, url, width=None, height=None, fit="auto",
                     window_size=None):
     """应用窗口模式（无地址栏/标签页）的启动参数。
 
+    :param width/height: 初始尺寸；不传就用 `landscape_window_size()`（与界面窗口一致）
     :param fit: 写进 URL 的页面侧尺寸参数（'auto' = 页面自己调成横向窗口）；
         传空串表示这个页面不认识该参数（例如游戏页）
     :param window_size: 是否带 --window-size；默认只在 fit=auto 时带
     """
+    if width is None or height is None:
+        width, height = landscape_window_size()
     if fit:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}fit={fit}"
@@ -201,7 +236,7 @@ def app_window_args(exe, url, width=1320, height=840, fit="auto",
     return args
 
 
-def open_app_window(url, browser_path="", width=1320, height=840, fit="auto",
+def open_app_window(url, browser_path="", width=None, height=None, fit="auto",
                     window_size=None):
     """以「应用窗口」方式打开地址（Edge/Chrome 的 --app=，无地址栏与标签页）。
 
@@ -224,11 +259,11 @@ def open_app_window(url, browser_path="", width=1320, height=840, fit="auto",
     return open_in_browser(url, browser_path=browser_path, new_window=True)
 
 
-def open_game_window(cfg, url, width=1320, height=840):
+def open_game_window(cfg, url, width=None, height=None):
     """按配置打开游戏页（「启动游戏」用它）。
 
-    只有「游戏窗口位置」一项设置：独立窗口（应用模式）或浏览器标签页。窗口大小交给
-    浏览器（首次用 --window-size，之后沿用浏览器记住的尺寸，手动调整过就会记住）。
+    只有「游戏窗口位置」一项设置：独立窗口（应用模式）或浏览器标签页。初始尺寸与界面
+    窗口相同（`landscape_window_size()`）；之后再打开就沿用浏览器记住的尺寸。
 
     :return: 打开方式描述字符串（失败返回 None）
     """
@@ -236,6 +271,8 @@ def open_game_window(cfg, url, width=1320, height=840):
     if mode == "tab":
         return open_in_browser(url, browser_path=cfg.browser,
                                new_window=False)
+    if width is None or height is None:
+        width, height = landscape_window_size()
     return open_app_window(url, browser_path=cfg.browser, width=width,
                            height=height, fit="", window_size=True)
 

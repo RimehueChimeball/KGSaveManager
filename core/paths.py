@@ -25,8 +25,10 @@ class AppPaths:
         # 所以不会被当成存档位扫描到
         self.session = self.data / "session.kgsav"
         self.i18n = self.base / "i18n"
-        self.docs = self.base / "docs"
-        self.assets = self.base / "webapp" / "assets"
+        # docs 与 webapp/assets 随 PyInstaller 打进包（datas），冻结后在 _MEIPASS
+        # 下，所以这两个要相对 resources 解析；源码运行时 resources == base，结果一样
+        self.docs = self.resources / "docs"
+        self.assets = self.resources / "webapp" / "assets"
         self.icon = self._find_icon()
 
     def _find_icon(self):

@@ -1,8 +1,9 @@
 /* KGSaveManager HTML 前端样式。
  *
- * 设计参考：D:\Work Directory\OpenDesign\Suzuyuki Corridor（编辑感设计系统）
  * 基调：冰白底 + 发丝线 + 单一雾蓝紫点缀；衬线大标题、等宽元数据、
  * 克制的圆角与留白，靠排版与线条区分层次，不用重阴影。
+ * 配色按 WCAG AA 核算（正文对比度见 CHANGELOG），强调色填充与文字是一对
+ * 固定搭配：--accent-fill / --accent-fill-ink。
  *
  * 布局约定：
  * - #app 固定满屏，侧栏不动，#main 自己纵向滚动（内容通常高于窗口）；

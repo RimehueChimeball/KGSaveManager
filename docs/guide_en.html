@@ -297,10 +297,24 @@ folder is flattened; <code>index.html</code> must exist at the root. The
       port; the actual port is written back to the field and reused from then
       on. If that port is occupied at a later start (another program, or a
       second copy of this program), the run falls back to an automatically
-      assigned port, says so in the launch log and records the new port.</li>
+      assigned port and says so in the launch log — <b>the configured port is
+      left unchanged</b>.</li>
+  <li><b>Game window opens in</b>: applies only to the window “Launch Game”
+      opens — “Separate window (app mode)” or “Browser tab”; this program's own
+      interface window is not affected. It starts at the same size as the
+      interface window and then reuses the size the browser remembers.</li>
+  <li><b>Resume automatically</b> (on by default): closing the game window or tab
+      (a reload counts) stores the progress at that moment as
+      <code>kgsm_data/session.kgsav</code>; the next time the game is opened, the
+      save is restored as soon as the page connects, which makes it independent
+      of the port. Deleting or resetting the save inside the game clears this
+      stored progress too.</li>
   <li><b>Browser</b>: executable used for the game page and for external
       links. Empty means the system default browser.</li>
 </ul>
+<p>The Settings page needs no save button: every field is written to the
+configuration file as you change it, and the path shown at the bottom of the
+sidebar is that file.</p>
 <h3 id="language">Language</h3>
 <p>The interface supports Chinese and English. If no configuration exists,
 the system language is used. The Language label itself is always displayed

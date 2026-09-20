@@ -460,7 +460,35 @@ class TestAppWindow(unittest.TestCase):
         args = web_server.app_window_args("C:/x/msedge.exe",
                                           "http://127.0.0.1:1234/?page=saves")
         self.assertIn("--app=http://127.0.0.1:1234/?page=saves&fit=auto", args)
-        self.assertIn("--window-size=1320,840", args, "默认尺寸应为横向")
+        self.assertIn("--window-size=", " ".join(args))
+
+    def test_default_window_size_is_landscape(self):
+        """不指定尺寸时用与界面窗口相同的横向尺寸（游戏窗口首次打开也用这个）。"""
+        w, h = web_server.landscape_window_size()
+        self.assertGreaterEqual(w, 640)
+        self.assertGreaterEqual(h, 480)
+        self.assertGreaterEqual(w / h, 1.5, f"默认尺寸应为横向: {w}x{h}")
+        args = web_server.app_window_args("C:/x/msedge.exe",
+                                          "http://127.0.0.1:1234/")
+        self.assertIn(f"--window-size={w},{h}", args)
+
+    def test_game_window_uses_program_size(self):
+        """游戏窗口（应用模式）首次打开用与界面窗口相同的尺寸。"""
+        import web_server
+        calls = []
+        orig_popen = web_server.subprocess.Popen
+        web_server.subprocess.Popen = lambda args: calls.append(args)
+        try:
+            with TemporaryDirectory() as tmp:
+                exe = Path(tmp) / "msedge.exe"
+                exe.write_bytes(b"")
+                cfg = type("C", (), {"browser": str(exe),
+                                     "launch_mode": "app"})()
+                web_server.open_game_window(cfg, "http://127.0.0.1:9/")
+        finally:
+            web_server.subprocess.Popen = orig_popen
+        w, h = web_server.landscape_window_size()
+        self.assertIn(f"--window-size={w},{h}", calls[-1])
 
     def test_open_app_window_uses_app_mode(self):
         calls = []

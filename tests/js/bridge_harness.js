@@ -179,6 +179,16 @@ async function main() {
   check(snapshots.length === 1 && snapshots[0] === 'LZ:{"a":1}',
     '关闭游戏时应把当前存档发给 KGSM，实际: ' + JSON.stringify(snapshots));
 
+  // ---- 场景 7：游戏内删档（localStorage 已清空）→ 要发空内容，让 KGSM 也删掉 ----
+  // 真实情况：点删档/重置时游戏清掉 localStorage 并刷新，而刷新前那一刻引擎里
+  // 还留着旧进度；若这里发旧进度，下次打开就会被灌回来，看起来像「删档没用」。
+  snapshots.length = 0;
+  win.__stored = null;                  // LCstorage.getItem 返回 null = 已清空
+  ws.readyState = 1;
+  (listeners.pagehide || []).forEach((fn) => fn());
+  check(snapshots.length === 1 && snapshots[0] === '',
+    '删档后应发空内容（实际: ' + JSON.stringify(snapshots) + '）');
+
   results.ok = failures.length === 0;
   finish(results);
 }

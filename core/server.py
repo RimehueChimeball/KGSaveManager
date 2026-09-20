@@ -181,11 +181,29 @@ class ServerController:
         return Path(self.paths.session) if self.paths is not None else None
 
     def _store_session(self, text):
-        """页面关闭/刷新前送来的当前进度：存一份，下次打开游戏灌回去。"""
+        """页面关闭/刷新前送来的当前进度：存一份，下次打开游戏灌回去。
+
+        空文本表示页面里已经没有存档（游戏内删档/重置）——这时要把存下来的那份删掉，
+        否则下次打开会把旧存档灌回去，看起来就像「删档没用」。
+        """
         if not self.cfg.auto_resume:
             return
         path = self._session_path()
-        if path is None or not text or text == self._session_text:
+        if path is None:
+            return
+        if not text:
+            if not path.is_file():
+                return
+            try:
+                path.unlink()
+            except Exception as e:
+                self._log_warn(f"清除本次进度失败: {e}")
+                return
+            self._session_text = ""
+            self.ui.web_log(self.t("msg.session_cleared"), self.t("tag.done"))
+            self._log_action("SESSION_CLEAR", f"已清除本次进度: {path}")
+            return
+        if text == self._session_text:
             return
         try:
             path.parent.mkdir(parents=True, exist_ok=True)

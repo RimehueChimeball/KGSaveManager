@@ -86,6 +86,35 @@ class TestGuide(unittest.TestCase):
         self.assertTrue(CHANGELOG.is_file())
         self.assertTrue(CHANGELOG_ZH.is_file())
 
+    def test_docs_and_assets_resolve_inside_bundle(self):
+        """冻结（PyInstaller）后 docs 与 webapp/assets 在 _MEIPASS 下，不是 exe 旁边。
+
+        打包出来的主版本曾经因为这条路径指向 exe 目录而整个页面 404：
+        assets 随 datas 打进 `_MEIPASS/webapp/assets`，而 AppPaths 用的是 base。
+        """
+        import sys
+        from core.paths import AppPaths
+        with TemporaryDirectory() as tmp:
+            meipass = Path(tmp) / "bundle"
+            (meipass / "docs").mkdir(parents=True)
+            (meipass / "webapp" / "assets").mkdir(parents=True)
+            exe_dir = Path(tmp) / "app"
+            exe_dir.mkdir()
+            original = getattr(sys, "_MEIPASS", None)
+            sys._MEIPASS = str(meipass)
+            try:
+                paths = AppPaths(exe_dir)
+                self.assertEqual(paths.assets, meipass / "webapp" / "assets")
+                self.assertEqual(paths.docs, meipass / "docs")
+                self.assertTrue(paths.assets.is_dir())
+                # 数据目录仍然在 exe 旁边（便携）
+                self.assertEqual(paths.data, exe_dir / "kgsm_data")
+            finally:
+                if original is None:
+                    del sys._MEIPASS
+                else:
+                    sys._MEIPASS = original
+
     def test_localized_doc_follows_language(self):
         """按语言挑文档：zh 取中文版，其余取英文版；外部 i18n/ 同名文件优先。"""
         from core.paths import AppPaths
