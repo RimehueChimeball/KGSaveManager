@@ -101,18 +101,12 @@ class ServerController:
             self.stop()
 
         bridge = None
-        # 游戏页不是本程序的页面，窗口状态只能由注入脚本落实（命令行参数在浏览器
-        # 已在运行时会被忽略）；标签页模式下页面改不了窗口尺寸，因此不注入。
-        bridge_state = (self.cfg.window_state
-                        if getattr(self.cfg, "launch_mode", "app") == "app"
-                        else "")
         try:
             bridge = WebSocketBridge()
             bridge.set_ui_queue(self._events)
             bridge.start()
             url, actual_port = self.lweb.start(str(root_dir), port,
-                                               bridge=bridge,
-                                               window_state=bridge_state)
+                                               bridge=bridge)
         except OSError as e:
             if bridge is not None:
                 try:
@@ -159,15 +153,20 @@ class ServerController:
         self._log_action("WEB_STOP", "服务与存档桥已停止")
 
     def open_game_window(self, url=None):
-        """按配置打开游戏页：应用窗口（可最大化/全屏）或浏览器标签页。"""
+        """按配置打开游戏页：应用窗口（最大化/全屏由 Win32 落实）或浏览器标签页。"""
         url = url or self.url
         if not url:
             return False
         from web_server import open_game_window as _open_game
-        how = _open_game(self.cfg, url)
+        how, note = _open_game(self.cfg, url)
         if how:
             self.ui.web_log(self.t("msg.browser_opened", how=how),
                             self.t("tag.browser"))
+            if note == "full_fallback":
+                # 全屏参数只在本次启动创建浏览器进程时生效，这次被忽略了
+                self.ui.web_log(self.t("msg.full_fallback"),
+                                self.t("tag.browser"))
+                self._log_warn(self.t("msg.full_fallback"))
             return True
         self.ui.web_log(self.t("msg.browser_fail", url=url),
                         self.t("tag.error"))

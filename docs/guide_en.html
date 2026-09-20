@@ -88,26 +88,26 @@ identically in both.</p>
       browser app window by default (Edge/Chrome <code>--app=</code>, no address
       bar or tabs). The address is printed at startup and can be opened manually
       on the same machine.</li>
-  <li>Where it opens is a setting on the Settings page, and it applies to the
-      <b>next</b> start: launch position is “Separate window (app mode)” or
-      “Browser tab”; window state is “Window”, “Maximized” or “Full screen”. Both
-      apply to <b>the interface window and the game window</b> (“Launch Game”
-      follows the same setting). A
-      browser tab cannot resize its own window, so the window state only applies
-      to app mode (in tab mode the option is greyed out with that explanation),
-      and tab mode never opens a new window — the page is added as a tab to the
-      browser window you already have.</li>
-  <li>Window size: the browser remembers an app window's size, and the
-      <code>--window-size</code>, <code>--start-maximized</code> and
-      <code>--start-fullscreen</code> flags only take effect when the browser
-      process is started by this launch. The interface page therefore applies the
-      chosen state itself on load (the default is a landscape window, centred),
-      and leaves the window alone if you resized it yourself. The game page is not
-      this program's page, so maximized/full screen there is applied by the script
-      injected into it (with the same check that an already-full-screen window is
-      left alone). Choosing “Full screen” while the browser is already running
-      ignores the flag: the interface falls back to maximized and writes the
-      reason to the run log and to the page.</li>
+  <li>The Settings page's “Game Window Opens In / Game Window State” apply
+      <b>only to the window that “Launch Game” opens</b>, not to this program's own
+      interface window (that one is always an app window and sizes itself into a
+      centred landscape window on load). The position is “Separate window (app
+      mode)” or “Browser tab” and takes effect on the next start; a browser tab
+      cannot resize its own window, so the state only applies to app mode (in tab
+      mode the option is greyed out with that explanation), and tab mode never
+      opens a new window — the page is added as a tab to the browser window you
+      already have.</li>
+  <li>Game window state: “Window” leaves the window alone (whatever size the
+      browser remembers). “Maximized” is a real maximize, applied through Win32
+      <code>ShowWindow</code> — measured client area equals the work area
+      (1920×1032), whereas a page-side <code>resizeTo</code> only sizes the outer
+      frame to the work area and leaves a visible border (measured client area
+      1904×1024, which looks like a hand-made maximize). “Full screen” uses
+      <code>--start-fullscreen</code>, which <b>only takes effect when this launch
+      starts the browser process</b>: when the browser is already running the flag
+      is ignored, the program falls back to maximized and says so in the run log
+      and on the Launch Game page (covering the taskbar or not is the visible
+      difference between the two).</li>
   <li>The window title and icon come from the page:
       <code>&lt;title&gt;</code> (updated by the page at runtime) and
       <code>webapp/assets/favicon.ico</code> plus

@@ -29,17 +29,16 @@ class TestBridgeJs(unittest.TestCase):
         if not self.node:
             self.skipTest("未找到 node")
 
-    def _run(self, save_wait_ms=500, hello_timeout_ms=3000, window_state=""):
+    def _run(self, save_wait_ms=500, hello_timeout_ms=3000):
         script = bridge_js("ws://127.0.0.1:9/kgsm",
                            save_wait_ms=save_wait_ms,
-                           hello_timeout_ms=hello_timeout_ms,
-                           window_state=window_state)
+                           hello_timeout_ms=hello_timeout_ms)
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "bridge.js"
             path.write_text(script, encoding="utf-8")
             proc = subprocess.run(
                 [self.node, str(HARNESS), str(path), str(save_wait_ms),
-                 str(hello_timeout_ms), window_state],
+                 str(hello_timeout_ms)],
                 capture_output=True, encoding="utf-8", errors="replace",
                 timeout=120)
         return proc
@@ -53,16 +52,6 @@ class TestBridgeJs(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["failures"], [])
 
-    def test_window_state_is_applied_by_injected_script(self):
-        """游戏页不是本程序的页面：最大化/全屏由注入脚本落实。"""
-        proc = self._run(window_state="max")
-        self.assertTrue(proc.stdout, f"harness 无输出: {proc.stderr}")
-        result = json.loads(proc.stdout)
-        if proc.returncode != 0:
-            self.fail("harness 断言失败:\n" + "\n".join(result["failures"]))
-        self.assertEqual(result["windowSize"], [1920, 1032])
-        self.assertEqual(result["windowMove"], [0, 0])
-
     def test_defaults_are_interpolated(self):
         """参数插值后 url 与等待参数都应写进脚本。"""
         script = bridge_js("ws://127.0.0.1:1234/kgsm")
@@ -75,17 +64,6 @@ class TestBridgeJs(unittest.TestCase):
                            hello_timeout_ms=5678)
         self.assertIn("SAVE_WAIT=1234", script)
         self.assertIn("HELLO_TIMEOUT=5678", script)
-
-    def test_window_state_is_interpolated(self):
-        self.assertIn("KGSM_WINDOW_STATE=''",
-                      bridge_js("ws://127.0.0.1:9/kgsm"))
-        self.assertIn("KGSM_WINDOW_STATE='full'",
-                      bridge_js("ws://127.0.0.1:9/kgsm",
-                                window_state="full"))
-        self.assertIn("KGSM_WINDOW_STATE=''",
-                      bridge_js("ws://127.0.0.1:9/kgsm",
-                                window_state="nonsense"),
-                      "非法状态不该写进脚本")
 
 
 if __name__ == "__main__":

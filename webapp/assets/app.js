@@ -148,62 +148,19 @@
     }
   }
 
-  // 应用窗口按配置的窗口状态调整自己（URL 上的 fit 参数来自启动器）。
-  // 背景：Edge/Chrome 的应用窗口尺寸由浏览器配置记住，命令行 --window-size 与
-  // --start-fullscreen 只在"浏览器进程由本次启动创建"时生效，所以默认配置里窗口
-  // 常常是方的甚至竖的，全屏参数也常被忽略。页面自己 resizeTo/moveTo 在应用窗口里
-  // 是生效的（实测 700x500、moveTo、铺满工作区均生效），普通标签页里浏览器会忽略
-  // 这两个调用，因此可以无条件尝试。
-  function applyWindowState() {
+  // 界面窗口自己调成横向尺寸。
+  // 背景：Edge/Chrome 的应用窗口尺寸由浏览器配置记住，命令行 --window-size 只在
+  // "干净配置"时生效，所以默认配置里窗口常常是方的甚至竖的。
+  // 页面自己 resizeTo/moveTo 在应用窗口里是生效的（实测 700x500 / moveTo 均生效），
+  // 普通标签页里浏览器会忽略这两个调用，因此可以无条件尝试。
+  // 注意：界面的窗口尺寸不受配置页「游戏窗口位置/状态」影响；那两项只作用于游戏窗口，
+  // 而且真正的最大化由 Win32 的 ShowWindow 做（页面 resizeTo 会留下可见边框）。
+  function fitAppWindow() {
     const params = new URLSearchParams(window.location.search);
-    const fit = params.get("fit") || "";
-    if (fit !== "auto" && fit !== "max" && fit !== "full") { return; }
-    if (window.sessionStorage.getItem("kgsm-fit") === fit) { return; }
+    if (params.get("fit") !== "auto") { return; }
+    if (window.sessionStorage.getItem("kgsm-fit") === "auto") { return; }
     const availW = window.screen.availWidth || 1280;
     const availH = window.screen.availHeight || 800;
-    const fullH = window.screen.height || availH;
-    const done = () => window.sessionStorage.setItem("kgsm-fit", fit);
-    const tellFallback = () => {
-      // 浏览器已经在运行时 --start-fullscreen 会被忽略：说明原因。
-      // 启动早期字符串还没到（t() 会返回键名），那就等一会儿再报。
-      const tell = () => {
-        const text = t("msg.full_fallback");
-        if (text === "msg.full_fallback") { return false; }
-        pushLog("game", text);
-        toast("info", text);
-        call("ui_note", { key: "msg.full_fallback" });
-        return true;
-      };
-      if (!tell()) { setTimeout(tell, 700); }
-    };
-
-    if (fit === "full") {
-      // --start-fullscreen 生效时窗口高度等于屏幕高度。全屏切换有一点动画延迟，
-      // 所以先等几轮再判断，别把已经全屏的窗口又缩回工作区大小。
-      const check = (tries) => {
-        if (window.outerHeight >= fullH - 2) { done(); return; }
-        if (tries > 0) { setTimeout(() => check(tries - 1), 250); return; }
-        try {
-          window.moveTo(0, 0);
-          window.resizeTo(availW, availH);
-        } catch (e) { /* 普通标签页里会被忽略 */ }
-        done();
-        tellFallback();
-      };
-      check(6);
-      return;
-    }
-
-    if (fit === "max") {
-      try {
-        window.moveTo(0, 0);
-        window.resizeTo(availW, availH);
-      } catch (e) { /* 普通标签页里会被忽略 */ }
-      done();
-      return;
-    }
-
-    // 默认：横向窗口
     let w = Math.min(1320, Math.round(availW * 0.76));
     let h = Math.min(840, Math.round(availH * 0.78));
     if (w / h < 1.5) { w = Math.round(h * 1.55); }   // 保证是横向窗口
@@ -217,7 +174,7 @@
       window.moveTo(Math.max(0, Math.round((availW - w) / 2)),
                     Math.max(0, Math.round((availH - h) / 2)));
       window.resizeTo(w, h);
-      done();
+      window.sessionStorage.setItem("kgsm-fit", "auto");
     } catch (e) { /* 普通标签页里会被忽略 */ }
   }
 
@@ -874,7 +831,7 @@
   });
 
   (async function boot() {
-    applyWindowState();
+    fitAppWindow();
     bindSettingsAutoSave();
     bindEditorMode();
     let init = null;

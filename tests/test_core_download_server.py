@@ -399,13 +399,13 @@ class TestServerController(unittest.TestCase):
                 blocker.close()
 
     def test_open_game_window_follows_launch_settings(self):
-        """游戏窗口也按「启动位置/窗口状态」打开（应用窗口或浏览器标签页）。"""
+        """游戏窗口按「游戏窗口位置/状态」打开（应用窗口或浏览器标签页）。"""
         import web_server
         calls = []
 
         def fake_open(cfg, url, width=1320, height=840):
             calls.append((cfg, url))
-            return "app"
+            return "app", ""
 
         orig = web_server.open_game_window
         web_server.open_game_window = fake_open
@@ -423,29 +423,34 @@ class TestServerController(unittest.TestCase):
             web_server.open_game_window = orig
 
     def test_game_window_args_follow_config(self):
-        """应用模式下游戏窗口用 --app=（带窗口状态参数）；标签页模式不新开窗口。"""
+        """应用模式下游戏窗口用 --app=（不带 fit）；标签页模式不新开窗口。"""
         import web_server
         calls = []
         orig_popen = web_server.subprocess.Popen
+        orig_windows = web_server._top_level_windows
+        orig_wait = web_server._wait_new_window
         web_server.subprocess.Popen = lambda args: calls.append(args)
+        web_server._top_level_windows = lambda: set()
+        web_server._wait_new_window = lambda before, timeout=8.0: None
         try:
             with TemporaryDirectory() as tmp:
                 exe = Path(tmp) / "msedge.exe"
                 exe.write_bytes(b"")
+                url = "http://127.0.0.1:9/"
+                for state, expect in (("normal", []),
+                                      ("max", []),
+                                      ("full", ["--start-fullscreen"])):
+                    cfg = FakeConfig()
+                    cfg.browser = str(exe)
+                    cfg.window_state = state
+                    web_server.open_game_window(cfg, url)
+                    self.assertIn(f"--app={url}", calls[-1],
+                                  "游戏页不带 fit 参数")
+                    self.assertIn("--window-size=1320,840", calls[-1])
+                    for flag in expect:
+                        self.assertIn(flag, calls[-1])
                 cfg = FakeConfig()
                 cfg.browser = str(exe)
-                url = "http://127.0.0.1:9/"
-                cfg.window_state = "normal"
-                web_server.open_game_window(cfg, url)
-                self.assertIn(f"--app={url}", calls[-1], "游戏页不该带 fit 参数")
-                self.assertIn("--window-size=1320,840", calls[-1])
-                cfg.window_state = "max"
-                web_server.open_game_window(cfg, url)
-                self.assertIn("--start-maximized", calls[-1])
-                cfg.window_state = "full"
-                web_server.open_game_window(cfg, url)
-                self.assertIn("--start-fullscreen", calls[-1])
-                self.assertNotIn("--start-maximized", calls[-1])
                 cfg.launch_mode = "tab"
                 web_server.open_game_window(cfg, url)
                 self.assertNotIn("--app=", " ".join(calls[-1]))
@@ -453,6 +458,54 @@ class TestServerController(unittest.TestCase):
                                  "标签页模式不新开窗口")
         finally:
             web_server.subprocess.Popen = orig_popen
+            web_server._top_level_windows = orig_windows
+            web_server._wait_new_window = orig_wait
+
+    def test_game_window_maximize_and_fullscreen_fallback(self):
+        """最大化/全屏用 Win32 落实：真全屏参数被忽略时退化为最大化并给出提示。"""
+        import web_server
+        maximized = []
+        orig = (web_server.subprocess.Popen, web_server._top_level_windows,
+                web_server._wait_new_window, web_server._maximize_window,
+                web_server._is_fullscreen)
+        web_server.subprocess.Popen = lambda args: None
+        web_server._top_level_windows = lambda: set()
+        web_server._wait_new_window = lambda before, timeout=8.0: 4242
+        web_server._maximize_window = lambda hwnd: maximized.append(hwnd) or True
+        try:
+            with TemporaryDirectory() as tmp:
+                exe = Path(tmp) / "msedge.exe"
+                exe.write_bytes(b"")
+                url = "http://127.0.0.1:9/"
+                cfg = FakeConfig()
+                cfg.browser = str(exe)
+
+                cfg.window_state = "max"
+                how, note = web_server.open_game_window(cfg, url)
+                self.assertEqual((how, note), ("app", ""))
+                self.assertEqual(maximized, [4242], "最大化要落到新窗口上")
+
+                maximized.clear()
+                cfg.window_state = "full"
+                web_server._is_fullscreen = lambda hwnd: False
+                how, note = web_server.open_game_window(cfg, url)
+                self.assertEqual(maximized, [4242], "全屏被忽略时应退化为最大化")
+                self.assertEqual(note, "full_fallback",
+                                 "要说明原因是全屏参数被忽略")
+
+                maximized.clear()
+                web_server._is_fullscreen = lambda hwnd: True
+                how, note = web_server.open_game_window(cfg, url)
+                self.assertEqual(maximized, [], "真全屏时不该再动窗口")
+                self.assertEqual(note, "")
+
+                cfg.window_state = "normal"
+                how, note = web_server.open_game_window(cfg, url)
+                self.assertEqual(maximized, [], "「窗口」状态不强制调整窗口")
+        finally:
+            (web_server.subprocess.Popen, web_server._top_level_windows,
+             web_server._wait_new_window, web_server._maximize_window,
+             web_server._is_fullscreen) = orig
 
     def test_open_game_window_without_url(self):
         with TemporaryDirectory() as tmp:

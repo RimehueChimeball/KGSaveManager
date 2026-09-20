@@ -36,42 +36,18 @@ class _IdleTimeout(Exception):
     """空闲超时：本轮什么都没读到（不代表连接断开）。"""
 
 
-def bridge_js(ws_url, save_wait_ms=5000, hello_timeout_ms=120000,
-              window_state=""):
+def bridge_js(ws_url, save_wait_ms=5000, hello_timeout_ms=120000):
     """生成注入页面的桥接脚本（连接 ws、响应 request_save、等待引擎就绪）。
 
     :param save_wait_ms: 收到 request_save 后等待引擎就绪的最长时间
     :param hello_timeout_ms: 引擎未就绪时重复上报 hello 的最长时间
-    :param window_state: ''/'max'/'full'——游戏页面不是本程序的页面，改不了它的
-        布局，所以窗口状态由这里的注入脚本落实（命令行 --start-fullscreen 只在
-        本次启动创建浏览器进程时生效，浏览器已经在运行时会被忽略）
     """
-    state = window_state if window_state in ("max", "full") else ""
     return (
         "(function(){\n"
         "var KGSM_SAVE_KEY='com.nuclearunicorn.kittengame.savedata';\n"
-        f"var KGSM_WINDOW_STATE={state!r};\n"
         "var ENGINE_NAMES=['game','gamePage','kg','engine','ui','Game'];\n"
         f"var HELLO_TIMEOUT={int(hello_timeout_ms)};\n"
         f"var SAVE_WAIT={int(save_wait_ms)};\n"
-        "function applyWindowState(){\n"
-        "  try{\n"
-        "    var st=KGSM_WINDOW_STATE;\n"
-        "    if(st!=='max' && st!=='full'){ return; }\n"
-        "    var w=screen.availWidth||1280, h=screen.availHeight||800;\n"
-        "    var fullH=screen.height||h;\n"
-        "    if(st==='full' && window.outerHeight>=fullH-2){ return; }\n"
-        "    window.moveTo(0,0);\n"
-        "    window.resizeTo(w,h);\n"
-        "  }catch(e){}\n"
-        "}\n"
-        "function applyWindowStateLater(){\n"
-        "  applyWindowState();\n"
-        "  setTimeout(applyWindowState,1200);\n"
-        "}\n"
-        "if(document.readyState==='loading'){\n"
-        "  document.addEventListener('DOMContentLoaded',applyWindowStateLater);\n"
-        "}else{ applyWindowStateLater(); }\n"
         "var cached=null;\n"
         "var cachedInfo=null;\n"
         "var lastDeepScan=0;\n"

@@ -14,7 +14,6 @@ const vm = require('vm');
 const bridgePath = process.argv[2];
 const saveWaitMs = parseInt(process.argv[3] || '5000', 10);
 const helloTimeoutMs = parseInt(process.argv[4] || '120000', 10);
-const wantWindow = process.argv[5] || '';
 
 const failures = [];
 function check(cond, msg) {
@@ -66,15 +65,6 @@ async function main() {
   global.window = win;
   global.WebSocket = FakeWebSocket;
   global.location = { reload() { results.reloads += 1; } };
-  // 注入脚本还会按配置调整窗口（游戏页不是本程序的页面，只能靠注入脚本），
-  // 所以这里给一个最小的 document/screen 替身，并记下脚本要求的窗口状态。
-  global.document = {
-    readyState: 'complete',
-    addEventListener() {},
-  };
-  global.screen = { availWidth: 1920, availHeight: 1032, height: 1080 };
-  win.moveTo = (x, y) => { results.windowMove = [x, y]; };
-  win.resizeTo = (w, h) => { results.windowSize = [w, h]; };
 
   const code = fs.readFileSync(bridgePath, 'utf8');
   vm.runInThisContext(code, { filename: 'bridge.js' });
@@ -151,20 +141,6 @@ async function main() {
   check(save2.source === 'localStorage',
     '回退存档的 source 应为 localStorage，实际: ' + save2.source);
   check(save2.data === 'RAW-SNAPSHOT', '回退存档内容应为 localStorage 快照');
-
-  // ---- 场景 6：注入了窗口状态时，脚本应按状态调整窗口 ----
-  if (wantWindow === 'max' || wantWindow === 'full') {
-    check(!!results.windowSize,
-      `window_state=${wantWindow} 时注入脚本应调整窗口，实际: `
-      + JSON.stringify(results.windowSize));
-    check(JSON.stringify(results.windowMove) === '[0,0]',
-      '调整窗口时应移到 (0,0)，实际: ' + JSON.stringify(results.windowMove));
-    check(JSON.stringify(results.windowSize) === '[1920,1032]',
-      '调整窗口应铺满工作区，实际: ' + JSON.stringify(results.windowSize));
-  } else {
-    check(!results.windowSize,
-      'window_state 为空时不该碰窗口，实际: ' + JSON.stringify(results.windowSize));
-  }
 
   results.ok = failures.length === 0;
   finish(results);

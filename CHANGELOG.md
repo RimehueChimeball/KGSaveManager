@@ -97,9 +97,10 @@ All notable changes are listed by version.
   the fixed port from then on. A port that is already taken no longer breaks the
   next start — the port is probed first (Windows allows binding a busy port
   because of `SO_REUSEADDR`, so a bind test is not enough), and in that case the
-  run falls back to an automatically assigned port, warns in the launch log and
-  records the new port. The download log's cache note now reports the cached
-  default branch instead of the raw list and source.
+  run falls back to an automatically assigned port and warns in the launch log.
+  (The write-back rule was later corrected to “only when the field was empty”;
+  see the busy-port entry above.) The download log's cache note now reports the
+  cached default branch instead of the raw list and source.
 - HTML page headers were trimmed: every page keeps the small bilingual eyebrow
   label as its title, and only the home page keeps the large serif heading, so
   the duplicated title no longer takes vertical space away from the content.
@@ -135,29 +136,27 @@ All notable changes are listed by version.
   existing “all changes are saved automatically” hint). The
   sidebar button is now “Exit” with its own confirmation text, and the download
   page's dismiss button is “Cancel” instead of “Close”.
-- Two new settings, both taking effect on the next start: <b>launch position</b>
-  (separate window (app mode) / browser tab) and <b>window state</b> (window /
-  maximized / full screen). Measured on a 1920×1080 screen with a 1032-high work
-  area: app mode with “window” gives a centred 1320×805 window, “maximized” fills
-  the work area (1920×1032), and “full screen” reaches 1920×1080 (covering the
-  taskbar) when this launch starts the browser process. When the browser is
-  already running, `--start-fullscreen` is ignored (the window keeps its
-  remembered size), so the program falls back to maximized and writes the reason
-  to the run log and to the page. Tab mode was measured to add a tab to the
-  existing window instead of opening a new one (window count unchanged, title
-  becomes “… and 1 other page”), and the window state is greyed out there with
-  that explanation.
-- The run log gained a page-side note channel: the page can forward a message to
-  the run log (`ui_note`), which is how “why was this window not full screen”
-  ends up somewhere that survives closing the page.
-- The launch settings now cover the <b>game window</b> as well: “Launch Game” used
-  to always open a plain browser window (with a tab strip and address bar), so
-  choosing app mode changed nothing there. The game page now follows the same two
-  settings (separate app window / browser tab). The game page is not this
-  program's page and its layout cannot be touched from here, so maximized / full
-  screen is applied by the script injected into it (measured: app mode with
-  maximized gives a 1920×1032 game window filling the work area; before the change
-  it was a plain 1936×1048 browser window).
+- Two new settings, <b>applying only to the window that “Launch Game” opens</b>
+  (this program's own interface window stays an app window and keeps sizing itself
+  into a centred landscape window on load): <b>game window opens in</b> (separate
+  window (app mode) / browser tab) and <b>game window state</b> (window /
+  maximized / full screen), both taking effect on the next start.
+- “Launch Game” used to always open a plain browser window (with a tab strip and
+  an address bar), so choosing app mode changed nothing there. It now follows the
+  two settings; tab mode was measured to add a tab to the existing window instead
+  of opening a new one (window count unchanged, title becomes “… and 1 other
+  page”), and the state is greyed out there with that explanation.
+- “Maximized” for the game window is a real maximize, applied through Win32
+  `ShowWindow(SW_MAXIMIZE)`: measured client area 1920×1032 on a 1920×1032 work
+  area, i.e. exactly filling it. A page-side `resizeTo` only sizes the outer frame
+  to the work area and leaves a visible border (measured client area 1904×1024,
+  which looks like a hand-made maximize), so it is now used for the interface
+  window's landscape size only. “Full screen” uses `--start-fullscreen`, which was
+  measured to work only when this launch starts the browser process (1920×1080,
+  covering the taskbar); when the browser is already running the flag is ignored,
+  the program falls back to maximized and says so in the run log and on the Launch
+  Game page. Sending F11 natively was measured and does nothing, so that route was
+  not used.
 - Fixed the configured port being overwritten by an automatically assigned one:
   when the configured port is busy, the run falls back to an automatic port, but
   it no longer writes that new port back into the configuration. The old code

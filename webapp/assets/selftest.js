@@ -272,14 +272,19 @@
           !Object.prototype.hasOwnProperty.call(state.config || {}, "home_slot"),
           false);
 
-    // 启动位置（标签页/应用窗口）与窗口状态（窗口/最大化/全屏）
+    // 游戏窗口位置/状态（只作用于「启动游戏」打开的窗口）
     const launchSel = document.querySelector("#set-launch-mode");
     const stateSel = document.querySelector("#set-window-state");
     const winHint = document.querySelector("#win-state-hint");
-    check("配置页有启动位置与窗口状态",
+    check("配置页有游戏窗口位置与状态",
           !!launchSel && !!stateSel &&
           launchSel.options.length === 2 &&
           stateSel.options.length === 3);
+    check("窗口设置写明只作用于游戏窗口",
+          (document.querySelector('#page-settings label[data-i18n="st.game_win_pos"]')
+            .textContent || "").indexOf("游戏") >= 0 &&
+          (document.querySelector('#page-settings label[data-i18n="st.game_win_state"]')
+            .textContent || "").indexOf("游戏") >= 0);
     // 切换下拉会触发自动保存：这里把 set_config 拦下来，既验证上报内容，
     // 又不改动真实配置（自检只做只读或可回滚的操作）
     const savedSettings = [];
@@ -313,7 +318,7 @@
       await sleep(500);
     }
     window.fetch = realFetch2;
-    check("启动位置与窗口状态随 set_config 一起上报（" +
+    check("游戏窗口设置随 set_config 一起上报（" +
           savedSettings.length + " 次）",
           savedSettings.length >= 2 &&
           savedSettings[0].launch_mode === "tab" &&
