@@ -350,11 +350,24 @@ class TestServerController(unittest.TestCase):
                              "游戏删档后不该留着旧进度")
             self.assertTrue(any("msg.session_cleared" in line
                                 for _tag, line in ui.logs))
+            # 删档后页面还会刷新一次，那几次 cleared 也不能把旧进度又存回来
+            ctl._store_session("STALE-ENGINE-STATE", cleared=True)
+            self.assertFalse(paths.session.is_file(),
+                             "删档后的刷新不该把旧进度存回来")
+            # 之后游戏真的存下了新进度（cleared=False）就该继续记录
+            ctl._store_session("FRESH-GAME", cleared=False)
+            self.assertEqual(paths.session.read_text(encoding="utf-8"),
+                             "FRESH-GAME")
 
-            # 但刚开局、游戏还没自动保存过时 cleared 也是真：那时要照常保存
+    def test_first_run_snapshot_is_kept(self):
+        """刚开局、游戏还没自动保存过时 localStorage 也是空的：那是真实进度，要存。"""
+        from core.paths import AppPaths
+        with TemporaryDirectory() as tmp:
+            paths = AppPaths(tmp)
+            ctl, _cfg, _ui = self._controller(tmp, str(Path(tmp)), paths=paths)
             ctl._store_session("FIRST-RUN", cleared=True)
             self.assertEqual(paths.session.read_text(encoding="utf-8"),
-                             "FIRST-RUN", "没存过时 cleared 不该丢掉真实进度")
+                             "FIRST-RUN", "从没存过时 cleared 不该丢掉真实进度")
 
     def test_auto_resume_off_and_missing_file(self):
         from core.paths import AppPaths

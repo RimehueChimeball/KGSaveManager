@@ -36,9 +36,11 @@ class ServerController:
         self._events = events
         self.lweb = LocalWebServer(events)
         self.bridge = None
-        # 自动续玩：这一轮服务里是否已经恢复过、以及上一次存下来的内容（去重）
+        # 自动续玩：这一轮服务里是否已经恢复过、上一次存下来的内容（去重）、
+        # 以及是否刚发生过删档（删档后要忽略后续的 cleared 消息）
         self._session_restored = False
         self._session_text = ""
+        self._session_cleared = False
 
     # ---------------- 状态 ----------------
     @property
@@ -108,6 +110,7 @@ class ServerController:
         # 每一轮服务（= 一个新的端口/来源）都重新允许恢复一次：游戏的存档在
         # localStorage 里按来源隔离，换端口就等于换了一个空存档。
         self._session_restored = False
+        self._session_cleared = False
         try:
             bridge = WebSocketBridge()
             bridge.set_ui_queue(self._events)
@@ -183,26 +186,36 @@ class ServerController:
     def _store_session(self, text, cleared=False):
         """页面关闭/刷新前送来的当前进度：存一份，下次打开游戏灌回去。
 
-        `cleared` 表示游戏自己的存储里已经没有存档了（游戏内删档/重置）。这时如果
-        KGSM 已经存过，就把那份删掉——否则下次打开会把旧存档灌回去，看起来就像
-        「删档没用」；如果还没存过（刚开局、游戏还没自动保存），说明这是真实进度，
-        照常保存。
+        `cleared` 表示游戏自己的存储里已经没有存档了。这有两种可能：
+        - 游戏内删档/重置：KGSM 存的那份必须删掉，否则下次打开会把旧存档灌回去，
+          看起来就像「删档没用」；
+        - 刚开局、游戏还没自动保存过：这时引擎里的进度是真的，要照常存下来。
+        区分办法是「KGSM 有没有存过」：存过就按删档处理，并从这一刻起忽略后续的
+        cleared 消息（删档后页面还会刷新一次，那不是新进度，别把旧进度又存回来）。
         """
         if not self.cfg.auto_resume:
             return
         path = self._session_path()
         if path is None:
             return
-        if cleared and path.is_file():
-            try:
-                path.unlink()
-            except Exception as e:
-                self._log_warn(f"清除本次进度失败: {e}")
+        if cleared:
+            if path.is_file() or self._session_cleared:
+                self._session_cleared = True
+                if not path.is_file():
+                    return
+                try:
+                    path.unlink()
+                except Exception as e:
+                    self._log_warn(f"清除本次进度失败: {e}")
+                    return
+                self._session_text = ""
+                self.ui.web_log(self.t("msg.session_cleared"),
+                                self.t("tag.done"))
+                self._log_action("SESSION_CLEAR", f"已清除本次进度: {path}")
                 return
-            self._session_text = ""
-            self.ui.web_log(self.t("msg.session_cleared"), self.t("tag.done"))
-            self._log_action("SESSION_CLEAR", f"已清除本次进度: {path}")
-            return
+            # 从没存过：真实进度，继续往下存
+        else:
+            self._session_cleared = False
         if not text or text == self._session_text:
             return
         try:
